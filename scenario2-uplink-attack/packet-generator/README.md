@@ -9,9 +9,13 @@ a **cf32 IQ file** that OpenVSA's `decoder.py` can decode (CCSDS TC + OOK). Spec
 cd webapp
 UPLINK_OUT_DIR=~/uplink python3 app.py       # http://localhost:8000
 ```
-Pick a command, set the values (e.g. the torque slider), watch the CCSDS frame
-assemble byte-by-byte, then GENERATE → writes `~/uplink/attack.cf32`. Zero build
-step; the only dependency is numpy. See `../docs/operator-guide.md`.
+A 4-step puzzle: the visitor must assemble a valid uplink — **1** Spacecraft ID,
+**2** command, **3** command value, **4** RF config (modulation/baud/sample rate) —
+matching the on-screen **TARGET INTEL** dossier. Only when all four lock does
+GENERATE unlock and write `~/uplink/attack.cf32`. The CCSDS frame assembles
+byte-by-byte as they go. Zero build step; the only dependency is numpy.
+Validation is server-authoritative (see `app.py` `validate()`). See
+`../docs/operator-guide.md` / `../docs/participant-guide.md`.
 
 ## CLI
 ```

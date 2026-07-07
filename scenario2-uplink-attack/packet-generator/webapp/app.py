@@ -2,10 +2,13 @@
 """
 DEMOSAT Command Builder — local web UI (stdlib http.server, no pip deps)
 
-Runs on the attacker laptop next to OpenVSA. The visitor picks a command and
-"fun real values" (e.g., reaction-wheel torque), watches the CCSDS TC frame
-assemble byte-by-byte, and clicks GENERATE to write an OOK cf32 IQ file that
-OpenVSA loads and uplinks.
+A booth "puzzle": to generate the uplink IQ file the visitor must assemble every
+element of a valid uplink, matching the target satellite's dossier:
+  STEP 1  Target addressing — Spacecraft ID (SCID)
+  STEP 2  Command select    — subsystem + opcode
+  STEP 3  Command value      — payload (e.g. reaction-wheel torque)
+  STEP 4  RF config          — modulation / baud / sample rate (satellite RX)
+Only when all four are correct does GENERATE unlock and write attack.cf32.
 
 Run:   python3 app.py               # → http://localhost:8000
 Env:   UPLINK_OUT_DIR   output folder for generated .cf32 (default ~/uplink)
@@ -32,7 +35,26 @@ TEMPLATE = os.path.join(HERE, "templates", "index.html")
 OUT_DIR = os.environ.get("UPLINK_OUT_DIR", os.path.expanduser("~/uplink"))
 PORT = int(os.environ.get("PORT", "8000"))
 
-# UI field metadata per command (drives the browser form).
+# ── Target satellite dossier — the "answers" the visitor must match ──────────
+TARGET = {
+    "satellite": "DEMOSAT",
+    "scid": 200,               # Spacecraft ID
+    "modulation": "OOK",
+    "baud": 100,
+    "sampleRate": 24000,
+    "uplinkFreqMHz": 449.5,    # set on the VSA, shown here for context
+    "notes": "LEO cubesat · UHF TT&C uplink",
+}
+
+# Decoy-laden option sets so STEP 1 / STEP 4 are real choices (defaults unset).
+OPTIONS = {
+    "scid":       [199, 200, 201, 210],
+    "modulation": ["OOK", "BPSK", "FSK"],
+    "baud":       [50, 100, 200, 1200],
+    "sampleRate": [8000, 24000, 48000],
+}
+
+# UI field metadata per command (drives STEP 3's form).
 COMMAND_UI = {
     "adcs_torque": {
         "subsystem": "ADCS", "star": True, "title": "Reaction Wheel Torque",
@@ -76,7 +98,7 @@ COMMAND_UI = {
 }
 
 
-def protocol_payload():
+def mission_payload():
     proto = codec.load_protocol()
     cmds = []
     for hexop, meta in proto["opcodes"].items():
@@ -89,11 +111,10 @@ def protocol_payload():
     order = ["POWER", "ADCS", "COMM", "OBC"]
     cmds.sort(key=lambda c: (order.index(c["subsystem"]) if c["subsystem"] in order else 9,
                              0 if c.get("star") else 1))
-    return {"commands": cmds, "subsystems": order}
+    return {"target": TARGET, "options": OPTIONS, "commands": cmds, "subsystems": order}
 
 
 def waveform_preview(iq_f32, points=480):
-    """Downsample the OOK envelope to a small 0/1 series for the canvas."""
     data = np.asarray(iq_f32, dtype=np.float32)
     env = np.abs(data[0::2] + 1j * data[1::2])
     if env.size == 0:
@@ -103,22 +124,55 @@ def waveform_preview(iq_f32, points=480):
     return [round(float(env[i] / m), 3) for i in idx]
 
 
-def do_build(body, save):
+def validate(body):
+    """Server-authoritative check of every puzzle step."""
+    scid = body.get("scid")
     command = body.get("command")
-    params = body.get("params", {})
-    seq = int(body.get("seq", 0))
-    iq, breakdown = codec.build_iq(command, params, seq=seq)
-    resp = {"ok": True, "breakdown": breakdown, "waveform": waveform_preview(iq)}
+    rf = body.get("rf") or {}
+    value_confirmed = bool(body.get("valueConfirmed"))
+    known = command in COMMAND_UI
+    no_payload = known and not COMMAND_UI[command]["fields"]
+    return {
+        "addressing": scid == TARGET["scid"],
+        "command": known,
+        "value": known and (value_confirmed or no_payload),
+        "rf": (rf.get("modulation") == TARGET["modulation"]
+               and rf.get("baud") == TARGET["baud"]
+               and rf.get("sampleRate") == TARGET["sampleRate"]),
+    }
 
-    # safe-value advisory
-    ui = COMMAND_UI.get(command, {})
-    for f in ui.get("fields", []):
-        if f.get("safeAbsMax") is not None and f["key"] in params:
-            v = params[f["key"]]
-            if isinstance(v, (int, float)) and abs(v) > f["safeAbsMax"]:
-                resp["danger"] = f"⚠ {f['key']} {v} EXCEEDS SAFE ({f['safeAbsMax']}{f.get('unit','')}) — {ui.get('effect','')}"
+
+def do_build(body, save):
+    v = validate(body)
+    all_valid = all(v.values())
+    resp = {"ok": True, "validation": v, "allValid": all_valid}
+
+    command = body.get("command")
+    if command in COMMAND_UI:
+        params = body.get("params", {})
+        rf = body.get("rf") or {}
+        # reflect the participant's picks in the preview (fall back so it still
+        # renders before RF is chosen); only correct values will decode.
+        scid = body.get("scid") if body.get("scid") is not None else 0
+        baud = rf.get("baud") or TARGET["baud"]
+        sr = rf.get("sampleRate") or TARGET["sampleRate"]
+        iq, breakdown = codec.build_iq(command, params, scid=scid, baud=baud, sample_rate=sr)
+        resp["breakdown"] = breakdown
+        resp["waveform"] = waveform_preview(iq)
+
+        ui = COMMAND_UI[command]
+        for f in ui.get("fields", []):
+            if f.get("safeAbsMax") is not None and f["key"] in params:
+                val = params[f["key"]]
+                if isinstance(val, (int, float)) and abs(val) > f["safeAbsMax"]:
+                    resp["danger"] = f"⚠ {f['key']} {val} EXCEEDS SAFE ({f['safeAbsMax']}{f.get('unit','')}) — {ui.get('effect','')}"
 
     if save:
+        if not all_valid:
+            return {"ok": False, "error": "Uplink incomplete — all systems must be configured", "validation": v, "allValid": False}
+        # build with the validated (correct) values
+        iq, _ = codec.build_iq(command, body.get("params", {}),
+                               scid=TARGET["scid"], baud=TARGET["baud"], sample_rate=TARGET["sampleRate"])
         os.makedirs(OUT_DIR, exist_ok=True)
         fname = "attack.cf32"
         codec.write_cf32(os.path.join(OUT_DIR, fname), iq)
@@ -139,14 +193,14 @@ class Handler(BaseHTTPRequestHandler):
         self._send(code, "application/json", json.dumps(obj).encode())
 
     def log_message(self, *a):
-        pass  # quiet
+        pass
 
     def do_GET(self):
         if self.path in ("/", "/index.html"):
             with open(TEMPLATE, "rb") as f:
                 return self._send(200, "text/html; charset=utf-8", f.read())
-        if self.path == "/api/protocol":
-            return self._json(protocol_payload())
+        if self.path == "/api/mission":
+            return self._json(mission_payload())
         if self.path.startswith("/static/"):
             rel = self.path[len("/static/"):].split("?")[0]
             fp = os.path.normpath(os.path.join(STATIC_DIR, rel))

@@ -57,6 +57,10 @@ UPLINK_OUT_DIR=~/uplink python3 app.py
 #   http://localhost:8000  — 관람객이 조작
 #   GENERATE → ~/uplink/attack.cf32 (OpenVSA에서 이 파일 로드)
 ```
+관람객은 GENERATE 잠금 해제 전에 유효한 업링크를 4스텝 퍼즐로 조립해야 함:
+**1** Spacecraft ID(SCID) · **2** 명령 · **3** 명령 값 · **4** RF 설정(변조/baud/sample rate).
+정답은 **TARGET INTEL** 도시어(왼쪽 패널)에 있음. 의도된 공격은 `adcs_torque` 999 mNm.
+관람객이 막히면 도시어를 가리키며 모든 필드를 일치시키도록 안내.
 
 ## 4. 관람객 사이 리셋
 ```

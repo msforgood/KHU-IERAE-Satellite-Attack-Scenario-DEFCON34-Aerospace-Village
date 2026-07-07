@@ -57,6 +57,11 @@ UPLINK_OUT_DIR=~/uplink python3 app.py
 #   http://localhost:8000  — the visitor operates this
 #   GENERATE writes ~/uplink/attack.cf32 (loaded into OpenVSA)
 ```
+The visitor must assemble a valid uplink as a 4-step puzzle before GENERATE unlocks:
+**1** Spacecraft ID (SCID) · **2** command · **3** command value · **4** RF config
+(modulation/baud/sample rate). The answers are on the **TARGET INTEL** dossier
+(left panel); the intended attack is `adcs_torque` at 999 mNm. If a visitor is stuck,
+point them at the dossier — every field must match.
 
 ## 4. Reset between visitors
 ```

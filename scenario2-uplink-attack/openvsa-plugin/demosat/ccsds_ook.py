@@ -214,8 +214,14 @@ def demodulate_ook(iq_f32, sample_rate=SAMPLE_RATE, baud=BAUD_RATE, preamble=PRE
 
 
 # ── High level ─────────────────────────────────────────────────────────────
-def build_iq(command, params=None, seq=0, proto=None, sample_rate=SAMPLE_RATE):
-    """command name + params → (iq_float32, breakdown dict for UI)."""
+def build_iq(command, params=None, seq=0, proto=None, sample_rate=SAMPLE_RATE,
+             scid=SPACECRAFT_ID, baud=BAUD_RATE):
+    """command name + params → (iq_float32, breakdown dict for UI).
+
+    scid / baud / sample_rate are exposed so the booth 'puzzle' can reflect the
+    participant's choices in the frame and waveform; only the correct values
+    (matching the target satellite) decode successfully.
+    """
     proto = proto or load_protocol()
     n2o = name_to_opcode(proto)
     if command not in n2o:
@@ -226,14 +232,14 @@ def build_iq(command, params=None, seq=0, proto=None, sample_rate=SAMPLE_RATE):
 
     sp_header, sp_data = build_space_packet(opcode, payload, apid, seq_count=seq)
     space_packet = sp_header + sp_data
-    tc_header, fecf = build_tc_frame(space_packet, frame_seq=seq)
+    tc_header, fecf = build_tc_frame(space_packet, scid=scid, frame_seq=seq)
     frame_full = tc_header + space_packet + fecf
-    iq = modulate_ook(frame_full, sample_rate=sample_rate)
+    iq = modulate_ook(frame_full, sample_rate=sample_rate, baud=baud)
 
     segments = [
         {"field": "preamble",  "label": "Preamble (bit sync)",        "bytes": list(PREAMBLE)},
         {"field": "tc_header", "label": "CCSDS TC Frame Header (5B)",  "bytes": list(tc_header),
-         "sub": [{"name": "SCID", "value": SPACECRAFT_ID}, {"name": "VCID", "value": VIRTUAL_CHANNEL},
+         "sub": [{"name": "SCID", "value": scid}, {"name": "VCID", "value": VIRTUAL_CHANNEL},
                  {"name": "FrameSeq", "value": seq}]},
         {"field": "sp_header", "label": "CCSDS Space Packet Header (6B)", "bytes": list(sp_header),
          "sub": [{"name": "APID", "value": f"0x{apid:03X}"}, {"name": "Type", "value": "TC"}]},
