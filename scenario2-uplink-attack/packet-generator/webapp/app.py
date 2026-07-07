@@ -20,7 +20,9 @@ the browser only renders. Single source of truth, no JS DSP.
 import os
 import sys
 import json
+import time
 import base64
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import numpy as np
@@ -34,6 +36,50 @@ STATIC_DIR = os.path.join(HERE, "static")
 TEMPLATE = os.path.join(HERE, "templates", "index.html")
 OUT_DIR = os.environ.get("UPLINK_OUT_DIR", os.path.expanduser("~/uplink"))
 PORT = int(os.environ.get("PORT", "8000"))
+
+# ── Dev live-reload (opt-in: DEV_RELOAD=1 or --reload) ───────────────────────
+# Zero-dep: a watcher thread restarts the process on backend edits and bumps a
+# stamp on frontend edits; an injected poller reloads the browser. Off for booth.
+RELOAD = os.environ.get("DEV_RELOAD", "").lower() in ("1", "true", "yes") or "--reload" in sys.argv
+_PY_FILES = [os.path.abspath(__file__), os.path.join(_PLUGIN, "ccsds_ook.py")]
+_PY_BASE = {f: os.path.getmtime(f) for f in _PY_FILES if os.path.exists(f)}
+_RELOAD_STAMP = 0.0
+
+LIVERELOAD_JS = """<script>
+(function(){let last=null;async function poll(){try{
+  const r=await fetch('/api/livereload',{cache:'no-store'});const j=await r.json();
+  if(last===null)last=j.stamp;else if(j.stamp!==last){location.reload();return;}
+}catch(e){}setTimeout(poll,800);}poll();})();
+</script>"""
+
+
+def _asset_stamp():
+    m = 0.0
+    files = [TEMPLATE] + _PY_FILES
+    for root, _dirs, fs in os.walk(STATIC_DIR):
+        files += [os.path.join(root, f) for f in fs]
+    for f in files:
+        try:
+            m = max(m, os.path.getmtime(f))
+        except OSError:
+            pass
+    return m
+
+
+def _watcher():
+    global _RELOAD_STAMP
+    _RELOAD_STAMP = _asset_stamp()
+    while True:
+        time.sleep(0.5)
+        try:
+            for f, base in _PY_BASE.items():
+                if os.path.getmtime(f) > base:
+                    print(f"[reload] {os.path.basename(f)} changed — restarting server", flush=True)
+                    sys.stdout.flush()
+                    os.execv(sys.executable, [sys.executable] + sys.argv)
+            _RELOAD_STAMP = _asset_stamp()
+        except OSError:
+            pass
 
 # ── Target satellite dossier — the "answers" the visitor must match ──────────
 TARGET = {
@@ -198,7 +244,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path in ("/", "/index.html"):
             with open(TEMPLATE, "rb") as f:
-                return self._send(200, "text/html; charset=utf-8", f.read())
+                html = f.read()
+            if RELOAD:
+                html = html.replace(b"</body>", LIVERELOAD_JS.encode() + b"</body>")
+            return self._send(200, "text/html; charset=utf-8", html)
+        if self.path == "/api/livereload":
+            return self._json({"stamp": _RELOAD_STAMP})
         if self.path == "/api/mission":
             return self._json(mission_payload())
         if self.path.startswith("/static/"):
@@ -232,6 +283,9 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     print(f"DEMOSAT Command Builder → http://localhost:{PORT}")
     print(f"  output dir: {OUT_DIR}  (generated attack.cf32 lands here)")
+    if RELOAD:
+        print("  live-reload: ON (edits auto-refresh the browser / restart the server)")
+        threading.Thread(target=_watcher, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
 
 
