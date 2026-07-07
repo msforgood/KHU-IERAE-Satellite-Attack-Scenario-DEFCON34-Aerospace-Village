@@ -37,7 +37,7 @@ physical layer.
 |---|---|---|---|
 | 0 | Spec + scaffolding | `docs/command-spec.md`, satellite plugin, repo layout | ✅ done |
 | 1 | Python generator + matching decoder.py | codec `ccsds_ook.py`, `decoder.py`, web UI, roundtrip test | ✅ done, verified |
-| 2 | OpenVSA integration | cf32 load → decode → validate → :4536 forward + forward payload patch | ⏳ pending (needs OpenVSA checkout) |
+| 2 | OpenVSA integration | cf32 load → decode → validate → :4536 forward + forward payload patch | ✅ verified (headless: decode + forward + GS apply; Electron UI/RF not run) |
 | 3 | GS backend | pure Node, miniws, ported state engine + Arduino hook | ✅ done, verified |
 | 4 | GS frontend | `panel.json` dashboard + ENERGY SUPPLY CRITICAL alarm | ✅ done, browser-verified |
 | 5 | E2E + booth tuning + guides | operator & participant guides, screenshots, visual tuning | ◑ GS side done (alarm auto-dismiss, physics fix); OpenVSA E2E pending Phase 2 |

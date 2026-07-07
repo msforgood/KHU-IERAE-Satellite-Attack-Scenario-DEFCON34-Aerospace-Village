@@ -44,11 +44,14 @@ Open `http://localhost:4540` full-screen on the audience-facing monitor.
 ```
 cp -r openvsa-plugin/demosat/*             <OpenVSA>/satellites/demosat/
 cp    openvsa-plugin/hardware-effects.json <OpenVSA>/satellites/hardware-effects.json
+git -C <OpenVSA> apply openvsa-plugin/server-forward-payload.patch   # relay opcode/payload to GS
 cd <OpenVSA>
 UPLINK_DEST=ws://<GS>:4536 node server.js      # forward target = victim GS
 npm start                                        # Electron VSA UI (separate process)
 ```
 Note: `satellites/demosat/` must include `ccsds_ook.py` (the decoder imports it).
+The forward patch is optional (2 lines); without it the GS shows the command name
+but not the torque value.
 
 **③ Command Builder console (attacker)**
 ```

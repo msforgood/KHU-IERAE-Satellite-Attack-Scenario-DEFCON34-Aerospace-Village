@@ -44,11 +44,13 @@ node server.js
 ```
 cp -r openvsa-plugin/demosat/*             <OpenVSA>/satellites/demosat/
 cp    openvsa-plugin/hardware-effects.json <OpenVSA>/satellites/hardware-effects.json
+git -C <OpenVSA> apply openvsa-plugin/server-forward-payload.patch   # opcode/payload 전달
 cd <OpenVSA>
 UPLINK_DEST=ws://<GS>:4536 node server.js      # forward 대상 = victim GS
 npm start                                        # Electron VSA UI (별도 프로세스)
 ```
 주의: `satellites/demosat/`에 `ccsds_ook.py`가 함께 있어야 함(디코더가 import).
+forward 패치는 선택(2줄) — 없으면 GS가 명령 이름만 표시하고 토크 수치는 못 보여줌.
 
 **③ Command Builder 콘솔 (공격자)**
 ```
