@@ -269,13 +269,15 @@ async function build() {
 function renderFrame(bd, st) {
   const byField = {};
   if (bd) bd.segments.forEach((s) => (byField[s.field] = s));
+  // The packet reflects what you actually send — a wrong-but-selected value
+  // still fills its field (GENERATE stays gated on matching the target).
   const cond = {
     preamble: true,
-    tc_header: st[1] === 'ok',
-    sp_header: st[2] === 'ok',
-    opcode: st[2] === 'ok',
-    payload: st[3] === 'ok',
-    crc: st[1] === 'ok' && st[2] === 'ok' && st[3] === 'ok',
+    tc_header: S.scid != null,
+    sp_header: S.command != null,
+    opcode: S.command != null,
+    payload: S.valueConfirmed,
+    crc: S.scid != null && S.command != null && S.valueConfirmed,
   };
   let filled = 0, total = 0;
   const wrap = $('#breakdown'); wrap.innerHTML = '';
