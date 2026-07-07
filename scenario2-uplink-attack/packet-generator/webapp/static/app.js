@@ -224,8 +224,19 @@ function syncConfirm() {
 // STEP 4 — RF config chips
 function bodyRF(body) {
   body.appendChild(rfRow('MODULATION', 'modulation', M.options.modulation, (v) => v));
+  body.appendChild(modLegend());
   body.appendChild(rfRow('BAUD RATE', 'baud', M.options.baud, (v) => v + ' bps'));
   body.appendChild(rfRow('SAMPLE RATE', 'sampleRate', M.options.sampleRate, (v) => (v / 1000) + ' kSa/s'));
+}
+// what the three modulation schemes mean — bits → radio wave
+function modLegend() {
+  return el('div', 'modlegend',
+    `<div><b>OOK</b> · On-Off Keying — switch the carrier <b>on/off</b> (on = 1, off = 0).
+       The simplest scheme (a form of amplitude keying); DEMOSAT's UHF receiver uses this.</div>
+     <div><b>BPSK</b> · Binary Phase-Shift Keying — flip the carrier's <b>phase</b> 180° per bit
+       (one phase = 0, the opposite = 1). Amplitude stays constant, so it resists noise well.</div>
+     <div><b>FSK</b> · Frequency-Shift Keying — shift the carrier's <b>frequency</b> per bit
+       (one tone = 0, another tone = 1). The classic dial-up modem sound.</div>`);
 }
 function rfRow(label, key, opts, fmt) {
   const row = el('div', 'rfrow');
@@ -256,12 +267,25 @@ async function build() {
     }
   }
   renderFrame(bd, st);
-  // the OOK waveform is the physical layer — gate it on Step 4 (RF config)
-  if (st[4] === 'ok' && wf.length) {
-    drawWave(wf); $('#waveHint').classList.add('hidden');
-    $('#frameMeta').textContent = bd ? `${bd.frameBytes.length} bytes · ${bd.sampleCount} IQ samples · ${bd.durationSec}s @ 100 baud OOK` : '';
+  // The waveform is the physical layer — draw it as soon as RF is fully chosen,
+  // even if the values are wrong (a wrong signal still exists on the air; it just
+  // won't decode). Only the "not yet configured" case hides it.
+  const rfSet = S.rf.modulation != null && S.rf.baud != null && S.rf.sampleRate != null;
+  const hint = $('#waveHint');
+  if (rfSet && wf.length) {
+    drawWave(wf);
+    if (st[4] === 'ok') {
+      hint.classList.add('hidden');
+    } else {
+      hint.textContent = '⚠ Signal shown — but RF mismatch: the satellite receiver won\'t decode it.';
+      hint.classList.remove('hidden');
+    }
+    $('#frameMeta').textContent = bd ? `${bd.frameBytes.length} bytes · ${bd.sampleCount} IQ samples · ${bd.durationSec}s @ ${S.rf.baud} baud ${S.rf.modulation}` : '';
   } else {
-    drawWave([]); $('#waveHint').classList.remove('hidden'); $('#frameMeta').textContent = '';
+    drawWave([]);
+    hint.textContent = 'RF not configured — complete Step 4.';
+    hint.classList.remove('hidden');
+    $('#frameMeta').textContent = '';
   }
 }
 
