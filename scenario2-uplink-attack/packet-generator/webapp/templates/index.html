@@ -93,11 +93,18 @@
             but with an <b>abused value (999 mNm)</b>. The wheels overspin, the satellite
             <b>tumbles</b>, the panels lose the sun, and <b>power generation collapses</b>.
             <span class="hl">A legitimate command becomes an attack when it is abused.</span></p></div>
-          <div class="bsec"><h3>③ Why an IQ file?</h3>
-            <p>A command isn't sent as text — it must become a <b>radio signal</b>. An
-            <b>IQ file</b> is that signal digitized: a stream of I/Q samples the
-            software-defined radio transmits over the air. You'll <b>assemble the command</b>,
-            then <b>GENERATE</b> turns it into the IQ file you uplink through the VSA.</p></div>
+          <div class="bsec"><h3>③ How the command reaches the satellite — RF</h3>
+            <p>The satellite is in orbit — you can't plug a cable into it. The <b>only</b>
+            way to reach it is <b>over the air by radio (RF, radio-frequency)</b>: the ground
+            station transmits your command as radio waves on the <b>449.500 MHz uplink</b>,
+            and the satellite's receiver decodes them. So your text command has to become an
+            actual <b>radio signal</b> first.</p></div>
+          <div class="bsec"><h3>④ Turning the signal into an IQ file</h3>
+            <p>We transmit that RF with a <b>software-defined radio (SDR)</b>, which doesn't
+            take a command — it plays back a <b>digitized waveform</b>. An <b>IQ file</b> is
+            exactly that: the radio signal stored as a stream of <b>I/Q samples</b> the SDR
+            sends over the air. So you'll <b>assemble the command</b>, then <b>GENERATE</b>
+            turns it into the IQ file you uplink through the VSA.</p></div>
         </div>
       </div>
 
