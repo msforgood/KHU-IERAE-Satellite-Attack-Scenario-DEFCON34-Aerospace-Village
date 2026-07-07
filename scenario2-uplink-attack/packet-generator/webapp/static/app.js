@@ -18,10 +18,33 @@ const el = (t, c, h) => { const e = document.createElement(t); if (c) e.classNam
 
 async function boot() {
   M = await (await fetch('/api/mission')).json();
+  initPhases();
   renderDossier();
   renderSteps();
   rebuild();
 }
+
+// PHASE A → B gate: must acknowledge the briefing before building.
+function initPhases() {
+  const chk = $('#ackChk'), toBuild = $('#toBuild');
+  chk.onchange = () => { toBuild.disabled = !chk.checked; };
+  toBuild.onclick = () => {
+    if (toBuild.disabled) return;
+    $('#briefing').classList.add('hidden');
+    $('#builder').classList.remove('hidden');
+    window.scrollTo(0, 0);
+  };
+}
+
+// which CCSDS field each step completes (drives the progressive assembly view)
+const FRAME_MAP = [
+  { field: 'preamble',  label: 'Preamble · bit sync' },
+  { field: 'tc_header', label: 'TC Frame Header · addressing', anno: () => S.scid != null ? `addressed → SCID ${S.scid}` : 'awaiting Spacecraft ID (Step 1)' },
+  { field: 'sp_header', label: 'Space Packet Header · APID',    anno: () => S.cmdDef ? `routed → APID ${S.cmdDef.apid}` : 'awaiting command (Step 2)' },
+  { field: 'opcode',    label: 'Opcode · command',             anno: () => S.cmdDef ? `→ ${S.command}` : 'awaiting command (Step 2)' },
+  { field: 'payload',   label: 'Payload · value',              anno: () => S.valueConfirmed ? 'value confirmed' : 'awaiting value (Step 3)' },
+  { field: 'crc',       label: 'Frame CRC-16 · integrity',     anno: () => 'computed over the whole frame' },
+];
 
 // ── TARGET INTEL dossier (the answer key the visitor matches) ───────────────
 function renderDossier() {
@@ -125,8 +148,9 @@ function selectSub(sub, tabs, list) {
   list.innerHTML = '';
   M.commands.filter((c) => c.subsystem === sub).forEach((c) => {
     const item = el('div', 'cmd' + (S.command === c.command ? ' sel' : ''));
-    item.innerHTML = `<div class="n">${c.command}${c.star ? ' <span class="star">★</span>' : ''}</div>
-                      <div class="o">${c.opcode} · APID ${c.apid}</div>`;
+    item.innerHTML = `<div class="n">${c.command}${c.star ? ' <span class="star">★ attack</span>' : ''}</div>
+                      <div class="o">${c.opcode} · APID ${c.apid}</div>
+                      <div class="role">${c.blurb}</div>`;
     item.onclick = () => selectCommand(c);
     list.appendChild(item);
   });
@@ -221,29 +245,63 @@ function markSel(row, sel) { row.querySelectorAll('.chip').forEach((c) => c.clas
 let timer = null;
 function rebuild() { clearTimeout(timer); timer = setTimeout(build, 100); }
 async function build() {
-  if (!S.command) { $('#breakdown').innerHTML = '<div class="await">awaiting command…</div>'; $('#frameMeta').textContent = ''; drawWave([]); return; }
-  const r = await postJSON('/api/build', payload());
-  if (!r.ok || !r.breakdown) return;
-  renderBreakdown(r.breakdown);
-  drawWave(r.waveform);
-  $('#frameMeta').textContent =
-    `${r.breakdown.frameBytes.length} bytes · ${r.breakdown.sampleCount} IQ samples · ${r.breakdown.durationSec}s`;
-  const d = $('#danger');
-  if (d) { if (r.danger) { d.textContent = r.danger; d.classList.remove('hidden'); } else d.classList.add('hidden'); }
+  const st = stepStatus();
+  let bd = null, wf = [];
+  if (S.command) {
+    const r = await postJSON('/api/build', payload());
+    if (r.ok) {
+      bd = r.breakdown; wf = r.waveform || [];
+      const d = $('#danger');
+      if (d) { if (r.danger) { d.textContent = r.danger; d.classList.remove('hidden'); } else d.classList.add('hidden'); }
+    }
+  }
+  renderFrame(bd, st);
+  // the OOK waveform is the physical layer — gate it on Step 4 (RF config)
+  if (st[4] === 'ok' && wf.length) {
+    drawWave(wf); $('#waveHint').classList.add('hidden');
+    $('#frameMeta').textContent = bd ? `${bd.frameBytes.length} bytes · ${bd.sampleCount} IQ samples · ${bd.durationSec}s @ 100 baud OOK` : '';
+  } else {
+    drawWave([]); $('#waveHint').classList.remove('hidden'); $('#frameMeta').textContent = '';
+  }
 }
-function renderBreakdown(bd) {
+
+// Progressive CCSDS assembly: each field reveals as the step that defines it completes.
+function renderFrame(bd, st) {
+  const byField = {};
+  if (bd) bd.segments.forEach((s) => (byField[s.field] = s));
+  const cond = {
+    preamble: true,
+    tc_header: st[1] === 'ok',
+    sp_header: st[2] === 'ok',
+    opcode: st[2] === 'ok',
+    payload: st[3] === 'ok',
+    crc: st[1] === 'ok' && st[2] === 'ok' && st[3] === 'ok',
+  };
+  let filled = 0, total = 0;
   const wrap = $('#breakdown'); wrap.innerHTML = '';
-  bd.segments.forEach((seg) => {
-    const s = el('div', 'seg f-' + seg.field);
-    s.appendChild(el('div', 'sl', seg.label));
+  FRAME_MAP.forEach((m) => {
+    const seg = byField[m.field];
+    const isPre = m.field === 'preamble';
+    const canFill = cond[m.field] && (isPre || !!seg);
+    if (!isPre) { total++; if (canFill) filled++; }
+    const div = el('div', 'seg f-' + m.field + (canFill ? ' filled' : ' pending'));
+    div.appendChild(el('div', 'sl', m.label));
     const bytes = el('div', 'bytes');
-    (seg.bytes.length ? seg.bytes : [null]).forEach((b) => {
-      const chip = el('div', 'byte', b == null ? '—' : b.toString(16).padStart(2, '0').toUpperCase());
-      if (b != null) { chip.onmousemove = (e) => showTip(e, seg, b); chip.onmouseleave = hideTip; }
-      bytes.appendChild(chip);
-    });
-    s.appendChild(bytes); wrap.appendChild(s);
+    if (canFill) {
+      const bs = seg ? seg.bytes : [0xAA, 0xAA];
+      (bs.length ? bs : [null]).forEach((b) => {
+        const chip = el('div', 'byte', b == null ? '—' : b.toString(16).padStart(2, '0').toUpperCase());
+        if (b != null) { chip.onmousemove = (e) => showTip(e, seg || { label: m.label }, b); chip.onmouseleave = hideTip; }
+        bytes.appendChild(chip);
+      });
+    } else {
+      for (let i = 0; i < 2; i++) bytes.appendChild(el('div', 'byte ph', '··'));
+    }
+    div.appendChild(bytes);
+    if (m.anno) div.appendChild(el('div', 'anno', m.anno()));
+    wrap.appendChild(div);
   });
+  $('#frameProg').textContent = `${filled} / ${total} fields`;
 }
 function showTip(e, seg, b) {
   const tip = $('#tooltip');
