@@ -85,27 +85,76 @@ function stepUnlocked() {
     4: S.valueConfirmed,
   };
 }
+// a step counts as "acted on" once it holds a selection
+function stepComplete() {
+  return {
+    1: S.scid != null,
+    2: S.command != null,
+    3: S.valueConfirmed,
+    4: S.rf.modulation != null && S.rf.baud != null && S.rf.sampleRate != null,
+  };
+}
+// the step the visitor is currently on = lowest unlocked step not yet complete
+function activeStep() {
+  const u = stepUnlocked(), c = stepComplete();
+  for (let n = 1; n <= 4; n++) if (u[n] && !c[n]) return n;
+  return 5;
+}
+// one-line recap shown in a collapsed step's header
+function stepSummary(n) {
+  if (n === 1) return S.scid != null ? `SCID ${S.scid}` : '';
+  if (n === 2) return S.command || '';
+  if (n === 3) {
+    if (!S.cmdDef) return '';
+    const fs = S.cmdDef.fields || [];
+    if (!fs.length) return 'no payload';
+    return fs.map((f) => `${f.key} ${S.params[f.key]}${f.unit || ''}`).join(' · ');
+  }
+  if (n === 4) {
+    const r = S.rf;
+    return r.modulation == null ? '' : `${r.modulation} · ${r.baud}bps · ${r.sampleRate / 1000}kSa/s`;
+  }
+  return '';
+}
+// per-step manual open/close override (undefined = follow the auto default)
+const collapseOverride = {};
 
 // ── render the 4 step cards ─────────────────────────────────────────────────
+const STEP_DEFS = [
+  [1, 'TARGET ADDRESSING', 'Match the Spacecraft ID (SCID) to the target satellite. The wrong bird ignores your command.', bodyAddressing],
+  [2, 'COMMAND SELECT', 'Choose the subsystem and command to send.', bodyCommand],
+  [3, 'COMMAND VALUE', 'Set the command payload, then confirm it.', bodyValue],
+  [4, 'RF CONFIG', 'Match the modulation, baud and sample rate to the satellite receiver.', bodyRF],
+];
 function renderSteps() {
   const wrap = $('#stepList');
   wrap.innerHTML = '';
-  const u = stepUnlocked();
-  wrap.appendChild(stepCard(1, 'TARGET ADDRESSING', 'Match the Spacecraft ID (SCID) to the target satellite. The wrong bird ignores your command.', bodyAddressing, u[1]));
-  wrap.appendChild(stepCard(2, 'COMMAND SELECT', 'Choose the subsystem and command to send.', bodyCommand, u[2]));
-  wrap.appendChild(stepCard(3, 'COMMAND VALUE', 'Set the command payload, then confirm it.', bodyValue, u[3]));
-  wrap.appendChild(stepCard(4, 'RF CONFIG', 'Match the modulation, baud and sample rate to the satellite receiver.', bodyRF, u[4]));
+  const u = stepUnlocked(), done = stepComplete(), active = activeStep();
+  STEP_DEFS.forEach(([n, title, prompt, fn]) => {
+    // auto-collapse a completed step once you've moved past it; a manual click wins.
+    let collapsed = u[n] && done[n] && n !== active;
+    if (collapseOverride[n] !== undefined) collapsed = collapseOverride[n];
+    wrap.appendChild(stepCard(n, title, prompt, fn, u[n], collapsed));
+  });
   refreshPills();
 }
-function stepCard(n, title, prompt, bodyFn, unlocked) {
-  const card = el('div', 'step' + (unlocked ? '' : ' locked'));
+function stepCard(n, title, prompt, bodyFn, unlocked, collapsed) {
+  const card = el('div', 'step' + (unlocked ? '' : ' locked') + (collapsed ? ' collapsed' : ''));
   card.dataset.step = n;
   card.innerHTML = `<div class="shead"><span class="snum">${n}</span>
-      <span class="stitle">${title}</span><span class="pill"></span></div>
+      <span class="stitle">${title}</span>
+      <span class="ssum">${collapsed ? stepSummary(n) : ''}</span>
+      <span class="pill"></span>
+      ${unlocked ? `<span class="chev">${collapsed ? '▸' : '▾'}</span>` : ''}</div>
     <div class="sbody"></div><div class="sprompt">${prompt}</div>`;
   const body = card.querySelector('.sbody');
   if (unlocked) bodyFn(body);
   else body.innerHTML = `<div class="lockmsg">🔒 Complete Step ${n - 1} first</div>`;
+  // clicking the header toggles this step open/closed (unlocked steps only)
+  if (unlocked) {
+    const head = card.querySelector('.shead');
+    head.onclick = () => { collapseOverride[n] = !card.classList.contains('collapsed'); renderSteps(); };
+  }
   return card;
 }
 function refreshPills() {

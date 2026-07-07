@@ -53,6 +53,14 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-wei
 .step.mismatch{border-left-color:var(--danger)}
 .step.locked{opacity:.5}
 .step.locked .stitle{color:var(--dim)}
+/* collapsible steps — completed ones fold to a one-line recap */
+.step:not(.locked) > .shead{cursor:pointer}
+.step.collapsed > .shead{margin-bottom:0}
+.step.collapsed .sbody,.step.collapsed .sprompt{display:none}
+.ssum{font-size:14px;color:var(--dim);font-family:var(--mono);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
+.step:not(.collapsed) .ssum{display:none}
+.chev{color:var(--dim);font-size:13px;margin-left:4px}
 .lockmsg{padding:16px;text-align:center;color:var(--dim);font-size:15px;
   border:1px dashed var(--line);border-radius:8px;background:#0a121c}
 .pill.locked{background:rgba(127,146,166,.12);color:var(--dim)}
