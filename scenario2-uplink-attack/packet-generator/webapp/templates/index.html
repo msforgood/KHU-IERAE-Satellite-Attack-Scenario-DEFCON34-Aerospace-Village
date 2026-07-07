@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEMOSAT · Uplink Command Builder</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="sat">🛰</span>
+      <div>
+        <div class="title">DEMOSAT&nbsp;//&nbsp;UPLINK COMMAND BUILDER</div>
+        <div class="sub">CCSDS Telecommand over OOK · attacker console</div>
+      </div>
+    </div>
+    <div class="linkinfo">
+      <span>UPLINK 449.500 MHz</span><span class="dot"></span><span>TT&amp;C</span>
+    </div>
+  </header>
+
+  <main class="grid">
+    <!-- LEFT: command catalog -->
+    <section class="panel catalog">
+      <h2>COMMAND CATALOG</h2>
+      <div id="subsystems" class="tabs"></div>
+      <div id="commandList" class="cmdlist"></div>
+    </section>
+
+    <!-- CENTER: parameter builder -->
+    <section class="panel builder">
+      <div id="cmdHead" class="cmdhead"></div>
+      <div id="fields" class="fields"></div>
+      <div id="danger" class="danger hidden"></div>
+      <div id="effect" class="effect"></div>
+    </section>
+
+    <!-- RIGHT: frame + signal -->
+    <section class="panel wire">
+      <h2>LIVE CCSDS FRAME</h2>
+      <div id="breakdown" class="breakdown"></div>
+      <div class="metaline" id="frameMeta"></div>
+      <h2>OOK UPLINK SIGNAL</h2>
+      <canvas id="wave" width="600" height="90"></canvas>
+      <button id="genBtn" class="genbtn">⚡ GENERATE UPLINK IQ</button>
+      <div id="result" class="result hidden"></div>
+    </section>
+  </main>
+
+  <div id="tooltip" class="tooltip hidden"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
