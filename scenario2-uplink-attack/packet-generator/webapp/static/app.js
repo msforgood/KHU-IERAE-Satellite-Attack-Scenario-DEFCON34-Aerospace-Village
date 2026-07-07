@@ -75,23 +75,37 @@ function stepStatus() {
 }
 const PILL = { pending: 'PENDING', ok: 'LOCKED ✓', bad: 'MISMATCH ✗' };
 
+// steps unlock in order — each opens once the previous one has been acted on
+// (a value is selected; it need not be correct — GENERATE still checks that).
+function stepUnlocked() {
+  return {
+    1: true,
+    2: S.scid != null,
+    3: S.command != null,
+    4: S.valueConfirmed,
+  };
+}
+
 // ── render the 4 step cards ─────────────────────────────────────────────────
 function renderSteps() {
   const wrap = $('#stepList');
   wrap.innerHTML = '';
-  wrap.appendChild(stepCard(1, 'TARGET ADDRESSING', 'Match the Spacecraft ID (SCID) to the target satellite. The wrong bird ignores your command.', bodyAddressing));
-  wrap.appendChild(stepCard(2, 'COMMAND SELECT', 'Choose the subsystem and command to send.', bodyCommand));
-  wrap.appendChild(stepCard(3, 'COMMAND VALUE', 'Set the command payload, then confirm it.', bodyValue));
-  wrap.appendChild(stepCard(4, 'RF CONFIG', 'Match the modulation, baud and sample rate to the satellite receiver.', bodyRF));
+  const u = stepUnlocked();
+  wrap.appendChild(stepCard(1, 'TARGET ADDRESSING', 'Match the Spacecraft ID (SCID) to the target satellite. The wrong bird ignores your command.', bodyAddressing, u[1]));
+  wrap.appendChild(stepCard(2, 'COMMAND SELECT', 'Choose the subsystem and command to send.', bodyCommand, u[2]));
+  wrap.appendChild(stepCard(3, 'COMMAND VALUE', 'Set the command payload, then confirm it.', bodyValue, u[3]));
+  wrap.appendChild(stepCard(4, 'RF CONFIG', 'Match the modulation, baud and sample rate to the satellite receiver.', bodyRF, u[4]));
   refreshPills();
 }
-function stepCard(n, title, prompt, bodyFn) {
-  const card = el('div', 'step');
+function stepCard(n, title, prompt, bodyFn, unlocked) {
+  const card = el('div', 'step' + (unlocked ? '' : ' locked'));
   card.dataset.step = n;
   card.innerHTML = `<div class="shead"><span class="snum">${n}</span>
       <span class="stitle">${title}</span><span class="pill"></span></div>
     <div class="sbody"></div><div class="sprompt">${prompt}</div>`;
-  bodyFn(card.querySelector('.sbody'));
+  const body = card.querySelector('.sbody');
+  if (unlocked) bodyFn(body);
+  else body.innerHTML = `<div class="lockmsg">🔒 Complete Step ${n - 1} first</div>`;
   return card;
 }
 function refreshPills() {
@@ -99,6 +113,11 @@ function refreshPills() {
   document.querySelectorAll('.step').forEach((c) => {
     const n = +c.dataset.step, s = st[n];
     const pill = c.querySelector('.pill');
+    if (c.classList.contains('locked')) {
+      pill.className = 'pill locked';
+      pill.textContent = 'LOCKED 🔒';
+      return;
+    }
     pill.className = 'pill ' + s;
     pill.textContent = PILL[s];
     c.classList.toggle('done', s === 'ok');
@@ -124,7 +143,7 @@ function bodyAddressing(body) {
   const row = el('div', 'chips');
   M.options.scid.forEach((v) => {
     const c = el('button', 'chip', `SCID ${v}`);
-    c.onclick = () => { S.scid = v; markSel(row, c); refreshPills(); rebuild(); };
+    c.onclick = () => { S.scid = v; renderSteps(); rebuild(); };
     if (S.scid === v) c.classList.add('sel');
     row.appendChild(c);
   });
