@@ -187,6 +187,16 @@ function bodyValue(body) {
   const c = S.cmdDef;
   body.innerHTML = `<div class="vhead">${c.title}${c.star ? ' <span class="star">★</span>' : ''}</div>
                     <div class="muted">${c.blurb}</div>`;
+  // Tell the participant WHAT value to aim for. There's no single "correct"
+  // number — the attack is the abuse itself: push a legal command past its safe
+  // limit. Derive the goal from the field's safe bound so it's explicit.
+  const sf = (c.fields || []).find((f) => f.safeAbsMax != null);
+  if (sf) {
+    body.appendChild(el('div', 'goal',
+      `🎯 <b>ATTACK GOAL</b> — a <b>safe</b> ${sf.key} is within <b>±${sf.safeAbsMax}${sf.unit || ''}</b>.
+       To break sun-track you must <b>abuse</b> it: drive ${sf.key} into the <b>RED zone</b>
+       (e.g. <b>${sf.default}${sf.unit || ''}</b>). That over-abused value is your attack.`));
+  }
   const fields = el('div', 'fields');
   (c.fields || []).forEach((f) => fields.appendChild(fieldControl(f)));
   if (!c.fields.length) fields.innerHTML = '<div class="muted">This command carries no payload.</div>';

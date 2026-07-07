@@ -132,6 +132,57 @@
           <div class="prail"><i id="progFill"></i></div>
           <div class="phint" id="progHint">Complete all 4 systems to arm the uplink.</div>
         </div>
+
+        <!-- persistent reminder: what this uplink does to DEMOSAT -->
+        <div class="scene minisc">
+          <div class="scenecap">▶ WHAT YOUR UPLINK DOES</div>
+          <svg viewBox="0 0 460 300" class="satscene" aria-label="DEMOSAT attack animation">
+            <defs>
+              <radialGradient id="sunG2" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff3b0"/><stop offset="55%" stop-color="#ffd23f"/>
+                <stop offset="100%" stop-color="#ff9d00"/>
+              </radialGradient>
+              <filter id="glow2"><feGaussianBlur stdDeviation="6" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <g class="sun" filter="url(#glow2)">
+              <circle cx="74" cy="86" r="30" fill="url(#sunG2)"/>
+            </g>
+            <g class="rays" stroke="#ffd23f" stroke-width="3" stroke-linecap="round" opacity="0.85">
+              <line x1="110" y1="96" x2="200" y2="130"/>
+              <line x1="112" y1="86" x2="205" y2="150"/>
+              <line x1="110" y1="76" x2="200" y2="170"/>
+            </g>
+            <g class="sat">
+              <rect class="panel" x="150" y="130" width="46" height="60" rx="3"/>
+              <line x1="173" y1="130" x2="173" y2="190" class="pgrid"/>
+              <line x1="150" y1="150" x2="196" y2="150" class="pgrid"/>
+              <line x1="150" y1="170" x2="196" y2="170" class="pgrid"/>
+              <rect class="panel" x="264" y="130" width="46" height="60" rx="3"/>
+              <line x1="287" y1="130" x2="287" y2="190" class="pgrid"/>
+              <line x1="264" y1="150" x2="310" y2="150" class="pgrid"/>
+              <line x1="264" y1="170" x2="310" y2="170" class="pgrid"/>
+              <rect x="200" y="132" width="60" height="56" rx="6" fill="#20303f" stroke="#4a6076" stroke-width="2"/>
+              <rect x="210" y="144" width="40" height="10" rx="2" fill="#39c5ff" opacity="0.7"/>
+              <rect x="210" y="160" width="26" height="6" rx="2" fill="#7c8da0"/>
+              <line x1="230" y1="132" x2="230" y2="112" stroke="#7c8da0" stroke-width="2"/>
+              <circle cx="230" cy="110" r="3" fill="#39c5ff"/>
+            </g>
+            <g class="cmdflash">
+              <rect x="150" y="238" width="230" height="30" rx="6" fill="#12060a" stroke="#ff3b4e"/>
+              <text x="265" y="258" text-anchor="middle" fill="#ff6a78" font-size="15"
+                    font-family="monospace">⚡ UPLINK  adcs_torque = 999 mNm</text>
+            </g>
+          </svg>
+          <div class="statebar">
+            <span class="stlabel ok">☀ SUN-TRACKING · POWER NOMINAL</span>
+            <span class="stlabel bad">↻ TUMBLING · SUN-TRACK LOST</span>
+          </div>
+          <div class="powerwrap">
+            <span>POWER</span>
+            <div class="powerbar"><i class="powerfill"></i></div>
+          </div>
+        </div>
       </section>
 
       <section class="panel steps">

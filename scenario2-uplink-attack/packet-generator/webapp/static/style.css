@@ -122,6 +122,9 @@ input[type=number]{background:#0a121c;border:1px solid var(--line);color:#eaf2fb
 .effect{margin-top:14px;padding:12px;border-left:4px solid var(--amber);background:#0a121c;
   border-radius:0 8px 8px 0;font-size:16px}
 .effect b{color:var(--amber)}
+.goal{margin-bottom:14px;padding:12px;border-left:4px solid var(--accent);background:#08151f;
+  border-radius:0 8px 8px 0;font-size:15px;line-height:1.55;color:#dbe6f2}
+.goal b{color:#eaf2fb}
 
 /* frame breakdown */
 .breakdown{display:flex;flex-wrap:wrap;gap:8px;min-height:44px}
@@ -184,6 +187,13 @@ input[type=number]{background:#0a121c;border:1px solid var(--line);color:#eaf2fb
 .powerfill{display:block;height:100%;width:100%;background:var(--ok);animation:powerdrop var(--dur) ease-in-out infinite}
 @keyframes powerdrop{0%,25%{width:100%;background:var(--ok)}45%{width:46%;background:var(--amber)}
   65%,100%{width:7%;background:var(--danger)}}
+
+/* compact persistent scene inside the builder's intel panel */
+.minisc{margin-top:16px;padding:12px}
+.minisc .scenecap{font-size:13px;font-weight:800;letter-spacing:.1em;color:var(--accent);margin-bottom:8px}
+.minisc .statebar{height:22px;margin-top:8px}
+.minisc .stlabel{font-size:14px}
+.minisc .powerwrap{margin-top:10px;font-size:14px}
 
 .brieftext{display:flex;flex-direction:column;gap:20px}
 .bsec h3{margin:0 0 6px;font-size:18px;color:var(--accent);letter-spacing:.03em}
