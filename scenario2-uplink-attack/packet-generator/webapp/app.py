@@ -4,11 +4,10 @@ DEMOSAT Command Builder — local web UI (stdlib http.server, no pip deps)
 
 A booth "puzzle": to generate the uplink IQ file the visitor must assemble every
 element of a valid uplink, matching the target satellite's dossier:
-  STEP 1  Target addressing — Spacecraft ID (SCID)
-  STEP 2  Command select    — subsystem + opcode
-  STEP 3  Command value      — payload (e.g. reaction-wheel torque)
-  STEP 4  RF config          — modulation / baud / sample rate (satellite RX)
-Only when all four are correct does GENERATE unlock and write attack.cf32.
+  STEP 1  Command select    — subsystem + opcode
+  STEP 2  Command value      — payload (e.g. reaction-wheel torque)
+  STEP 3  RF config          — modulation / baud / sample rate (satellite RX)
+Only when all three are correct does GENERATE unlock and write attack.cf32.
 
 Run:   python3 app.py               # → http://localhost:8000
 Env:   UPLINK_OUT_DIR   output folder for generated .cf32 (default ~/uplink)
@@ -84,23 +83,21 @@ def _watcher():
 # ── Target satellite dossier — the "answers" the visitor must match ──────────
 TARGET = {
     "satellite": "DEMOSAT",
-    "scid": 200,               # Spacecraft ID
+    "scid": 200,               # Spacecraft ID — fixed frame addressing (no longer a puzzle step)
     "modulation": "OOK",
     "baud": 100,
     "sampleRate": 24000,
-    "uplinkFreqMHz": 449.5,    # set on the VSA, shown here for context
     "notes": "LEO cubesat · UHF TT&C uplink",
 }
 
-# Decoy-laden option sets so STEP 1 / STEP 4 are real choices (defaults unset).
+# Decoy-laden option sets so STEP 3 (RF) is a real choice (defaults unset).
 OPTIONS = {
-    "scid":       [199, 200, 201, 210],
     "modulation": ["OOK", "BPSK", "FSK"],
     "baud":       [50, 100, 200, 1200],
     "sampleRate": [8000, 24000, 48000],
 }
 
-# UI field metadata per command (drives STEP 3's form).
+# UI field metadata per command (drives STEP 2's form).
 COMMAND_UI = {
     "adcs_torque": {
         "subsystem": "ADCS", "star": True, "title": "Reaction Wheel Torque",
@@ -172,14 +169,12 @@ def waveform_preview(iq_f32, points=480):
 
 def validate(body):
     """Server-authoritative check of every puzzle step."""
-    scid = body.get("scid")
     command = body.get("command")
     rf = body.get("rf") or {}
     value_confirmed = bool(body.get("valueConfirmed"))
     known = command in COMMAND_UI
     no_payload = known and not COMMAND_UI[command]["fields"]
     return {
-        "addressing": scid == TARGET["scid"],
         "command": known,
         "value": known and (value_confirmed or no_payload),
         "rf": (rf.get("modulation") == TARGET["modulation"]
@@ -199,10 +194,10 @@ def do_build(body, save):
         rf = body.get("rf") or {}
         # reflect the participant's picks in the preview (fall back so it still
         # renders before RF is chosen); only correct values will decode.
-        scid = body.get("scid") if body.get("scid") is not None else 0
+        # SCID is fixed frame addressing now (no puzzle step) → always TARGET's.
         baud = rf.get("baud") or TARGET["baud"]
         sr = rf.get("sampleRate") or TARGET["sampleRate"]
-        iq, breakdown = codec.build_iq(command, params, scid=scid, baud=baud, sample_rate=sr)
+        iq, breakdown = codec.build_iq(command, params, scid=TARGET["scid"], baud=baud, sample_rate=sr)
         resp["breakdown"] = breakdown
         resp["waveform"] = waveform_preview(iq)
 

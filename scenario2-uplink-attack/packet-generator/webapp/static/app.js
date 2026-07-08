@@ -6,7 +6,6 @@
 
 let M = null;                 // mission payload (target, options, commands)
 const S = {                   // participant's assembled state
-  scid: null,
   command: null, cmdDef: null,
   params: {},
   valueConfirmed: false,
@@ -39,10 +38,10 @@ function initPhases() {
 // which CCSDS field each step completes (drives the progressive assembly view)
 const FRAME_MAP = [
   { field: 'preamble',  label: 'Preamble · bit sync' },
-  { field: 'tc_header', label: 'TC Frame Header · addressing', anno: () => S.scid != null ? `addressed → SCID ${S.scid}` : 'awaiting Spacecraft ID (Step 1)' },
-  { field: 'sp_header', label: 'Space Packet Header · APID',    anno: () => S.cmdDef ? `routed → APID ${S.cmdDef.apid}` : 'awaiting command (Step 2)' },
-  { field: 'opcode',    label: 'Opcode · command',             anno: () => S.cmdDef ? `→ ${S.command}` : 'awaiting command (Step 2)' },
-  { field: 'payload',   label: 'Payload · value',              anno: () => S.valueConfirmed ? 'value confirmed' : 'awaiting value (Step 3)' },
+  { field: 'tc_header', label: 'TC Frame Header · addressing', anno: () => `addressed → ${M ? M.target.satellite : 'target'}` },
+  { field: 'sp_header', label: 'Space Packet Header · APID',    anno: () => S.cmdDef ? `routed → APID ${S.cmdDef.apid}` : 'awaiting command (Step 1)' },
+  { field: 'opcode',    label: 'Opcode · command',             anno: () => S.cmdDef ? `→ ${S.command}` : 'awaiting command (Step 1)' },
+  { field: 'payload',   label: 'Payload · value',              anno: () => S.valueConfirmed ? 'value confirmed' : 'awaiting value (Step 2)' },
   { field: 'crc',       label: 'Frame CRC-16 · integrity',     anno: () => 'computed over the whole frame' },
 ];
 
@@ -51,13 +50,10 @@ function renderDossier() {
   const t = M.target;
   $('#dossier').innerHTML = `
     <div class="drow"><span>SATELLITE</span><b>${t.satellite}</b></div>
-    <div class="drow"><span>SPACECRAFT ID</span><b>${t.scid}</b></div>
     <div class="dsep">RECEIVER (RF)</div>
     <div class="drow"><span>MODULATION</span><b>${t.modulation}</b></div>
     <div class="drow"><span>BAUD RATE</span><b>${t.baud} bps</b></div>
     <div class="drow"><span>SAMPLE RATE</span><b>${(t.sampleRate/1000)} kSa/s</b></div>
-    <div class="dsep">UPLINK</div>
-    <div class="drow"><span>FREQUENCY</span><b>${t.uplinkFreqMHz.toFixed(3)} MHz</b></div>
     <div class="dnote">${t.notes}</div>
     <div class="dnote dim">Match every field on the right to arm the uplink.</div>`;
 }
@@ -66,10 +62,9 @@ function renderDossier() {
 function stepStatus() {
   const t = M.target, rf = S.rf;
   return {
-    1: S.scid == null ? 'pending' : (S.scid === t.scid ? 'ok' : 'bad'),
-    2: S.command == null ? 'pending' : 'ok',
-    3: S.command == null ? 'pending' : (S.valueConfirmed ? 'ok' : 'pending'),
-    4: (rf.modulation == null || rf.baud == null || rf.sampleRate == null) ? 'pending'
+    1: S.command == null ? 'pending' : 'ok',
+    2: S.command == null ? 'pending' : (S.valueConfirmed ? 'ok' : 'pending'),
+    3: (rf.modulation == null || rf.baud == null || rf.sampleRate == null) ? 'pending'
        : (rf.modulation === t.modulation && rf.baud === t.baud && rf.sampleRate === t.sampleRate ? 'ok' : 'bad'),
   };
 }
@@ -80,37 +75,34 @@ const PILL = { pending: 'PENDING', ok: 'LOCKED ✓', bad: 'MISMATCH ✗' };
 function stepUnlocked() {
   return {
     1: true,
-    2: S.scid != null,
-    3: S.command != null,
-    4: S.valueConfirmed,
+    2: S.command != null,
+    3: S.valueConfirmed,
   };
 }
 // a step counts as "acted on" once it holds a selection
 function stepComplete() {
   return {
-    1: S.scid != null,
-    2: S.command != null,
-    3: S.valueConfirmed,
-    4: S.rf.modulation != null && S.rf.baud != null && S.rf.sampleRate != null,
+    1: S.command != null,
+    2: S.valueConfirmed,
+    3: S.rf.modulation != null && S.rf.baud != null && S.rf.sampleRate != null,
   };
 }
 // the step the visitor is currently on = lowest unlocked step not yet complete
 function activeStep() {
   const u = stepUnlocked(), c = stepComplete();
-  for (let n = 1; n <= 4; n++) if (u[n] && !c[n]) return n;
-  return 5;
+  for (let n = 1; n <= 3; n++) if (u[n] && !c[n]) return n;
+  return 4;
 }
 // one-line recap shown in a collapsed step's header
 function stepSummary(n) {
-  if (n === 1) return S.scid != null ? `SCID ${S.scid}` : '';
-  if (n === 2) return S.command || '';
-  if (n === 3) {
+  if (n === 1) return S.command || '';
+  if (n === 2) {
     if (!S.cmdDef) return '';
     const fs = S.cmdDef.fields || [];
     if (!fs.length) return 'no payload';
     return fs.map((f) => `${f.key} ${S.params[f.key]}${f.unit || ''}`).join(' · ');
   }
-  if (n === 4) {
+  if (n === 3) {
     const r = S.rf;
     return r.modulation == null ? '' : `${r.modulation} · ${r.baud}bps · ${r.sampleRate / 1000}kSa/s`;
   }
@@ -121,10 +113,9 @@ const collapseOverride = {};
 
 // ── render the 4 step cards ─────────────────────────────────────────────────
 const STEP_DEFS = [
-  [1, 'TARGET ADDRESSING', 'Match the Spacecraft ID (SCID) to the target satellite. The wrong bird ignores your command.', bodyAddressing],
-  [2, 'COMMAND SELECT', 'Choose the subsystem and command to send.', bodyCommand],
-  [3, 'COMMAND VALUE', 'Set the command payload, then confirm it.', bodyValue],
-  [4, 'RF CONFIG', 'Match the modulation, baud and sample rate to the satellite receiver.', bodyRF],
+  [1, 'COMMAND SELECT', 'Choose the subsystem and command to send.', bodyCommand],
+  [2, 'COMMAND VALUE', 'Set the command payload, then confirm it.', bodyValue],
+  [3, 'RF CONFIG', 'Match the modulation, baud and sample rate to the satellite receiver.', bodyRF],
 ];
 function renderSteps() {
   const wrap = $('#stepList');
@@ -173,33 +164,21 @@ function refreshPills() {
     c.classList.toggle('mismatch', s === 'bad');
   });
   const ok = Object.values(st).filter((x) => x === 'ok').length;
-  $('#progText').textContent = `${ok} / 4`;
-  $('#progFill').style.width = (ok / 4 * 100) + '%';
+  $('#progText').textContent = `${ok} / 3`;
+  $('#progFill').style.width = (ok / 3 * 100) + '%';
   const btn = $('#genBtn');
-  if (ok === 4) {
+  if (ok === 3) {
     btn.disabled = false; btn.className = 'genbtn armed';
     btn.textContent = '⚡ GENERATE UPLINK IQ';
     $('#progHint').textContent = 'All systems configured — uplink armed.';
   } else {
     btn.disabled = true; btn.className = 'genbtn locked';
-    btn.textContent = `🔒 UPLINK LOCKED — ${ok}/4 CONFIGURED`;
-    $('#progHint').textContent = 'Complete all 4 systems to arm the uplink.';
+    btn.textContent = `🔒 UPLINK LOCKED — ${ok}/3 CONFIGURED`;
+    $('#progHint').textContent = 'Complete all 3 systems to arm the uplink.';
   }
 }
 
-// STEP 1 — SCID chips
-function bodyAddressing(body) {
-  const row = el('div', 'chips');
-  M.options.scid.forEach((v) => {
-    const c = el('button', 'chip', `SCID ${v}`);
-    c.onclick = () => { S.scid = v; renderSteps(); rebuild(); };
-    if (S.scid === v) c.classList.add('sel');
-    row.appendChild(c);
-  });
-  body.appendChild(row);
-}
-
-// STEP 2 — subsystem tabs + command list
+// STEP 1 — subsystem tabs + command list
 function bodyCommand(body) {
   const tabs = el('div', 'tabs');
   const list = el('div', 'cmdlist');
@@ -361,7 +340,7 @@ async function build() {
     $('#frameMeta').textContent = bd ? `${bd.frameBytes.length} bytes · ${bd.sampleCount} IQ samples · ${bd.durationSec}s @ ${S.rf.baud} baud ${S.rf.modulation}` : '';
   } else {
     drawWave([]);
-    hint.textContent = 'RF not configured — complete Step 4.';
+    hint.textContent = 'RF not configured — complete Step 3.';
     hint.classList.remove('hidden');
     $('#frameMeta').textContent = '';
   }
@@ -375,11 +354,11 @@ function renderFrame(bd, st) {
   // still fills its field (GENERATE stays gated on matching the target).
   const cond = {
     preamble: true,
-    tc_header: S.scid != null,
+    tc_header: S.command != null,
     sp_header: S.command != null,
     opcode: S.command != null,
     payload: S.valueConfirmed,
-    crc: S.scid != null && S.command != null && S.valueConfirmed,
+    crc: S.command != null && S.valueConfirmed,
   };
   let filled = 0, total = 0;
   const wrap = $('#breakdown'); wrap.innerHTML = '';
@@ -444,7 +423,7 @@ $('#genBtn').onclick = async () => {
 };
 
 function payload() {
-  return { scid: S.scid, command: S.command, params: S.params, valueConfirmed: S.valueConfirmed, rf: S.rf };
+  return { command: S.command, params: S.params, valueConfirmed: S.valueConfirmed, rf: S.rf };
 }
 async function postJSON(url, body) {
   try { return await (await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json(); }

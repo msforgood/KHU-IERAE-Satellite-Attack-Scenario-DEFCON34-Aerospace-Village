@@ -15,7 +15,7 @@
         <div class="sub">CCSDS Telecommand over OOK · attacker console</div>
       </div>
     </div>
-    <div class="linkinfo"><span>UPLINK 449.500 MHz</span><span class="dot"></span><span>TT&amp;C</span></div>
+    <div class="linkinfo"><span>TT&amp;C</span></div>
   </header>
 
   <!-- ═══════════ PHASE A · MISSION BRIEFING ═══════════ -->
@@ -96,7 +96,7 @@
           <div class="bsec"><h3>③ How the command reaches the satellite — RF</h3>
             <p>The satellite is in orbit — you can't plug a cable into it. The <b>only</b>
             way to reach it is <b>over the air by radio (RF, radio-frequency)</b>: the ground
-            station transmits your command as radio waves on the <b>449.500 MHz uplink</b>,
+            station transmits your command as radio waves on the <b>uplink</b>,
             and the satellite's receiver decodes them. So your text command has to become an
             actual <b>radio signal</b> first.</p></div>
           <div class="bsec"><h3>④ Turning the signal into an IQ file</h3>
@@ -128,9 +128,9 @@
         <h2>TARGET INTEL</h2>
         <div id="dossier" class="dossier"></div>
         <div class="progresswrap">
-          <div class="prow"><span>UPLINK ASSEMBLY</span><span id="progText">0 / 4</span></div>
+          <div class="prow"><span>UPLINK ASSEMBLY</span><span id="progText">0 / 3</span></div>
           <div class="prail"><i id="progFill"></i></div>
-          <div class="phint" id="progHint">Complete all 4 systems to arm the uplink.</div>
+          <div class="phint" id="progHint">Complete all 3 systems to arm the uplink.</div>
         </div>
 
         <!-- persistent reminder: what this uplink does to DEMOSAT -->
@@ -195,8 +195,8 @@
         <div class="metaline" id="frameMeta"></div>
         <h2>OOK UPLINK SIGNAL</h2>
         <canvas id="wave" width="600" height="100"></canvas>
-        <div id="waveHint" class="wavehint">RF not configured — complete Step 4.</div>
-        <button id="genBtn" class="genbtn locked" disabled>🔒 UPLINK LOCKED — 0/4 CONFIGURED</button>
+        <div id="waveHint" class="wavehint">RF not configured — complete Step 3.</div>
+        <button id="genBtn" class="genbtn locked" disabled>🔒 UPLINK LOCKED — 0/3 CONFIGURED</button>
         <div id="result" class="result hidden"></div>
       </section>
     </main>
