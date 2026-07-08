@@ -118,9 +118,9 @@
   <section id="builder" class="phase hidden">
     <div class="objbar">
       <span class="phasetag">PHASE 2 / 2 · BUILD</span>
-      <span>Assemble a valid uplink: match the <b>TARGET INTEL</b> and complete all
-        <b>4 steps</b>. Watch the CCSDS packet fill in field by field — only a complete,
-        correct frame can be generated into an IQ file.</span>
+      <span>Assemble a valid uplink: <b>compose the command by typing it</b> into the
+        block, then match the <b>TARGET INTEL</b> RF. Watch the CCSDS packet fill in
+        field by field — only a complete, correct frame can be generated into an IQ file.</span>
     </div>
 
     <main class="grid">
@@ -128,9 +128,9 @@
         <h2>TARGET INTEL</h2>
         <div id="dossier" class="dossier"></div>
         <div class="progresswrap">
-          <div class="prow"><span>UPLINK ASSEMBLY</span><span id="progText">0 / 3</span></div>
+          <div class="prow"><span>UPLINK ASSEMBLY</span><span id="progText">0 / 2</span></div>
           <div class="prail"><i id="progFill"></i></div>
-          <div class="phint" id="progHint">Complete all 3 systems to arm the uplink.</div>
+          <div class="phint" id="progHint">Complete both systems to arm the uplink.</div>
         </div>
 
         <!-- persistent reminder: what this uplink does to DEMOSAT -->
@@ -196,7 +196,7 @@
         <h2>OOK UPLINK SIGNAL</h2>
         <canvas id="wave" width="600" height="100"></canvas>
         <div id="waveHint" class="wavehint">RF not configured — complete Step 3.</div>
-        <button id="genBtn" class="genbtn locked" disabled>🔒 UPLINK LOCKED — 0/3 CONFIGURED</button>
+        <button id="genBtn" class="genbtn locked" disabled>🔒 UPLINK LOCKED — 0/2 CONFIGURED</button>
         <div id="result" class="result hidden"></div>
       </section>
     </main>

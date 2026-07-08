@@ -4,16 +4,16 @@ DEMOSAT Command Builder — local web UI (stdlib http.server, no pip deps)
 
 A booth "puzzle": to generate the uplink IQ file the visitor must assemble every
 element of a valid uplink, matching the target satellite's dossier:
-  STEP 1  Command select    — subsystem + opcode
-  STEP 2  Command value      — payload (e.g. reaction-wheel torque)
-  STEP 3  RF config          — modulation / baud / sample rate (satellite RX)
-Only when all three are correct does GENERATE unlock and write attack.cf32.
+  STEP 1  Compose command    — a Scratch-style block: drag a subsystem block, then
+                               TYPE the real command name + payload value into it
+  STEP 2  RF config          — modulation / baud / sample rate (satellite RX)
+Only when both are correct does GENERATE unlock and write attack.cf32.
 
 Run:   python3 app.py               # → http://localhost:8000
 Env:   UPLINK_OUT_DIR   output folder for generated .cf32 (default ~/uplink)
        PORT             default 8000
 
-Backend logic is the canonical codec (openvsa-plugin/demosat/ccsds_ook.py);
+Backend logic is the canonical codec (attacker/openvsa/satellites/demosat/ccsds_ook.py);
 the browser only renders. Single source of truth, no JS DSP.
 """
 import os
@@ -27,7 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-_PLUGIN = os.path.abspath(os.path.join(HERE, "..", "..", "..", "openvsa-plugin", "demosat"))
+_PLUGIN = os.path.abspath(os.path.join(HERE, "..", "..", "openvsa", "satellites", "demosat"))
 sys.path.insert(0, _PLUGIN)
 import ccsds_ook as codec  # noqa: E402
 

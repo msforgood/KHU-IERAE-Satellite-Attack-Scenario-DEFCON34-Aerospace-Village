@@ -1,11 +1,17 @@
 // DEMOSAT Command Builder — a booth puzzle. The visitor must assemble every
-// element of a valid uplink (addressing, command, value, RF) to match the target
-// dossier; only then does GENERATE unlock. All CCSDS/OOK logic is in the Python
-// backend (ccsds_ook.py); this script drives the steps and renders responses.
+// element of a valid uplink to match the target dossier; only then does GENERATE
+// unlock. STEP 1 is a Scratch-style block composer: you drag a subsystem block
+// into the script, then TYPE the real command and its value into the block's
+// slots (no click-to-pick shortcut — you write the actual command line). All
+// CCSDS/OOK logic lives in the Python backend; this script drives the UI.
 'use strict';
 
 let M = null;                 // mission payload (target, options, commands)
 const S = {                   // participant's assembled state
+  block: null,                // { sub } — which subsystem block sits on the canvas
+  justPlaced: false,          // focus the verb slot right after a block is dropped
+  verbText: '',               // raw text typed into the command (verb) slot
+  valText: {},                // raw text typed into each argument slot (by key)
   command: null, cmdDef: null,
   params: {},
   valueConfirmed: false,
@@ -41,7 +47,7 @@ const FRAME_MAP = [
   { field: 'tc_header', label: 'TC Frame Header · addressing', anno: () => `addressed → ${M ? M.target.satellite : 'target'}` },
   { field: 'sp_header', label: 'Space Packet Header · APID',    anno: () => S.cmdDef ? `routed → APID ${S.cmdDef.apid}` : 'awaiting command (Step 1)' },
   { field: 'opcode',    label: 'Opcode · command',             anno: () => S.cmdDef ? `→ ${S.command}` : 'awaiting command (Step 1)' },
-  { field: 'payload',   label: 'Payload · value',              anno: () => S.valueConfirmed ? 'value confirmed' : 'awaiting value (Step 2)' },
+  { field: 'payload',   label: 'Payload · value',              anno: () => S.valueConfirmed ? 'value confirmed' : 'awaiting value (Step 1)' },
   { field: 'crc',       label: 'Frame CRC-16 · integrity',     anno: () => 'computed over the whole frame' },
 ];
 
@@ -62,47 +68,40 @@ function renderDossier() {
 function stepStatus() {
   const t = M.target, rf = S.rf;
   return {
-    1: S.command == null ? 'pending' : 'ok',
-    2: S.command == null ? 'pending' : (S.valueConfirmed ? 'ok' : 'pending'),
-    3: (rf.modulation == null || rf.baud == null || rf.sampleRate == null) ? 'pending'
+    1: (S.command != null && S.valueConfirmed) ? 'ok' : 'pending',
+    2: (rf.modulation == null || rf.baud == null || rf.sampleRate == null) ? 'pending'
        : (rf.modulation === t.modulation && rf.baud === t.baud && rf.sampleRate === t.sampleRate ? 'ok' : 'bad'),
   };
 }
 const PILL = { pending: 'PENDING', ok: 'LOCKED ✓', bad: 'MISMATCH ✗' };
+const NSTEPS = 2;
 
-// steps unlock in order — each opens once the previous one has been acted on
-// (a value is selected; it need not be correct — GENERATE still checks that).
+// steps unlock in order — RF opens once the command block is fully composed.
 function stepUnlocked() {
-  return {
-    1: true,
-    2: S.command != null,
-    3: S.valueConfirmed,
-  };
+  return { 1: true, 2: S.command != null && S.valueConfirmed };
 }
-// a step counts as "acted on" once it holds a selection
+// a step counts as "acted on" once it holds a valid selection
 function stepComplete() {
   return {
-    1: S.command != null,
-    2: S.valueConfirmed,
-    3: S.rf.modulation != null && S.rf.baud != null && S.rf.sampleRate != null,
+    1: S.command != null && S.valueConfirmed,
+    2: S.rf.modulation != null && S.rf.baud != null && S.rf.sampleRate != null,
   };
 }
 // the step the visitor is currently on = lowest unlocked step not yet complete
 function activeStep() {
   const u = stepUnlocked(), c = stepComplete();
-  for (let n = 1; n <= 3; n++) if (u[n] && !c[n]) return n;
-  return 4;
+  for (let n = 1; n <= NSTEPS; n++) if (u[n] && !c[n]) return n;
+  return NSTEPS + 1;
 }
 // one-line recap shown in a collapsed step's header
 function stepSummary(n) {
-  if (n === 1) return S.command || '';
-  if (n === 2) {
-    if (!S.cmdDef) return '';
-    const fs = S.cmdDef.fields || [];
-    if (!fs.length) return 'no payload';
-    return fs.map((f) => `${f.key} ${S.params[f.key]}${f.unit || ''}`).join(' · ');
+  if (n === 1) {
+    if (!S.command) return '';
+    const fs = (S.cmdDef && S.cmdDef.fields) || [];
+    if (!fs.length) return S.command;
+    return `${S.command} ` + fs.map((f) => `--${f.key} ${S.params[f.key]}`).join(' ');
   }
-  if (n === 3) {
+  if (n === 2) {
     const r = S.rf;
     return r.modulation == null ? '' : `${r.modulation} · ${r.baud}bps · ${r.sampleRate / 1000}kSa/s`;
   }
@@ -111,19 +110,20 @@ function stepSummary(n) {
 // per-step manual open/close override (undefined = follow the auto default)
 const collapseOverride = {};
 
-// ── render the 4 step cards ─────────────────────────────────────────────────
+// ── render the step cards ───────────────────────────────────────────────────
 const STEP_DEFS = [
-  [1, 'COMMAND SELECT', 'Choose the subsystem and command to send.', bodyCommand],
-  [2, 'COMMAND VALUE', 'Set the command payload, then confirm it.', bodyValue],
-  [3, 'RF CONFIG', 'Match the modulation, baud and sample rate to the satellite receiver.', bodyRF],
+  [1, 'COMPOSE COMMAND', 'Drag a subsystem block into the script, then TYPE the real command and its value into the block.', bodyCompose],
+  [2, 'RF CONFIG', 'Match the modulation, baud and sample rate to the satellite receiver.', bodyRF],
 ];
 function renderSteps() {
   const wrap = $('#stepList');
   wrap.innerHTML = '';
   const u = stepUnlocked(), done = stepComplete(), active = activeStep();
   STEP_DEFS.forEach(([n, title, prompt, fn]) => {
-    // auto-collapse a completed step once you've moved past it; a manual click wins.
-    let collapsed = u[n] && done[n] && n !== active;
+    // Auto-collapse a completed step once you've moved past it; a manual click wins.
+    // Never auto-collapse the compose step (1) — it re-renders on every keystroke,
+    // and folding it mid-typing would hide the block the moment a value parses.
+    let collapsed = u[n] && done[n] && n !== active && n !== 1;
     if (collapseOverride[n] !== undefined) collapsed = collapseOverride[n];
     wrap.appendChild(stepCard(n, title, prompt, fn, u[n], collapsed));
   });
@@ -140,7 +140,7 @@ function stepCard(n, title, prompt, bodyFn, unlocked, collapsed) {
     <div class="sbody"></div><div class="sprompt">${prompt}</div>`;
   const body = card.querySelector('.sbody');
   if (unlocked) bodyFn(body);
-  else body.innerHTML = `<div class="lockmsg">🔒 Complete Step ${n - 1} first</div>`;
+  else body.innerHTML = `<div class="lockmsg">🔒 Finish composing the command first</div>`;
   // clicking the header toggles this step open/closed (unlocked steps only)
   if (unlocked) {
     const head = card.querySelector('.shead');
@@ -164,121 +164,272 @@ function refreshPills() {
     c.classList.toggle('mismatch', s === 'bad');
   });
   const ok = Object.values(st).filter((x) => x === 'ok').length;
-  $('#progText').textContent = `${ok} / 3`;
-  $('#progFill').style.width = (ok / 3 * 100) + '%';
+  $('#progText').textContent = `${ok} / ${NSTEPS}`;
+  $('#progFill').style.width = (ok / NSTEPS * 100) + '%';
   const btn = $('#genBtn');
-  if (ok === 3) {
+  if (ok === NSTEPS) {
     btn.disabled = false; btn.className = 'genbtn armed';
     btn.textContent = '⚡ GENERATE UPLINK IQ';
     $('#progHint').textContent = 'All systems configured — uplink armed.';
   } else {
     btn.disabled = true; btn.className = 'genbtn locked';
-    btn.textContent = `🔒 UPLINK LOCKED — ${ok}/3 CONFIGURED`;
-    $('#progHint').textContent = 'Complete all 3 systems to arm the uplink.';
+    btn.textContent = `🔒 UPLINK LOCKED — ${ok}/${NSTEPS} CONFIGURED`;
+    $('#progHint').textContent = `Complete both systems to arm the uplink.`;
   }
 }
 
-// STEP 1 — subsystem tabs + command list
-function bodyCommand(body) {
-  const tabs = el('div', 'tabs');
-  const list = el('div', 'cmdlist');
+// ── STEP 1 — Scratch-style command composer (palette + typed slots) ─────────
+function bodyCompose(body) {
+  body.innerHTML = '';
+  const wrap = el('div', 'composer');
+
+  const palette = el('div', 'palette');
+  palette.appendChild(el('div', 'palcap', 'BLOCK PALETTE'));
   M.subsystems.forEach((sub) => {
-    const t = el('button', 'tab', sub); t.dataset.sub = sub;
-    t.onclick = () => selectSub(sub, tabs, list);
-    tabs.appendChild(t);
+    const b = el('div', 'palblock sub-' + sub, `<span class="pbgrip">⣿</span>${sub} command`);
+    b.dataset.sub = sub;
+    attachDrag(b, sub);
+    palette.appendChild(b);
   });
-  body.appendChild(tabs); body.appendChild(list);
-  selectSub((S.cmdDef && S.cmdDef.subsystem) || 'ADCS', tabs, list);
-}
-function selectSub(sub, tabs, list) {
-  tabs.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.sub === sub));
-  list.innerHTML = '';
-  M.commands.filter((c) => c.subsystem === sub).forEach((c) => {
-    const item = el('div', 'cmd' + (S.command === c.command ? ' sel' : ''));
-    item.innerHTML = `<div class="n">${c.command}${c.star ? ' <span class="star">★ attack</span>' : ''}</div>
-                      <div class="o">${c.opcode} · APID ${c.apid}</div>
-                      <div class="role">${c.blurb}</div>`;
-    item.onclick = () => selectCommand(c);
-    list.appendChild(item);
-  });
-}
-function selectCommand(c) {
-  S.command = c.command; S.cmdDef = c; S.params = {}; S.valueConfirmed = false;
-  (c.fields || []).forEach((f) => { S.params[f.key] = f.type === 'toggle' ? !!f.default : f.default; });
-  if (!c.fields || !c.fields.length) S.valueConfirmed = true;  // no payload → auto
-  renderSteps(); rebuild();
+  palette.appendChild(el('div', 'palhint', 'Drag a block ▶ into the script, then type the command.'));
+
+  const script = el('div', 'script');
+  script.appendChild(el('div', 'scriptcap', 'SCRIPT'));
+  script.appendChild(el('div', 'hat', '⚡ SEND UPLINK'));
+  const zone = el('div', 'dropzone'); zone.id = 'dropzone';
+  script.appendChild(zone);
+
+  wrap.appendChild(palette);
+  wrap.appendChild(script);
+  body.appendChild(wrap);
+  renderBlock();
 }
 
-// STEP 3 — payload value + confirm
-function bodyValue(body) {
-  if (!S.cmdDef) { body.innerHTML = '<div class="muted">Select a command first (Step 2).</div>'; return; }
-  const c = S.cmdDef;
-  body.innerHTML = `<div class="vhead">${c.title}${c.star ? ' <span class="star">★</span>' : ''}</div>
-                    <div class="muted">${c.blurb}</div>`;
-  // Tell the participant WHAT value to aim for. There's no single "correct"
-  // number — the attack is the abuse itself: push a legal command past its safe
-  // limit. Derive the goal from the field's safe bound so it's explicit.
-  const sf = (c.fields || []).find((f) => f.safeAbsMax != null);
-  if (sf) {
-    body.appendChild(el('div', 'goal',
-      `🎯 <b>ATTACK GOAL</b> — a <b>safe</b> ${sf.key} is within <b>±${sf.safeAbsMax}${sf.unit || ''}</b>.
-       To break sun-track you must <b>abuse</b> it: drive ${sf.key} into the <b>RED zone</b>
-       (e.g. <b>${sf.default}${sf.unit || ''}</b>). That over-abused value is your attack.`));
-  }
-  const fields = el('div', 'fields');
-  (c.fields || []).forEach((f) => fields.appendChild(fieldControl(f)));
-  if (!c.fields.length) fields.innerHTML = '<div class="muted">This command carries no payload.</div>';
-  body.appendChild(fields);
-  const danger = el('div', 'danger hidden'); danger.id = 'danger'; body.appendChild(danger);
-  body.appendChild(el('div', 'effect', `<b>PREDICTED EFFECT</b> — ${c.effect}`));
-  if (c.fields.length) {
-    const confirm = el('button', 'confirm' + (S.valueConfirmed ? ' done' : ''),
-      S.valueConfirmed ? '✓ VALUE CONFIRMED' : 'CONFIRM VALUE');
-    confirm.onclick = () => { S.valueConfirmed = true; refreshPills(); renderSteps(); };
-    body.appendChild(confirm);
-  }
+// pointer-based drag (works on mouse + touch); a short press without moving
+// counts as a tap that also drops the block onto the script.
+function attachDrag(node, sub) {
+  node.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const ghost = node.cloneNode(true);
+    ghost.classList.add('ghost');
+    document.body.appendChild(ghost);
+    const startX = e.clientX, startY = e.clientY;
+    let moved = false;
+    const overZone = (ev) => {
+      const zone = document.querySelector('#dropzone');
+      if (!zone) return false;
+      const r = zone.getBoundingClientRect();
+      return ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
+    };
+    const move = (ev) => {
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 5) moved = true;
+      ghost.style.left = (ev.clientX + 10) + 'px';
+      ghost.style.top = (ev.clientY + 10) + 'px';
+      const zone = document.querySelector('#dropzone');
+      if (zone) zone.classList.toggle('dragover', overZone(ev));
+    };
+    const up = (ev) => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      ghost.remove();
+      const zone = document.querySelector('#dropzone');
+      if (zone) zone.classList.remove('dragover');
+      if (!moved || overZone(ev)) placeBlock(sub);
+    };
+    move(e);
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  });
 }
-function fieldControl(f) {
-  const field = el('div', 'field');
-  const show = () => {
-    const bad = f.safeAbsMax != null && Math.abs(S.params[f.key]) > f.safeAbsMax;
-    const fv = field.querySelector('.fv');
-    if (fv) { fv.textContent = `${S.params[f.key]}${f.unit || ''}`; fv.classList.toggle('bad', bad); }
-  };
-  if (f.type === 'slider' || f.type === 'number') {
-    field.innerHTML = `<div class="flabel"><span class="fk">${f.key}</span><span class="fv"></span></div>`;
-    if (f.type === 'slider') {
-      const inp = el('input'); inp.type = 'range'; inp.min = f.min; inp.max = f.max; inp.value = S.params[f.key];
-      inp.oninput = () => { S.params[f.key] = +inp.value; S.valueConfirmed = false; show(); rebuild(); syncConfirm(); };
-      field.appendChild(inp);
-      if (f.safeAbsMax != null) {
-        const span = f.max - f.min, s0 = ((-f.safeAbsMax - f.min) / span) * 100, sw = ((2 * f.safeAbsMax) / span) * 100;
-        const zb = el('div', 'zonebar');
-        zb.appendChild(zone('zone-danger', s0)); zb.appendChild(zone('zone-safe', sw)); zb.appendChild(zone('zone-danger', 100 - s0 - sw));
-        field.appendChild(zb);
-        field.appendChild(el('div', 'ticks', `<span>${f.min}</span><span>SAFE ≤${f.safeAbsMax}</span><span>${f.max}</span>`));
-      }
-    } else {
-      const inp = el('input'); inp.type = 'number'; inp.min = f.min; inp.max = f.max; inp.value = S.params[f.key];
-      inp.oninput = () => { S.params[f.key] = +inp.value; S.valueConfirmed = false; show(); rebuild(); syncConfirm(); };
-      field.appendChild(inp);
+
+function placeBlock(sub) {
+  if (!S.block || S.block.sub !== sub) {
+    S.block = { sub };
+    S.command = null; S.cmdDef = null;
+    S.verbText = ''; S.valText = {}; S.params = {}; S.valueConfirmed = false;
+  }
+  S.justPlaced = true;
+  renderSteps();
+  rebuild();
+}
+function clearBlock() {
+  S.block = null; S.command = null; S.cmdDef = null;
+  S.verbText = ''; S.valText = {}; S.params = {}; S.valueConfirmed = false;
+  renderSteps();
+  rebuild();
+}
+
+// render the dropped command block from state (verb slot + argument slots)
+function renderBlock() {
+  const zone = document.querySelector('#dropzone');
+  if (!zone) return;
+  if (!S.block) {
+    zone.className = 'dropzone empty';
+    zone.innerHTML = '<div class="dzhint">▶ drag a command block here</div>';
+    return;
+  }
+  zone.className = 'dropzone';
+  const sub = S.block.sub;
+  const names = M.commands.filter((c) => c.subsystem === sub).map((c) => c.command);
+  // "good" once it exactly matches a command in this block's subsystem; only flag
+  // "bad" when the text can't even be a prefix of one (so mid-typing isn't punished).
+  const typed = S.verbText.trim();
+  const verbCls = S.command ? 'good'
+    : (typed && !names.some((n) => n.startsWith(typed))) ? 'bad' : '';
+  zone.innerHTML = `
+    <div class="cblock sub-${sub}">
+      <div class="cbrow">
+        <span class="cbkw">send</span>
+        <input class="cbverb ${verbCls}" spellcheck="false" autocomplete="off"
+               placeholder="type command…" value="${escapeAttr(S.verbText)}">
+        <button class="cbx" title="remove block">✕</button>
+      </div>
+      <div class="cbref">${sub} commands — type one: ${names.map((n) => `<code>${n}</code>`).join(' ')}</div>
+      <div class="cbargs"></div>
+      <div class="cbmsg"></div>
+      <div class="cbdanger hidden" id="danger"></div>
+    </div>`;
+  const verb = zone.querySelector('.cbverb');
+  verb.addEventListener('input', () => onVerb(verb.value));
+  zone.querySelector('.cbx').onclick = clearBlock;
+  renderArgs();
+  if (S.justPlaced) { S.justPlaced = false; verb.focus(); }
+}
+
+function onVerb(text) {
+  S.verbText = text;
+  const sub = S.block.sub;
+  const typed = text.trim();
+  const c = M.commands.find((x) => x.subsystem === sub && x.command === typed);
+  if (c) {
+    if (S.command !== c.command) {
+      S.command = c.command; S.cmdDef = c;
+      S.valText = {}; S.params = {}; S.valueConfirmed = false;
     }
-    show();
-  } else if (f.type === 'toggle') {
-    const tg = el('div', 'toggle' + (S.params[f.key] ? ' on' : ''), `<span class="sw"></span><span>${f.key.toUpperCase()}</span>`);
-    tg.onclick = () => { S.params[f.key] = !S.params[f.key]; tg.classList.toggle('on', S.params[f.key]); S.valueConfirmed = false; rebuild(); syncConfirm(); };
-    field.appendChild(tg);
+  } else {
+    S.command = null; S.cmdDef = null; S.params = {}; S.valueConfirmed = false;
   }
-  return field;
-}
-function zone(cls, w) { const d = el('div', cls); d.style.width = Math.max(0, w) + '%'; return d; }
-function syncConfirm() {
-  const b = document.querySelector('.confirm');
-  if (b) { b.classList.remove('done'); b.textContent = 'CONFIRM VALUE'; }
-  refreshPills();
+  evalValue();   // no-payload commands (e.g. obc_reboot) confirm on recognition
+  withFocusPreserved(renderSteps);
+  rebuild();
 }
 
-// STEP 4 — RF config chips
+// argument slots for the recognised command (values are TYPED, not clicked).
+// Rendered purely from S so it survives the re-render on every keystroke.
+function renderArgs() {
+  const box = document.querySelector('.cbargs');
+  const msg = document.querySelector('.cbmsg');
+  if (!box) return;
+  box.innerHTML = '';
+  if (!S.command) {
+    if (msg) {
+      const sub = S.block.sub;
+      const names = M.commands.filter((c) => c.subsystem === sub).map((c) => c.command);
+      const typed = S.verbText.trim();
+      const other = typed ? M.commands.find((x) => x.command === typed) : null;
+      msg.textContent = !typed ? ''
+        : other && other.subsystem !== sub ? `“${typed}” is a ${other.subsystem} command — drag a ${other.subsystem} block`
+        : names.some((n) => n.startsWith(typed)) ? ''
+        : 'unknown command — check the spelling';
+    }
+    return;
+  }
+  if (msg) msg.textContent = '';
+  const c = S.cmdDef;
+  if (!c.fields || !c.fields.length) {
+    box.appendChild(el('div', 'cbnopay', '↳ no payload — this command carries no value'));
+    box.appendChild(effectBox(c));
+    return;
+  }
+  const goal = c.fields.find((f) => f.safeAbsMax != null);
+  if (goal) {
+    box.appendChild(el('div', 'cbgoal',
+      `🎯 <b>ATTACK GOAL</b> — a <b>safe</b> ${goal.key} is within <b>±${goal.safeAbsMax}${goal.unit || ''}</b>.
+       Abuse it: type a value in the <b>RED</b> zone (e.g. <b>${goal.default}${goal.unit || ''}</b>).`));
+  }
+  c.fields.forEach((f) => box.appendChild(argRow(f)));
+  box.appendChild(effectBox(c));
+  box.querySelectorAll('.cbval').forEach((inp) => inp.addEventListener('input', onVal));
+}
+
+// parse one typed slot → { val, ok, bad (invalid & non-empty), over (past safe) }
+function parseVal(f, raw) {
+  const t = String(raw == null ? '' : raw).trim();
+  if (f.type === 'toggle') {
+    if (/^(on|1|true|yes)$/i.test(t)) return { val: true, ok: true };
+    if (/^(off|0|false|no)$/i.test(t)) return { val: false, ok: true };
+    return { val: null, ok: false, bad: t.length > 0 };
+  }
+  if (t === '' || isNaN(Number(t))) return { val: null, ok: false, bad: t.length > 0 };
+  const v = Number(t);
+  return { val: v, ok: true, over: f.safeAbsMax != null && Math.abs(v) > f.safeAbsMax };
+}
+
+function argRow(f) {
+  const row = el('div', 'cbarg');
+  const raw = S.valText[f.key] != null ? S.valText[f.key] : '';
+  const p = parseVal(f, raw);
+  // a valid-but-over-safe number is the attack goal, not an error → stays "good";
+  // the RED zone tag + pulsing danger banner carry the "armed" signal instead.
+  const cls = p.ok ? 'good' : (p.bad ? 'bad' : '');
+  if (f.type === 'toggle') {
+    row.innerHTML =
+      `<span class="cbflag">--${f.key}</span>
+       <input class="cbval ${cls}" data-key="${f.key}" data-type="toggle" spellcheck="false"
+              autocomplete="off" placeholder="on / off" value="${escapeAttr(raw)}">`;
+  } else {
+    let zone = '';
+    if (f.safeAbsMax != null && p.ok) zone = p.over ? '<span class="cbzone danger">⚠ RED</span>' : '<span class="cbzone safe">✓ safe</span>';
+    row.innerHTML =
+      `<span class="cbflag">--${f.key}</span>
+       <input class="cbval ${cls}" data-key="${f.key}" data-type="num" inputmode="numeric" spellcheck="false"
+              autocomplete="off" placeholder="type ${f.min}…${f.max}" value="${escapeAttr(raw)}">
+       <span class="cbunit">${f.unit || ''}</span>${zone}`;
+  }
+  return row;
+}
+
+function onVal(e) {
+  const inp = e.target, key = inp.dataset.key;
+  const raw = inp.value;
+  S.valText[key] = raw;
+  const f = S.cmdDef.fields.find((x) => x.key === key);
+  S.params[key] = parseVal(f, raw).val;
+  evalValue();
+  withFocusPreserved(renderSteps);
+  rebuild();
+}
+
+function evalValue() {
+  if (!S.cmdDef) { S.valueConfirmed = false; return; }
+  const fs = S.cmdDef.fields || [];
+  if (!fs.length) { S.valueConfirmed = true; return; }
+  S.valueConfirmed = fs.every((f) => S.params[f.key] !== null && S.params[f.key] !== undefined);
+}
+
+function effectBox(c) {
+  return el('div', 'cbeffect', `<b>PREDICTED EFFECT</b> — ${c.effect}`);
+}
+function escapeAttr(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+// re-render the step tree while keeping caret in whichever slot is being typed
+function withFocusPreserved(fn) {
+  const a = document.activeElement;
+  let sel = null, pos = null;
+  if (a && a.classList) {
+    if (a.classList.contains('cbverb')) sel = '.cbverb';
+    else if (a.classList.contains('cbval')) sel = `.cbval[data-key="${a.dataset.key}"]`;
+    if (sel) { try { pos = a.selectionStart; } catch (e) { /* ignore */ } }
+  }
+  fn();
+  if (sel) {
+    const n = document.querySelector(sel);
+    if (n) { n.focus(); try { if (pos != null) n.setSelectionRange(pos, pos); } catch (e) { /* ignore */ } }
+  }
+}
+
+// ── STEP 2 — RF config chips ────────────────────────────────────────────────
 function bodyRF(body) {
   body.appendChild(rfRow('MODULATION', 'modulation', M.options.modulation, (v) => v));
   body.appendChild(modLegend());
@@ -331,7 +482,7 @@ async function build() {
   const hint = $('#waveHint');
   if (rfSet && wf.length) {
     drawWave(wf);
-    if (st[4] === 'ok') {
+    if (st[2] === 'ok') {
       hint.classList.add('hidden');
     } else {
       hint.textContent = '⚠ Signal shown — but RF mismatch: the satellite receiver won\'t decode it.';
@@ -340,7 +491,7 @@ async function build() {
     $('#frameMeta').textContent = bd ? `${bd.frameBytes.length} bytes · ${bd.sampleCount} IQ samples · ${bd.durationSec}s @ ${S.rf.baud} baud ${S.rf.modulation}` : '';
   } else {
     drawWave([]);
-    hint.textContent = 'RF not configured — complete Step 3.';
+    hint.textContent = 'RF not configured — complete Step 2.';
     hint.classList.remove('hidden');
     $('#frameMeta').textContent = '';
   }
