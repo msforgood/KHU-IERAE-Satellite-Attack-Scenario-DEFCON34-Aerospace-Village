@@ -45,7 +45,7 @@ GPREDICT_WEB_URL='http://localhost:6080/vnc.html?autoconnect=1&resize=remote' ./
 - **OpenVSA (Node)** — installs only into `openvsa/node_modules` (project-local). Remove: `rm -rf openvsa/node_modules`.
 - **gpredict** — runs in a **Docker container** (`gpredict-web/`); nothing lands on the host. Remove: `docker rmi demosat-gpredict`.
 - **Command Builder (Python numpy)** — isolate with a venv instead of a global/conda install:
-  `cd ../packet-generator/webapp && python3 -m venv .venv && . .venv/bin/activate && pip install numpy`.
+  `cd packet-generator/webapp && python3 -m venv .venv && . .venv/bin/activate && pip install numpy`.
 - Already ran `brew install gpredict` and want it gone? `brew uninstall gpredict` (the native path is optional; Docker is preferred).
 Open the printed **3rd screen** URL. In gpredict: Antenna Control → DEMOSAT → Rotator
 `OpenVSA` → **Engage**. When aligned, hit **ACQUIRE LOCK** (→ antenna sweeps), then in

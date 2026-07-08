@@ -27,7 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-_PLUGIN = os.path.abspath(os.path.join(HERE, "..", "..", "openvsa-plugin", "demosat"))
+_PLUGIN = os.path.abspath(os.path.join(HERE, "..", "..", "..", "openvsa-plugin", "demosat"))
 sys.path.insert(0, _PLUGIN)
 import ccsds_ook as codec  # noqa: E402
 

@@ -55,8 +55,8 @@ physical layer.
   panels + collapsing graphs persist so the live telemetry stays visible.
 
 ## Verification
-- Phase 1: `python3 packet-generator/tests/test_roundtrip.py` → ALL PASSED. Web UI:
-  `cd packet-generator/webapp && python3 app.py`.
+- Phase 1: `python3 attacker/packet-generator/tests/test_roundtrip.py` → ALL PASSED. Web UI:
+  `cd attacker/packet-generator/webapp && python3 app.py`.
 - Phase 3/4: `node ground-station/backend/server.js`, inject a mock uplink, observe the
   dashboard escalate to ENERGY SUPPLY CRITICAL. Verified headless with Playwright +
   Chromium; reference screenshots in `docs/screenshots/`.

@@ -67,7 +67,7 @@ but not the torque value.
 
 **③ Command Builder console (attacker)**
 ```
-cd packet-generator/webapp
+cd attacker/packet-generator/webapp
 UPLINK_OUT_DIR=~/uplink python3 app.py
 #   http://localhost:8000  — the visitor operates this
 #   GENERATE writes ~/uplink/attack.cf32 (loaded into OpenVSA)

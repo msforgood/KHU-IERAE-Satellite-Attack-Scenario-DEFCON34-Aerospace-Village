@@ -84,16 +84,17 @@ python3 -m pip install numpy   # Command Builder에 필요
 ```
 gpredict는 **호스트에 설치하지 않습니다** — `attacker/gpredict-web/run.sh`가 Docker 컨테이너 안에서
 gpredict+noVNC를 돌립니다(호스트 오염 없음). Docker Desktop만 있으면 됩니다. numpy는 conda/전역 대신
-venv 권장: `cd packet-generator/webapp && python3 -m venv .venv && . .venv/bin/activate && pip install numpy`.
+venv 권장: `cd attacker/packet-generator/webapp && python3 -m venv .venv && . .venv/bin/activate && pip install numpy`.
 
 프로젝트 폴더 구조:
 
 ```
 scenario2-uplink-attack/
 ├─ ground-station/     지상국 (대시보드 + 백엔드)      ← Node
-├─ packet-generator/   Command Builder (명령 조립 웹)  ← Python
 ├─ openvsa-plugin/     OpenVSA용 위성 플러그인(드롭인 원본)
-├─ attacker/           ③ 3화면 콘솔 — gpredict+OpenVSA 포크·임베드
+├─ attacker/           공격자 콘솔
+│  ├─ packet-generator/  ①② Command Builder (명령 조립 웹)  ← Python
+│  └─ console·openvsa·gpredict/  ③ 위성 조준 (포크·임베드)
 ├─ arduino/            물리 안테나·솔라패널 스케치 + 브릿지
 └─ docs/               가이드 문서 (지금 이 문서)
 ```
@@ -191,7 +192,7 @@ GPREDICT_WEB_URL='http://localhost:6080/vnc.html?autoconnect=1&resize=remote' ./
 cd arduino/bridge && SOLAR_PORT=/dev/cu.usbmodemXXXX ANT_PORT=/dev/cu.usbmodemYYYY PANEL_SPIN=1 node bridge.js
 
 # 터미널 D — Command Builder (관람객 조작)
-cd packet-generator/webapp && UPLINK_OUT_DIR=~/uplink python3 app.py   # :8000
+cd attacker/packet-generator/webapp && UPLINK_OUT_DIR=~/uplink python3 app.py   # :8000
 ```
 
 지상국 대시보드 `http://localhost:4540`을 관객 모니터에 **F11 전체화면**으로. 초록 정상 화면 확인 👇

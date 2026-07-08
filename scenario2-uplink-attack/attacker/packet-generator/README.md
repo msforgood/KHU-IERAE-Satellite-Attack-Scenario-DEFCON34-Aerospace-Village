@@ -30,5 +30,5 @@ python3 generate.py obc_reboot               -o attack.cf32
 - `generate.py` — CLI (thin wrapper over the shared codec)
 - `tests/test_roundtrip.py` — generate → `decoder.py` roundtrip contract
 
-The shared CCSDS/OOK codec lives at `../openvsa-plugin/demosat/ccsds_ook.py` (it ships
+The shared CCSDS/OOK codec lives at `../../openvsa-plugin/demosat/ccsds_ook.py` (it ships
 with the OpenVSA plugin so the decoder is self-contained); the generator imports it.

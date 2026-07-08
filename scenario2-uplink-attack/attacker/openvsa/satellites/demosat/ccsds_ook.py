@@ -5,7 +5,7 @@ ccsds_ook.py — CCSDS TC + OOK codec (single source of truth)
 Canonical shared codec for Scenario 2. Ships inside the OpenVSA plugin so that
 decoder.py can run self-contained, and is imported by the packet-generator
 (CLI + web UI). Encoder and decoder are exact inverses; the roundtrip test in
-packet-generator/tests/ enforces it.
+attacker/packet-generator/tests/ enforces it.
 
 Spec: docs/command-spec.md   ·   Opcode table: c2protocol.json (same dir)
 
