@@ -193,14 +193,13 @@
         <div id="waveHint" class="wavehint">RF auto-detects once the command is composed (Step 2).</div>
         <button id="genBtn" class="genbtn locked" disabled>🔒 UPLINK LOCKED — 0/2 CONFIGURED</button>
         <div id="result" class="result hidden"></div>
-        <button id="toTargeting" class="bigbtn hidden" style="margin-top:14px">③ 위성 조준으로 진행 →</button>
       </section>
     </main>
   </section>
 
   <!-- PHASE 3 / 3 · 위성 조준 — gpredict + OpenVSA 콘솔을 iframe으로 임베드(별도 창 없음) -->
   <section id="phase3" class="phase hidden">
-    <iframe id="phase3frame" title="③ 위성 조준" style="width:100%;height:100vh;border:0;display:block;background:#0c1118"></iframe>
+    <iframe id="phase3frame" title="Satellite targeting console" style="width:100%;height:100vh;border:0;display:block;background:#0c1118"></iframe>
   </section>
 
   <div id="tooltip" class="tooltip hidden"></div>
@@ -218,22 +217,24 @@
       var CONSOLE_URL = '/targeting?gs=' + encodeURIComponent(GS)
         + '&gp=' + encodeURIComponent(gpUrl) + '&vsa=' + encodeURIComponent('/vsa/');
       var result = document.getElementById('result');
-      var toBtn = document.getElementById('toTargeting');
       var builder = document.getElementById('builder');
       var phase3 = document.getElementById('phase3');
       var frame = document.getElementById('phase3frame');
-      if (!result || !toBtn || !phase3 || !frame) return;
-      // reveal the "③ 위성 조준" button only once GENERATE has written a cf32 (result has a download link)
-      new MutationObserver(function () {
-        var done = !result.classList.contains('hidden') && result.querySelector('a[download]');
-        toBtn.classList.toggle('hidden', !done);
-      }).observe(result, { attributes: true, childList: true, subtree: true });
-      toBtn.onclick = function () {
+      if (!result || !phase3 || !frame) return;
+      function goPhase3() {
         if (!frame.getAttribute('src')) frame.setAttribute('src', CONSOLE_URL);
         builder.classList.add('hidden');
         phase3.classList.remove('hidden');
         window.scrollTo(0, 0);
-      };
+      }
+      // 생성된 cf32를 클릭하면 ③ 조준 콘솔로 진행(파일 다운로드 없음).
+      new MutationObserver(function () {
+        var link = result.querySelector('.cf32go');
+        if (link && !link._wired) {
+          link._wired = true;
+          link.addEventListener('click', function (e) { e.preventDefault(); goPhase3(); });
+        }
+      }).observe(result, { attributes: true, childList: true, subtree: true });
     })();
   </script>
 </body>

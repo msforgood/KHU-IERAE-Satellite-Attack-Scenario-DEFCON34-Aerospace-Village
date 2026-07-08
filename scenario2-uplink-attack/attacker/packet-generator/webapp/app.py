@@ -22,6 +22,7 @@ import json
 import time
 import base64
 import threading
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import numpy as np
@@ -46,6 +47,8 @@ _VSA_MIME = {
     ".map": "application/json", ".txt": "text/plain; charset=utf-8",
 }
 PORT = int(os.environ.get("PORT", "8000"))
+# 피해 지상국(:4540). generate 시 cf32를 방문자마다 굽지 않고 여기 /api/inject로 공격 경보만 발사.
+GS_URL = os.environ.get("GS_URL", "http://localhost:4540").rstrip("/")
 
 # ── Dev live-reload (opt-in: DEV_RELOAD=1 or --reload) ───────────────────────
 # Zero-dep: a watcher thread restarts the process on backend edits and bumps a
@@ -194,6 +197,20 @@ def validate(body):
     }
 
 
+def send_gs_alert(command, params):
+    """Fire the attack at the victim ground station (:4540 /api/inject) instead of
+    writing a per-visitor cf32. The generate button is client-gated to the correct
+    attack, so we assume the command here is valid and just raise the alarm."""
+    payload_bytes, _ = codec.build_payload(command, params or {})
+    body = json.dumps({
+        "command": command,
+        "payload": [f"0x{b:02x}" for b in payload_bytes],
+    }).encode()
+    req = urllib.request.Request(GS_URL + "/api/inject", data=body,
+                                 headers={"Content-Type": "application/json"}, method="POST")
+    urllib.request.urlopen(req, timeout=2).read()
+
+
 def do_build(body, save):
     v = validate(body)
     all_valid = all(v.values())
@@ -222,14 +239,15 @@ def do_build(body, save):
     if save:
         if not all_valid:
             return {"ok": False, "error": "Uplink incomplete — all systems must be configured", "validation": v, "allValid": False}
-        # build with the validated (correct) values
-        iq, _ = codec.build_iq(command, body.get("params", {}),
-                               scid=TARGET["scid"], baud=TARGET["baud"], sample_rate=TARGET["sampleRate"])
-        os.makedirs(OUT_DIR, exist_ok=True)
-        fname = "attack.cf32"
-        codec.write_cf32(os.path.join(OUT_DIR, fname), iq)
-        resp["saved"] = {"path": os.path.join(OUT_DIR, fname), "filename": fname}
-        resp["downloadB64"] = base64.b64encode(np.asarray(iq, dtype=np.float32).tobytes()).decode()
+        # No per-visitor cf32 build/write/download (disk + browser load). Fire the attack
+        # straight at the victim GS (:4540); the UI shows a click-through cf32 artifact.
+        try:
+            send_gs_alert(command, body.get("params", {}))
+            resp["alertSent"] = True
+        except Exception as e:
+            resp["alertSent"] = False
+            resp["alertError"] = str(e)
+        resp["saved"] = {"filename": "attack.cf32"}
     return resp
 
 
@@ -302,9 +320,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    os.makedirs(OUT_DIR, exist_ok=True)
     print(f"DEMOSAT Command Builder → http://localhost:{PORT}")
-    print(f"  output dir: {OUT_DIR}  (generated attack.cf32 lands here)")
+    print(f"  attack target: {GS_URL}/api/inject  (GENERATE fires the alert here)")
     if RELOAD:
         print("  live-reload: ON (edits auto-refresh the browser / restart the server)")
         threading.Thread(target=_watcher, daemon=True).start()

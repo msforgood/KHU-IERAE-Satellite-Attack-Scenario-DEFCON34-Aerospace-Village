@@ -16,6 +16,7 @@ const S = {
   cmdDef: null,
   params: {},
   valueConfirmed: false,
+  step1Done: false, // participant pressed "완료" → unlocks Step 2 & starts RF magic-writing
   rf: { modulation: null, baud: null, sampleRate: null },
 };
 
@@ -59,8 +60,8 @@ async function boot() {
     console.error("[boot] mission load failed:", e);
     // Make the failure visible instead of a blank builder.
     const msg =
-      `⚠ mission 데이터 로드 실패 — <code>/api/mission</code> (${e && e.message ? e.message : e}).` +
-      ` Command Builder 서버를 재시작(Ctrl-C 후 <code>python3 app.py</code>)하고 새로고침하세요.`;
+      `⚠ Failed to load mission data — <code>/api/mission</code> (${e && e.message ? e.message : e}).` +
+      ` Restart the Command Builder server (Ctrl-C, then <code>python3 app.py</code>) and refresh.`;
     const sl = $("#stepList");
     if (sl) sl.innerHTML = `<div class="dnote">${msg}</div>`;
   }
@@ -131,9 +132,10 @@ function stepStatus() {
 const PILL = { pending: "PENDING", ok: "LOCKED ✓", bad: "MISMATCH ✗" };
 const NSTEPS = 2;
 
-// steps unlock in order — RF opens once the command block is fully composed.
+// steps unlock in order — RF opens only after the visitor presses "완료" on Step 1
+// (which is itself only enabled once the command block is fully composed).
 function stepUnlocked() {
-  return { 1: true, 2: S.command != null && S.valueConfirmed };
+  return { 1: true, 2: S.step1Done };
 }
 // a step counts as "acted on" once it holds a valid selection
 function stepComplete() {
@@ -184,10 +186,11 @@ function renderSteps() {
     active = activeStep();
   STEP_DEFS.forEach(([n, title, prompt, fn]) => {
     // Auto-collapse a completed step once you've moved past it; a manual click wins.
-    // Never auto-collapse the compose step (1) — it re-renders on every keystroke,
-    // and folding it mid-typing would hide the block the moment a value parses.
-    let collapsed = u[n] && done[n] && n !== active && n !== 1;
-    if (collapseOverride[n] !== undefined) collapsed = collapseOverride[n];
+    // Never collapse the compose step (1) — it re-renders on every keystroke, so folding
+    // it mid-typing would hide the block — nor the RF step (2), which auto-fills and has
+    // nothing to hide.
+    let collapsed = u[n] && done[n] && n !== active && n !== 1 && n !== 2;
+    if (n !== 2 && collapseOverride[n] !== undefined) collapsed = collapseOverride[n];
     wrap.appendChild(stepCard(n, title, prompt, fn, u[n], collapsed));
   });
   refreshPills();
@@ -199,13 +202,14 @@ function stepCard(n, title, prompt, bodyFn, unlocked, collapsed) {
       <span class="stitle">${title}</span>
       <span class="ssum">${collapsed ? stepSummary(n) : ""}</span>
       <span class="pill"></span>
-      ${unlocked ? `<span class="chev">${collapsed ? "▸" : "▾"}</span>` : ""}</div>
+      ${unlocked && n !== 2 ? `<span class="chev">${collapsed ? "▸" : "▾"}</span>` : ""}</div>
     <div class="sbody"></div><div class="sprompt">${prompt}</div>`;
   const body = card.querySelector(".sbody");
   if (unlocked) bodyFn(body);
   else body.innerHTML = `<div class="lockmsg">🔒 Finish composing the command first</div>`;
-  // clicking the header toggles this step open/closed (unlocked steps only)
-  if (unlocked) {
+  // clicking the header toggles this step open/closed (unlocked, collapsible steps only —
+  // step 2 has no chevron and never folds).
+  if (unlocked && n !== 2) {
     const head = card.querySelector(".shead");
     head.onclick = () => {
       collapseOverride[n] = !card.classList.contains("collapsed");
@@ -234,17 +238,33 @@ function refreshPills() {
   $("#progText").textContent = `${ok} / ${NSTEPS}`;
   $("#progFill").style.width = (ok / NSTEPS) * 100 + "%";
   const btn = $("#genBtn");
-  if (ok === NSTEPS) {
+  // The IQ generate button only unclicks for the CORRECT attack: the right command
+  // driven past its safe envelope. A merely-complete-but-harmless command stays locked.
+  const armed = ok === NSTEPS && attackArmed();
+  if (armed) {
     btn.disabled = false;
     btn.className = "genbtn armed";
     btn.textContent = "⚡ GENERATE UPLINK IQ";
-    $("#progHint").textContent = "All systems configured — uplink armed.";
+    $("#progHint").textContent = "Attack armed — the command will disrupt the satellite.";
   } else {
     btn.disabled = true;
     btn.className = "genbtn locked";
-    btn.textContent = `🔒 UPLINK LOCKED — ${ok}/${NSTEPS} CONFIGURED`;
-    $("#progHint").textContent = `Complete both systems to arm the uplink.`;
+    btn.textContent =
+      ok === NSTEPS ? "🔒 UPLINK LOCKED — COMMAND HAS NO EFFECT" : `🔒 UPLINK LOCKED — ${ok}/${NSTEPS} CONFIGURED`;
+    $("#progHint").textContent =
+      ok === NSTEPS ? "This command won't disrupt the satellite — try another." : "Complete both systems to arm the uplink.";
   }
+}
+
+// the attack is only "correct" when the chosen command has a safety-bounded field and
+// the typed value is pushed beyond that bound (the RED zone) — i.e. an abusive uplink.
+function attackArmed() {
+  const c = S.cmdDef;
+  if (!c) return false;
+  const f = (c.fields || []).find((x) => x.safeAbsMax != null);
+  if (!f) return false;
+  const v = S.params[f.key];
+  return typeof v === "number" && Math.abs(v) > f.safeAbsMax;
 }
 
 // ── STEP 1 — Scratch-style command composer (palette + typed slots) ─────────
@@ -280,6 +300,30 @@ function bodyCompose(body) {
   // still DETACHED from the document, so a document.querySelector("#dropzone") here
   // would find nothing and the block would never render.
   renderBlock(zone);
+
+  // "완료" gate: only once the command block is fully composed does this button arm,
+  // and pressing it is what unlocks Step 2 and kicks off the RF magic-writing.
+  const ready = S.command != null && S.valueConfirmed;
+  const done = S.step1Done;
+  const foot = el("div", "s1foot");
+  const btn = el(
+    "button",
+    "s1done" + (done ? " committed" : ready ? " ready" : " disabled"),
+    done ? "✓ COMMAND LOADED" : ready ? "✓ LOAD COMMAND" : "Compose the command first",
+  );
+  btn.disabled = !ready || done;
+  if (ready && !done) btn.onclick = confirmStep1;
+  foot.appendChild(btn);
+  body.appendChild(foot);
+}
+
+// press "완료" → lock in Step 1 and start Step 2's RF auto-detect from scratch
+function confirmStep1() {
+  if (!(S.command != null && S.valueConfirmed) || S.step1Done) return;
+  S.step1Done = true;
+  rfAutoReset(); // guarantees the magic-writing (re)plays each time 완료 is pressed
+  renderSteps();
+  rebuild();
 }
 
 function placeBlock(sub) {
@@ -290,6 +334,7 @@ function placeBlock(sub) {
     S.valText = {};
     S.params = {};
     S.valueConfirmed = false;
+    S.step1Done = false;
     rfAutoReset(); // new command line → SDR re-detects RF from scratch
   }
   renderSteps();
@@ -302,6 +347,7 @@ function clearBlock() {
   S.valText = {};
   S.params = {};
   S.valueConfirmed = false;
+  S.step1Done = false;
   rfAutoReset();
   renderSteps();
   rebuild();
@@ -317,6 +363,7 @@ function pickCommand(name) {
   S.valText = {};
   S.params = {};
   S.valueConfirmed = false;
+  S.step1Done = false;
   rfAutoReset();
   evalValue(); // no-payload commands (e.g. obc_reboot) confirm on selection
   renderSteps();
@@ -329,6 +376,7 @@ function changeCommand() {
   S.valText = {};
   S.params = {};
   S.valueConfirmed = false;
+  S.step1Done = false;
   rfAutoReset();
   renderSteps();
   rebuild();
@@ -748,9 +796,11 @@ $("#genBtn").onclick = async () => {
   refreshPills();
   const res = $("#result");
   if (r.ok && r.saved) {
-    const url = "data:application/octet-stream;base64," + r.downloadB64;
-    res.innerHTML = `✓ <b>${r.saved.filename}</b> written — load this into OpenVSA/VSA and uplink.<br>
-      <span class="path">${r.saved.path}</span><br><a href="${url}" download="${r.saved.filename}">⬇ download cf32</a>`;
+    // No per-visitor file download (that hammers each machine). The cf32 is a
+    // click-through: selecting it advances to the embedded targeting console (phase 3),
+    // and the server has already fired the attack at the ground station.
+    res.innerHTML = `✓ <b>${r.saved.filename}</b> generated — open it in the targeting console to uplink.<br>
+      <a href="#" class="cf32go">⬇ ${r.saved.filename} → open targeting console</a>`;
     res.classList.remove("hidden");
   } else {
     res.textContent = "generate blocked: " + (r.error || "?");
