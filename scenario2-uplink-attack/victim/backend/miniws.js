@@ -25,9 +25,20 @@ class WSSocket extends EventEmitter {
     this.socket = socket;
     this._buf = Buffer.alloc(0);
     this.alive = true;
+    this._closed = false;
     socket.on("data", (d) => this._onData(d));
-    socket.on("close", () => { this.alive = false; this.emit("close"); });
-    socket.on("error", (e) => this.emit("error", e));
+    socket.on("close", () => this._cleanup());
+    // A browser tab closing abruptly resets the connection (ECONNRESET). Treat
+    // any socket error as a disconnect — never re-emit an unhandled 'error',
+    // which would crash the whole ground station.
+    socket.on("error", () => this._cleanup());
+  }
+
+  _cleanup() {
+    if (this._closed) return;   // socket 'error' then 'close' → emit once
+    this._closed = true;
+    this.alive = false;
+    this.emit("close");
   }
 
   _onData(chunk) {
