@@ -3,6 +3,10 @@
 DEFCON 34 Aerospace Village. For **booth operators** running the demo. For the
 card visitors follow, see `participant-guide.md`.
 
+> 🇰🇷 **부스 담당자용 상세 실행 매뉴얼(스크린샷 포함)은 `operator-guide-kr.md`** 를 보세요 —
+> 설치부터 간편 모드(노트북 1대) 시연, 관람객 응대 스크립트까지 단계별로 정리되어 있습니다.
+> 이 영어 문서는 간결한 운영 레퍼런스입니다.
+
 Message of the demo: **"Even a legitimate command becomes an attack when it is abused."**
 A visitor forges a reaction-wheel torque command and uplinks it; the victim ground
 station dashboard escalates to **ENERGY SUPPLY CRITICAL** and the physical solar
@@ -81,13 +85,25 @@ The Command Builder is stateless — no reset needed (a refresh is optional).
 | Arduino trigger | GS env `ARDUINO_URL` (POST on attack onset) | logs only if unset |
 
 ## 6. What "correct" looks like
-- Nominal: green banner, SUN-TRACKING / STABLE / CONNECTED, battery 100%.
-- After the uplink lands (~ATTACK_DELAY_MS later): red **ENERGY SUPPLY CRITICAL**
-  banner, **SUN-TRACK LOST**, Power Gen collapsing toward 0 W (stays low), battery
-  draining, **TUMBLING**, Comm **LOST**. A full-screen alarm flashes for ~5 s, then
-  clears so the live telemetry stays visible.
-- Reference screenshots: `screenshots/gs-nominal.png`, `gs-alarm-flash.png`,
-  `gs-energy-critical.png`, `generator-command-builder.png`.
+
+**Nominal** — green banner, SUN-TRACKING / STABLE / CONNECTED, battery 100%:
+
+![Ground station nominal](screenshots/gs-nominal.png)
+
+**Attack lands** (~ATTACK_DELAY_MS later) — a full-screen alarm flashes for ~5 s:
+
+![Energy supply critical alarm flash](screenshots/gs-alarm-flash.png)
+
+**Sustained critical** — after the flash clears, live telemetry keeps showing the
+collapse: red **ENERGY SUPPLY CRITICAL** banner, **SUN-TRACK LOST**, Power Gen graph
+plunging toward 0 W (stays low), battery draining, ADCS **TUMBLING**, Comm **LOST**,
+and `ACCEPTED · adcs_torque [0x03 0xe7]` in UPLINK ACTIVITY:
+
+![Sustained energy supply critical](screenshots/gs-energy-critical.png)
+
+**Command Builder** — the visitor's attacker console; GENERATE unlocks only at 4/4:
+
+![Command Builder armed at 4/4](screenshots/generator-command-builder.png)
 
 ## 7. Troubleshooting
 | Symptom | Check |
