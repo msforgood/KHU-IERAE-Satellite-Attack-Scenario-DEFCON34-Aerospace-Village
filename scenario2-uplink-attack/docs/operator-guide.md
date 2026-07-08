@@ -16,7 +16,7 @@ panel spins out of control. No real RF — the uplink is software-simulated.
   · OpenVSA (VSA)                                     · GS backend  :4536 (uplink in)
       rotctld :4533 / rigctld :4532 / ws :4534              │
       forward → ws://GS:4536 ───────────────────────────────┘
-                                                             └→ Arduino solar panel (trigger hook, TBD)
+                                                             └→ serial bridge → Arduino solar panel + antenna
 ```
 
 Software-simulated: OpenVSA validates the uplink (antenna alignment, frequency,
@@ -98,7 +98,11 @@ The Command Builder is stateless — no reset needed (a refresh is optional).
 | No alarm | Command must be `adcs_torque` with torque above the safe threshold |
 
 ## 8. Open items
-- **Arduino solar panel**: currently a trigger **hook** only (logs / HTTP POST on
-  attack onset). Real firmware + motor wiring TBD (pending the Google Drive code).
-  The GS is ready to emit the signal via `ARDUINO_URL`.
-- **OpenVSA end-to-end** rehearsal against the procedure above still to be verified.
+- **Arduino solar panel + antenna**: firmware **written** — `arduino/solar_panel_uno`
+  (SG90 servo) and `arduino/antenna_gimbal` (28BYJ-48 stepper), driven live by
+  `arduino/bridge/bridge.js` polling `/api/state`. Sketch + bridge code done and
+  self-testable over the serial monitor; **physical wiring bring-up and booth motor
+  tuning (speed/travel) on real hardware still to be done.** See `arduino/README.md`.
+- **OpenVSA end-to-end**: headless path verified (cf32 decode → :4536 forward → GS
+  applies the effect). Full **Electron UI + real uplink** rehearsal against the
+  procedure above still to be run live.

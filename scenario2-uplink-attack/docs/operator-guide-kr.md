@@ -17,7 +17,7 @@
   · OpenVSA (VSA)                                    · GS 백엔드  :4536 (업링크 수신)
       rotctld :4533 / rigctld :4532 / ws :4534             │
       forward → ws://GS:4536 ──────────────────────────────┘
-                                                            └→ Arduino 솔라패널 (트리거 훅, TBD)
+                                                            └→ 시리얼 브릿지 → Arduino 솔라패널 + 안테나
 ```
 
 소프트웨어 시뮬: OpenVSA가 업링크를 검증(안테나 정렬·주파수·링크 마진)한 뒤
@@ -95,9 +95,13 @@ Command Builder는 상태가 없음 — 리셋 불필요(새로고침은 선택)
 | 경보 안 뜸 | 명령이 `adcs_torque`이고 토크가 안전 임계값 초과인지 |
 
 ## 8. 미해결 항목
-- **Arduino 솔라패널**: 현재 트리거 **훅**만(공격 순간 로그/HTTP POST). 실제 펌웨어 +
-  모터 배선은 TBD(Google Drive 코드 확인 후). GS는 `ARDUINO_URL`로 신호 방출 준비 완료.
-- **OpenVSA end-to-end** 리허설(위 절차 기준) 미완 — 검증 필요.
+- **Arduino 솔라패널 + 안테나**: 펌웨어 **작성 완료** — `arduino/solar_panel_uno`
+  (SG90 서보) + `arduino/antenna_gimbal`(28BYJ-48 스텝), `arduino/bridge/bridge.js`가
+  `/api/state`를 폴링해 실시간 구동. 스케치·브릿지 코드 완성, 시리얼 모니터로 단독
+  테스트 가능. **실물 배선 브링업 + 부스용 모터 튜닝(속도/가동범위)은 남음.**
+  자세한 내용은 `arduino/README.md`.
+- **OpenVSA end-to-end**: 헤드리스 경로 검증 완료(cf32 디코드 → :4536 forward → GS
+  이펙트 적용). 전체 **Electron UI + 실제 업링크** 라이브 리허설은 미완 — 실행 필요.
 
 ---
 ※ 한국어판 유지보수: 영어 `operator-guide.md`가 기준(source of truth)이며, 내용 변경 시

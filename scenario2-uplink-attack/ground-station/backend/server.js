@@ -5,7 +5,8 @@
 //
 // Flow: uplink-command(adcs_torque) → satellite state engine applies attack →
 // tumbling → sun-track loss → power collapse → battery drain → dashboard alarm.
-// Also fires an Arduino trigger hook on attack onset (stub; real wiring TBD).
+// Also fires an optional Arduino HTTP trigger hook on attack onset (ARDUINO_URL);
+// the physical panel/antenna are driven live by arduino/bridge/bridge.js polling /api/state.
 
 const http = require("http");
 const fs = require("fs");

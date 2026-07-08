@@ -16,12 +16,13 @@ dashboard raises a critical alarm and the physical solar panel spins wildly.
 | `packet-generator/` | ① Python command generator + web UI (cf32 output) | ours |
 | `openvsa-plugin/` | OpenVSA drop-in satellite plugin (decoder / effects / dashboard defs) | ours |
 | `ground-station/` | ② Victim GS web UI (alarm dashboard) | ours |
+| `arduino/` | ③ Physical solar panel + antenna sketches + serial bridge | ours |
 | (external) OpenVSA | Attacker VSA tool — used as-is, core untouched | reused |
 
 ## End-to-end flow
 ```
 generate → attack.cf32 → [OpenVSA load / uplink] → ws:4536 → [GS web UI alarm]
-                                                            └→ Arduino solar panel (TBD)
+                                                            └→ serial bridge → Arduino solar panel + antenna
 ```
 
 ## Quick start (local, without OpenVSA)
