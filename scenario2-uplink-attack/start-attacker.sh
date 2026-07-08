@@ -2,14 +2,13 @@
 # start-attacker.sh — attacker 쪽 원샷 부트스트랩: 최초 설치 → 설치 확인 → 화면 실행.
 # scn2 루트에 두지만, 실제 자원은 전부 attacker/ 아래에 있어 스스로 그리로 진입한다.
 #
-#   ① Command Builder   attacker/packet-generator/webapp (Python) → http://localhost:8000
-#   ③ 위성 조준 콘솔(단일 포트)  console-proxy.js               → http://localhost:8090
-#      ├ /          console (정적)
-#      ├ /vsa/      OpenVSA 렌더러 (정적, 데스크탑 앱 아님)
-#      └ /gpredict/ gpredict noVNC (Docker :6080 로 HTTP+WS 프록시)
+# 단일 포트(:8000) 하나로 ①②③ 전부. 별도 창/프록시 포트 없음.
+#   http://localhost:8000  Command Builder (Python)
+#     ├ 페이즈① 명령 조립  ·  페이즈② IQ 생성
+#     └ 페이즈③ 위성 조준:  /targeting(콘솔) + /vsa(OpenVSA 렌더러) + gpredict(:6080) 직접 iframe
 #
-# ※ OpenVSA는 Electron 앱이지만 렌더러는 정적 웹(+WS :4534)이라 프록시가 /vsa 로 서빙해
-#   브라우저 iframe으로 띄운다(네이티브 창 안 뜸). TRANSMIT은 피해 GS API(/api/inject)로 처리.
+# ※ OpenVSA는 Electron 앱이지만 렌더러는 정적 웹(+WS :4534)이라 :8000이 /vsa 로 서빙한다.
+#   gpredict noVNC는 Docker :6080 을 그대로 iframe(프록시 불필요). TRANSMIT은 피해 GS API(/api/inject).
 #
 # 사용법 (scn2 루트에서):
 #   ./start-attacker.sh            # 설치 + 확인 + 실행 (전체)
@@ -172,7 +171,6 @@ up() {
 
   # ── preflight: 이전 실행이 남긴 좀비가 포트를 물고 있으면 정리(bind 실패 사고 예방) ──
   free_port "$BUILDER_PORT" "Command Builder"
-  free_port "$CONSOLE_PORT" "콘솔 프록시"
 
   # ① Command Builder (:BUILDER_PORT)
   mkdir -p "$UPLINK_OUT_DIR"
@@ -188,43 +186,31 @@ up() {
     GP="http://localhost:$GP_PORT/vnc.html?autoconnect=1&resize=remote"
   fi
 
-  # ③ OpenVSA 백엔드(rotctld :4533 / rigctld :4532 / WS :4534 / forward).
-  #   UI(렌더러)는 아래 단일 포트 프록시가 /vsa 로 서빙한다(데스크탑 Electron 창 없음).
+  # ③ OpenVSA 백엔드(rotctld :4533 ← gpredict / rigctld :4532 / WS :4534 → 렌더러 시각화 / forward :4536).
+  #   OpenVSA UI(렌더러)는 :8000 이 /vsa 로 서빙한다 — 별도 :8090 프록시·데스크탑 창 없음.
   ( cd openvsa && UPLINK_DEST="$UPLINK_DEST" node server.js ) >/tmp/demosat-openvsa.log 2>&1 &
   pids+=($!)
 
-  # ③ 단일 포트 콘솔 프록시 — 한 포트로 console(/) + OpenVSA(/vsa) + gpredict(/gpredict, HTTP+WS)
-  ( PORT="$CONSOLE_PORT" GP_PORT="$GP_PORT" node console-proxy.js ) >/tmp/demosat-console.log 2>&1 &
-  pids+=($!)
+  # 단일 진입점 = :8000 하나. ① 명령 조립 → ② IQ 생성 → ③ 위성 조준 이 한 앱 안에서 전부.
+  #   ③ 조준: 콘솔=:8000 /targeting · OpenVSA=:8000 /vsa · gpredict noVNC=Docker(:GP_PORT) 직접 iframe.
+  local BUILDER_URL="http://localhost:$BUILDER_PORT/?gs=$GS_URL&gpport=$GP_PORT"
 
-  # 콘솔 iframe은 전부 같은 오리진의 상대경로. gpredict는 noVNC WS를 /gpredict/ 아래로
-  # 잡도록 path= 를 지정한다(프록시가 /gpredict/* WS를 :GP_PORT 로 포워딩).
-  local CQ="gs=$GS_URL&vsa=/vsa/"
-  if [ -n "$GP" ]; then
-    local GP_REL="/gpredict/vnc.html?autoconnect=1&resize=remote&path=gpredict/websockify"
-    # gp 값 안의 ?,&,= 때문에 콘솔의 쿼리 파서가 쪼개지 않도록 통째로 URL 인코딩
-    local GP_ENC; GP_ENC=$("$PY_ABS" -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=""))' "$GP_REL")
-    CQ="$CQ&gp=$GP_ENC"
-  fi
-  local CONSOLE_URL="http://localhost:$CONSOLE_PORT/?$CQ"
-
-  # 콘솔이 응답할 때까지 대기(최대 ~10초)
+  # 빌더(:8000)가 응답할 때까지 대기(최대 ~10초)
   for _ in $(seq 1 50); do
-    curl -fsS "http://localhost:$CONSOLE_PORT/" >/dev/null 2>&1 && break
+    curl -fsS "http://localhost:$BUILDER_PORT/" >/dev/null 2>&1 && break
     sleep 0.2
   done
 
   echo "───────────────────────────────────────────────"
-  c_ok "① Command Builder → http://localhost:$BUILDER_PORT   (로그 /tmp/demosat-builder.log)"
-  c_ok "③ 위성 조준 콘솔(단일 포트) → $CONSOLE_URL"
-  echo "     └ /  console   ·   /vsa  OpenVSA(웹)   ·   /gpredict  gpredict(:$GP_PORT 프록시)"
-  [ -z "$GP" ] && c_warn "gpredict 미실행(docker 없음) → /gpredict 비활성, 나머지는 정상"
+  c_ok "공격자 콘솔(단일 앱·단일 포트) → $BUILDER_URL"
+  echo "     ① 명령 조립 → ② IQ 생성 → ③ 위성 조준(gpredict+OpenVSA 임베드)"
+  echo "     ③ 소스: OpenVSA UI=:$BUILDER_PORT/vsa · gpredict=Docker :$GP_PORT(직접 iframe) · OpenVSA WS=:4534"
+  [ -z "$GP" ] && c_warn "gpredict 미실행(docker 없음) → ③ gpredict 창 비활성, 나머지는 정상"
   echo "   ⑤ 피해 지상국은 별도 실행:  ./start-victim.sh  (또는 cd victim/backend && node server.js)"
-  echo "   ℹ️ VSA TRANSMIT은 브라우저 IPC가 없으므로 피해 GS API(/api/inject)로 처리하는 흐름입니다."
+  echo "   ℹ️ ③ TRANSMIT은 피해 GS API(/api/inject)로 공격 명령을 발사합니다."
   echo "───────────────────────────────────────────────"
 
-  open_url "http://localhost:$BUILDER_PORT"   # ① 명령 조립
-  open_url "$CONSOLE_URL"                      # ③ 위성 조준(브라우저 최상단)
+  open_url "$BUILDER_URL"   # 단일 진입점 (②③ 전부 이 앱 안에서)
   c_ok "브라우저에서 화면 열림  (자동 열기 끄려면 NO_OPEN=1)"
 
   echo "종료하려면 Ctrl-C"

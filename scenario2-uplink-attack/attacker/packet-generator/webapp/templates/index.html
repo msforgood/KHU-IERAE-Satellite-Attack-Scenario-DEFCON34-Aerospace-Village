@@ -22,7 +22,7 @@
   <!-- ═══════════ PHASE A · MISSION BRIEFING ═══════════ -->
   <section id="briefing" class="phase">
     <div class="briefwrap">
-      <div class="phasetag">PHASE 1 / 2 · MISSION BRIEFING</div>
+      <div class="phasetag">PHASE 1 / 3 · MISSION BRIEFING</div>
       <h1 class="brieftitle">Understand the attack before you build it</h1>
 
       <div class="briefgrid">
@@ -118,7 +118,7 @@
   <!-- ═══════════ PHASE B · BUILD THE UPLINK ═══════════ -->
   <section id="builder" class="phase hidden">
     <div class="objbar">
-      <span class="phasetag">PHASE 2 / 2 · BUILD</span>
+      <span class="phasetag">PHASE 2 / 3 · BUILD</span>
       <span>Assemble a valid uplink: <b>compose the command by typing it</b> into the
         block, then match the <b>TARGET INTEL</b> RF. Watch the CCSDS packet fill in
         field by field — only a complete, correct frame can be generated into an IQ file.</span>
@@ -199,11 +199,48 @@
         <div id="waveHint" class="wavehint">RF not configured — complete Step 3.</div>
         <button id="genBtn" class="genbtn locked" disabled>🔒 UPLINK LOCKED — 0/2 CONFIGURED</button>
         <div id="result" class="result hidden"></div>
+        <button id="toTargeting" class="bigbtn hidden" style="margin-top:14px">③ 위성 조준으로 진행 →</button>
       </section>
     </main>
   </section>
 
+  <!-- PHASE 3 / 3 · 위성 조준 — gpredict + OpenVSA 콘솔을 iframe으로 임베드(별도 창 없음) -->
+  <section id="phase3" class="phase hidden">
+    <iframe id="phase3frame" title="③ 위성 조준" style="width:100%;height:100vh;border:0;display:block;background:#0c1118"></iframe>
+  </section>
+
   <div id="tooltip" class="tooltip hidden"></div>
   <script src="/static/app.js"></script>
+  <!-- self-contained phase-3 navigation (does not touch app.js): once an IQ file is
+       generated, reveal a button that switches to the embedded targeting console. -->
+  <script>
+    (function () {
+      var p = new URLSearchParams(location.search);
+      // 단일 포트: ③ 조준 콘솔은 이 앱(:8000)이 /targeting 으로 서빙, OpenVSA는 /vsa,
+      // gpredict noVNC는 Docker(:6080)를 직접 iframe(프록시 없음). 전부 이 앱 안에서 뜬다.
+      var GS = p.get('gs') || 'http://localhost:4540';
+      var GPORT = p.get('gpport') || '6080';
+      var gpUrl = 'http://localhost:' + GPORT + '/vnc.html?autoconnect=1&resize=remote';
+      var CONSOLE_URL = '/targeting?gs=' + encodeURIComponent(GS)
+        + '&gp=' + encodeURIComponent(gpUrl) + '&vsa=' + encodeURIComponent('/vsa/');
+      var result = document.getElementById('result');
+      var toBtn = document.getElementById('toTargeting');
+      var builder = document.getElementById('builder');
+      var phase3 = document.getElementById('phase3');
+      var frame = document.getElementById('phase3frame');
+      if (!result || !toBtn || !phase3 || !frame) return;
+      // reveal the "③ 위성 조준" button only once GENERATE has written a cf32 (result has a download link)
+      new MutationObserver(function () {
+        var done = !result.classList.contains('hidden') && result.querySelector('a[download]');
+        toBtn.classList.toggle('hidden', !done);
+      }).observe(result, { attributes: true, childList: true, subtree: true });
+      toBtn.onclick = function () {
+        if (!frame.getAttribute('src')) frame.setAttribute('src', CONSOLE_URL);
+        builder.classList.add('hidden');
+        phase3.classList.remove('hidden');
+        window.scrollTo(0, 0);
+      };
+    })();
+  </script>
 </body>
 </html>

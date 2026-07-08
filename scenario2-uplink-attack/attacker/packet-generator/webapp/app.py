@@ -34,6 +34,17 @@ import ccsds_ook as codec  # noqa: E402
 STATIC_DIR = os.path.join(HERE, "static")
 TEMPLATE = os.path.join(HERE, "templates", "index.html")
 OUT_DIR = os.environ.get("UPLINK_OUT_DIR", os.path.expanduser("~/uplink"))
+# ③ 위성 조준(phase 3)을 이 앱 안에서 서빙 — 별도 :8090 프록시 없이 단일 포트로 통합.
+#   /targeting → 콘솔 페이지, /vsa/… → OpenVSA 정적 렌더러(gpredict는 :6080 직접 iframe).
+OPENVSA_DIR = os.path.abspath(os.path.join(HERE, "..", "..", "openvsa"))
+CONSOLE_DIR = os.path.abspath(os.path.join(HERE, "..", "..", "console"))
+_VSA_MIME = {
+    ".html": "text/html; charset=utf-8", ".js": "application/javascript", ".mjs": "application/javascript",
+    ".css": "text/css", ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg", ".gif": "image/gif", ".svg": "image/svg+xml", ".ico": "image/x-icon",
+    ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf", ".wasm": "application/wasm",
+    ".map": "application/json", ".txt": "text/plain; charset=utf-8",
+}
 PORT = int(os.environ.get("PORT", "8000"))
 
 # ── Dev live-reload (opt-in: DEV_RELOAD=1 or --reload) ───────────────────────
@@ -237,7 +248,7 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
-        if self.path in ("/", "/index.html"):
+        if self.path.split("?")[0] in ("/", "/index.html"):
             with open(TEMPLATE, "rb") as f:
                 html = f.read()
             if RELOAD:
@@ -255,6 +266,21 @@ class Handler(BaseHTTPRequestHandler):
                          else "application/javascript" if fp.endswith(".js")
                          else "image/svg+xml" if fp.endswith(".svg")
                          else "application/octet-stream")
+                with open(fp, "rb") as f:
+                    return self._send(200, ctype, f.read())
+        # ③ 위성 조준 콘솔 페이지 (phase 3 iframe이 여기를 연다)
+        if self.path.split("?")[0] == "/targeting":
+            with open(os.path.join(CONSOLE_DIR, "index.html"), "rb") as f:
+                return self._send(200, "text/html; charset=utf-8", f.read())
+        # ③ OpenVSA 렌더러 정적 서빙 (/vsa/… → attacker/openvsa/…)
+        pth = self.path.split("?")[0]
+        if pth == "/vsa" or pth.startswith("/vsa/"):
+            rel = pth[len("/vsa"):].lstrip("/") or "index.html"
+            fp = os.path.normpath(os.path.join(OPENVSA_DIR, rel))
+            if os.path.isdir(fp):
+                fp = os.path.join(fp, "index.html")
+            if fp.startswith(OPENVSA_DIR) and os.path.isfile(fp):
+                ctype = _VSA_MIME.get(os.path.splitext(fp)[1].lower(), "application/octet-stream")
                 with open(fp, "rb") as f:
                     return self._send(200, ctype, f.read())
         self._send(404, "text/plain", b"not found")
