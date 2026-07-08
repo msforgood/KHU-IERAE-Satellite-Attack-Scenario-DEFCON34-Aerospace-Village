@@ -22,11 +22,19 @@ const $ = (s) => document.querySelector(s);
 const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
 
 async function boot() {
-  M = await (await fetch('/api/mission')).json();
+  // Wire the acknowledge → BUILD gate FIRST and independently of the mission
+  // fetch. A slow or failed /api/mission must never leave the ack checkbox dead
+  // (previously boot() awaited the fetch before initPhases(), so any fetch error
+  // skipped the wiring and the checkbox couldn't enable the button).
   initPhases();
-  renderDossier();
-  renderSteps();
-  rebuild();
+  try {
+    M = await (await fetch('/api/mission')).json();
+    renderDossier();
+    renderSteps();
+    rebuild();
+  } catch (e) {
+    console.error('[boot] mission load failed — briefing gate still works:', e);
+  }
 }
 
 // PHASE A → B gate: must acknowledge the briefing before building.

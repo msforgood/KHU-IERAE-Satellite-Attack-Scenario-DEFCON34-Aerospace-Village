@@ -5,24 +5,24 @@
   --mono:'SFMono-Regular',ui-monospace,'Cascadia Code','Consolas',monospace;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:18px}
-h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 14px;font-weight:700}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:20px}
+h2{font-size:16px;letter-spacing:.16em;color:var(--dim);margin:0 0 14px;font-weight:700}
 .hidden{display:none!important}
 
 .topbar{display:flex;justify-content:space-between;align-items:center;
   padding:16px 24px;border-bottom:1px solid var(--line);background:var(--panel)}
 .brand{display:flex;gap:14px;align-items:center}
-.sat{font-size:34px}
-.title{font-weight:700;letter-spacing:.05em;color:#eaf2fb;font-size:22px}
-.sub{font-size:15px;color:var(--dim)}
-.conn{display:flex;gap:10px;align-items:center;font-size:16px;color:var(--dim)}
-.dot{width:11px;height:11px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.sat{font-size:38px}
+.title{font-weight:700;letter-spacing:.05em;color:#eaf2fb;font-size:25px}
+.sub{font-size:16px;color:var(--dim)}
+.conn{display:flex;gap:10px;align-items:center;font-size:17px;color:var(--dim)}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
 .dot.off{background:var(--danger);box-shadow:0 0 8px var(--danger)}
 
 /* status banner */
-.banner{display:flex;gap:18px;align-items:center;padding:18px 24px;font-weight:700;font-size:19px;
+.banner{display:flex;gap:18px;align-items:center;padding:18px 24px;font-weight:700;font-size:21px;
   letter-spacing:.03em;border-bottom:1px solid var(--line);transition:.3s}
-.banner .bl{font-size:13px;letter-spacing:.18em;opacity:.7;font-weight:700}
+.banner .bl{font-size:14px;letter-spacing:.18em;opacity:.7;font-weight:700}
 .banner.nominal{background:rgba(51,209,122,.08);color:var(--ok)}
 .banner.warn{background:rgba(255,176,32,.1);color:var(--warn)}
 .banner.danger{background:rgba(255,59,78,.14);color:#ff8f9a;animation:bpulse 1s infinite}
@@ -33,16 +33,16 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 14px;font-wei
 .side{display:flex;flex-direction:column;gap:18px}
 .card,.section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
 .section.attacked{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger),0 0 24px rgba(255,59,78,.15)}
-.section .stitle{font-size:15px;letter-spacing:.14em;color:var(--accent);margin-bottom:16px;font-weight:700}
+.section .stitle{font-size:16px;letter-spacing:.14em;color:var(--accent);margin-bottom:16px;font-weight:700}
 
-.field{display:flex;justify-content:space-between;align-items:center;padding:10px 0;
+.field{display:flex;justify-content:space-between;align-items:center;padding:11px 0;
   border-bottom:1px solid rgba(29,41,55,.5)}
 .field:last-child{border-bottom:none}
-.field .fl{color:var(--dim);font-size:16px}
+.field .fl{color:var(--dim);font-size:17px}
 .field .fr{display:flex;gap:10px;align-items:center;text-align:right}
-.field .val{font-weight:700;color:#eaf2fb;font-size:21px}
+.field .val{font-weight:700;color:#eaf2fb;font-size:24px}
 .val.nominal{color:#eaf2fb}.val.warn{color:var(--warn)}.val.danger{color:var(--danger)}
-.tag{font-size:13px;padding:3px 9px;border-radius:5px;letter-spacing:.05em;font-weight:700}
+.tag{font-size:14px;padding:3px 9px;border-radius:5px;letter-spacing:.05em;font-weight:700}
 .tag.nominal{background:rgba(51,209,122,.15);color:var(--ok)}
 .tag.warn{background:rgba(255,176,32,.15);color:var(--warn)}
 .tag.danger{background:rgba(255,59,78,.18);color:var(--danger)}
@@ -54,14 +54,44 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 14px;font-wei
 .bar.warn > i{background:var(--warn)} .bar.danger > i{background:var(--danger)}
 
 /* side */
-.metric{display:flex;justify-content:space-between;font-size:16px;color:var(--dim);margin:8px 0 5px}
-.metric .mv{color:#eaf2fb;font-weight:700}
+.metric{display:flex;justify-content:space-between;font-size:17px;color:var(--dim);margin:10px 0 6px}
+.metric .mv{color:#eaf2fb;font-weight:700;font-size:19px}
 .metric .mv.danger{color:var(--danger)}
-canvas{width:100%;height:90px;background:#070c12;border:1px solid var(--line);border-radius:6px;margin-bottom:12px}
-.log{display:flex;flex-direction:column;gap:8px;max-height:300px;overflow:auto;font-size:15px}
+#powGraph,#batGraph{width:100%;height:96px;background:#070c12;border:1px solid var(--line);border-radius:6px;margin-bottom:12px;display:block}
+.log{display:flex;flex-direction:column;gap:8px;max-height:300px;overflow:auto;font-size:16px}
 .logitem{padding:10px 12px;border-left:4px solid var(--danger);background:var(--panel2);border-radius:0 6px 6px 0}
-.logitem .lt{color:var(--dim);font-size:13px}
+.logitem .lt{color:var(--dim);font-size:14px}
 .logitem .lc{color:#ff9aa5;font-weight:700}
+
+/* ═══════════ SPACECRAFT VITALS · ECG life-sign monitor ═══════════ */
+.vitals{margin:0 18px 0;padding:14px 20px 10px;background:linear-gradient(180deg,#0a0f16,#070b11);
+  border:1px solid var(--line);border-top:none;border-radius:0 0 12px 12px}
+.vhead{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px}
+.vtitle{font-size:18px;font-weight:800;letter-spacing:.14em;color:#cfe8ff}
+.vtitle .vsub{color:var(--dim);font-weight:600;letter-spacing:.08em;font-size:14px}
+.vmeta{display:flex;gap:22px;align-items:center}
+.vbox{display:flex;align-items:baseline;gap:7px}
+.vbpm{font-size:38px;font-weight:800;color:#eaf2fb;font-variant-numeric:tabular-nums;line-height:1}
+.vunit{font-size:14px;color:var(--dim);letter-spacing:.14em;font-weight:700}
+.vstate{font-size:16px;font-weight:800;letter-spacing:.08em;padding:6px 14px;border-radius:7px}
+.vstate.ok{color:var(--ok);background:rgba(51,209,122,.12)}
+.vstate.warn{color:var(--warn);background:rgba(255,176,32,.14)}
+.vstate.danger{color:#ff6a78;background:rgba(255,59,78,.16);animation:tblink .7s steps(1) infinite}
+.vstate.dead{color:#8b97a6;background:rgba(139,151,166,.14)}
+#ecg{display:block;width:100%;height:150px;background:#05090e;border:1px solid var(--line);border-radius:8px;
+  box-shadow:inset 0 0 40px rgba(0,0,0,.6)}
+
+/* ═══════════ ORBITAL TRACKING MAP ═══════════ */
+.maphead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+.maphead h2{margin:0}
+.mapcoord{font-size:15px;color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums}
+.mapwrap{position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#04070c}
+#orbit{display:block;width:100%;height:210px}
+.mapoverlay{position:absolute;top:8px;left:8px;display:flex;gap:8px;pointer-events:none}
+.maptag{font-size:13px;font-weight:800;letter-spacing:.06em;padding:4px 10px;border-radius:6px;
+  background:rgba(5,9,14,.72);backdrop-filter:blur(2px)}
+.maptag.ok{color:var(--ok)} .maptag.warn{color:var(--warn)}
+.maptag.danger{color:#ff6a78;animation:tblink .7s steps(1) infinite}
 
 /* alarm overlay */
 .alarm{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
@@ -69,7 +99,7 @@ canvas{width:100%;height:90px;background:#070c12;border:1px solid var(--line);bo
 @keyframes aflash{50%{background:rgba(120,0,10,.5)}}
 .alarmbox{border:2px solid var(--danger);background:#12060a;border-radius:14px;padding:32px 52px;
   text-align:center;box-shadow:0 0 60px rgba(255,59,78,.5)}
-.atitle{font-size:40px;font-weight:800;color:var(--danger);letter-spacing:.04em}
-.adesc{margin-top:12px;color:#ff9aa5;font-size:19px;max-width:620px}
+.atitle{font-size:46px;font-weight:800;color:var(--danger);letter-spacing:.04em}
+.adesc{margin-top:14px;color:#ff9aa5;font-size:21px;max-width:660px}
 
 @media(max-width:1000px){.grid{grid-template-columns:1fr}.panels{grid-template-columns:1fr}}

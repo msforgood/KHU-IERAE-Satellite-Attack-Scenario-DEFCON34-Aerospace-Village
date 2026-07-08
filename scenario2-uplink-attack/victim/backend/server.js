@@ -81,7 +81,8 @@ uplinkWss.on("connection", (ws) => {
 
 // ── :4540 — dashboard http + browser state WS ───────────────────────────────
 const CT = { ".html": "text/html; charset=utf-8", ".css": "text/css",
-  ".js": "application/javascript", ".json": "application/json" };
+  ".js": "application/javascript", ".json": "application/json",
+  ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".svg": "image/svg+xml" };
 
 const httpServer = http.createServer((req, res) => {
   const url = req.url.split("?")[0];
