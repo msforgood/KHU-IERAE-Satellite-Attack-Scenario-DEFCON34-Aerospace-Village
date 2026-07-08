@@ -1,377 +1,315 @@
 # 운영자 가이드 (한국어) — Scenario 2 "Uplink Attack"
 
-> **DEFCON 34 Aerospace Village 부스 데모.** 이 문서는 부스를 **직접 운영하는 담당자**가
-> 처음부터 끝까지 따라 하면 데모가 돌아가도록 만든 **실행 매뉴얼**입니다.
-> 명령어를 그대로 복사·붙여넣기만 하면 됩니다.
+> **DEFCON 34 Aerospace Village 부스 데모.** 부스를 **직접 운영하는 담당자**가 처음부터 끝까지
+> 따라 하면 데모가 돌아가도록 만든 **실행 매뉴얼**입니다. 명령어는 그대로 복사·붙여넣기 하면 됩니다.
 >
+> 진행 순서: **준비물 → 최초 설치 → 물리 셋업 → 시연 → 리셋.**
 > 관람객이 손에 쥐고 따라 하는 카드는 `participant-guide.md`(영어)입니다.
 
 ---
 
-## 0. 이 데모가 보여주는 것 (30초 요약)
+## 0. 데모 개요
 
 한 줄 메시지: **"정상적인 명령도 값을 악용하면 공격이 된다."**
 
 관람객이 위성의 **리액션휠 토크(자세제어) 명령**을 — 프로토콜은 완전히 정상인데 — **값만 과도하게**
-실어서 위성으로 쏩니다. 그러면 위성이 자세를 잃고 빙글빙글 돌기 시작하고 → 태양을 추적하던
-태양광 패널이 태양을 놓치고 → **발전량이 0으로 붕괴** → 지상국 대시보드가 빨갛게
-**ENERGY SUPPLY CRITICAL** 경보를 띄우고 (연결 시) 실제 태양광 패널 모형이 폭주 회전합니다.
+실어 위성으로 쏩니다. 위성이 자세를 잃고 회전 → 태양을 추적하던 태양광 패널이 태양을 놓침 →
+**발전량이 0으로 붕괴** → 지상국 대시보드가 빨갛게 **ENERGY SUPPLY CRITICAL** 경보 + 물리 태양광
+패널이 무한 회전. *(실제 RF 송신은 없고 업링크는 소프트웨어로 시뮬레이션됩니다.)*
 
-> 실제 무선(RF) 송신은 없습니다. 업링크는 전부 **소프트웨어로 시뮬레이션**됩니다. HackRF·안테나
-> 없이도 노트북 한 대로 완전히 동작합니다.
-
-**데모 흐름 한눈에:**
+### 시연은 항상 이 5단계로 진행됩니다
 
 ```
-[관람객이 명령 조립]        [공격 송신]           [피해 위성/지상국]
- Command Builder 웹  ──▶  attack.cf32  ──▶  OpenVSA 업링크  ──▶  지상국 대시보드 경보
- (4스텝 퍼즐)             (IQ 신호파일)      (또는 inject 폴백)     + 태양광 패널 폭주(선택)
+① 명령 조립          ② IQ 생성        ③ 위성 조준              ④ 송신                ⑤ 피해
+Command Builder ─▶ attack.cf32 ─▶ gpredict+VSA로       ─▶ VSA가 IQ 송신     ─▶ victim 지상국
+웹 화면             (IQ 신호파일)     가상 위성 조준·정렬        (uplink 발사)          대시보드 경보
+(4스텝 퍼즐)                         └▶ 🛰️ 안테나 모터           └▶ ☀️ 솔라패널 모터    (웹 화면)
+                                        좌↔우 조준 스윕            무한 회전
 ```
 
----
+| 단계 | 어디서 | 물리 모터 |
+|---|---|---|
+| **① 명령 조립** | Command Builder 웹 (`:8000`) | — |
+| **② IQ 생성** | Command Builder `GENERATE` → `attack.cf32` | — |
+| **③ 위성 조준** | gpredict + OpenVSA(VSA) | 🛰️ **안테나 스텝모터** 좌↔우 스윕 |
+| **④ 송신** | OpenVSA `TRANSMIT` | ☀️ **솔라패널 서보** 무한 회전 |
+| **⑤ 피해** | victim 지상국 대시보드 (`:4540`) | (①③④ 모터 상태 지속) |
 
-## 목차
+### 토폴로지 (노트북 1대 기준, 아두이노 2대 USB 연결)
 
-1. [준비물 체크리스트](#1-준비물-체크리스트)
-2. [설치 (최초 1회)](#2-설치-최초-1회)
-3. [⭐ 간편 모드 — 노트북 1대로 5분 만에 시연](#3--간편-모드--노트북-1대로-5분-만에-시연)
-4. [관람객 응대 스크립트](#4-관람객-응대-스크립트)
-5. [관람객 사이 리셋](#5-관람객-사이-리셋)
-6. [정식 모드 — OpenVSA 실제 업링크 연동](#6-정식-모드--openvsa-실제-업링크-연동)
-7. [(선택) 아두이노 물리 패널 연결](#7-선택-아두이노-물리-패널-연결)
-8. [연출 튜닝 노브](#8-연출-튜닝-노브)
-9. [트러블슈팅](#9-트러블슈팅)
-10. [자주 묻는 질문](#10-자주-묻는-질문)
+```
+[노트북 — 전부 localhost]                              [USB 시리얼]
+  · Command Builder 웹     :8000  ─ ① 명령/② IQ           ┌─▶ 🛰️ 안테나 (스텝 28BYJ-48)
+  · gpredict ── rotctld ──▶ OpenVSA :4533 ─ ③ 조준         │
+  · OpenVSA(VSA) ─ ④ TRANSMIT ─ forward ▶ :4536 ┐         │   bridge.js
+  · 지상국(GS)  대시보드 :4540 / 업링크수신 :4536 ◀┘ ─ ⑤ ──┴─▶ ☀️ 솔라패널 (서보)
+```
 
----
-
-## 1. 준비물 체크리스트
-
-**최소 구성 (권장 — 간편 모드):**
-
-- [ ] 노트북 1대 (macOS / Windows / Linux 모두 가능)
-- [ ] **Node.js 20 이상** — 지상국 서버 구동용
-- [ ] **Python 3 + numpy** — Command Builder 웹앱 구동용
-- [ ] 최신 브라우저 (Chrome / Edge / Firefox) — 전체화면(F11) 시연
-- [ ] 관객용 외부 모니터 1대 (있으면 대시보드를 크게 띄우기 좋음)
-
-**정식 구성 (2대 + 물리 연출 — 선택):**
-
-- [ ] 위 최소 구성 + 위성 역할 PC 1대 (지상국) / 공격자 PC 1대 (Builder + OpenVSA)
-- [ ] 두 PC가 **같은 Wi-Fi/LAN**에 연결
-- [ ] OpenVSA (공격자 VSA 도구) 소스
-- [ ] 아두이노 + 서보/스텝모터 (물리 태양광 패널 연출) — [7장](#7-선택-아두이노-물리-패널-연결) 참고
-
-> **처음이라면 → [3장 간편 모드](#3--간편-모드--노트북-1대로-5분-만에-시연)부터 하세요.** OpenVSA·아두이노 없이
-> 노트북 한 대로 “명령 조립 → 경보” 전체 스토리를 완성할 수 있고, 부스 폴백 경로로도 그대로 씁니다.
+> 관객용 대시보드를 크게 띄우려면 victim 지상국을 **별도 PC/모니터**로 분리해도 됩니다. 이때
+> `localhost`를 지상국 PC의 LAN IP(`<GS>`)로 바꾸면 됩니다. 기본 안내는 1대(localhost) 기준입니다.
 
 ---
 
-## 2. 설치 (최초 1회)
+## 1. 준비물
 
-터미널(맥: 터미널.app, 윈도우: PowerShell)을 열고 아래를 확인/설치합니다.
+**소프트웨어**
 
-**Node.js 버전 확인** (20 이상이어야 함):
+- [ ] **Node.js 20 이상** — 지상국 서버 + 시리얼 브릿지 구동
+- [ ] **Python 3 + numpy** — Command Builder 웹앱 구동
+- [ ] **OpenVSA** (공격자 VSA 도구) 소스 — ④ 송신
+- [ ] **gpredict** — 가상 TLE로 위성 추적/조준 (③)
+- [ ] 최신 브라우저 (Chrome / Edge / Firefox) — 전체화면(F11)
+
+**하드웨어 (물리 연출)**
+
+- [ ] 노트북 1대 (macOS / Windows / Linux). 관객용 외부 모니터 권장
+- [ ] 🛰️ **안테나 축** — 아두이노 + **스텝모터 28BYJ-48 + ULN2003 드라이버**
+- [ ] ☀️ **솔라패널 축** — 아두이노 + **서보**
+      - **무한 회전 연출**을 하려면 **연속회전 서보(FS90R)** 또는 *연속회전 개조한 SG90* 필요
+        (표준 SG90은 0–180°만 되어 무한 회전 불가 — [3장](#3-물리-셋업-배선--브릿지) 참고)
+- [ ] 외부 **5V 전원**(모터용) + 점퍼선, 공통 GND, **데이터용** USB 케이블(충전전용 X)
+
+---
+
+## 2. 최초 설치 (1회)
+
+### 2-1. 소프트웨어 설치
+
+터미널(맥: 터미널.app / 윈도우: PowerShell)에서:
 
 ```bash
-node --version      # v20.x.x 이상이면 OK
-```
-
-안 깔려 있으면 https://nodejs.org 에서 LTS 버전 설치.
-
-**Python + numpy 설치:**
-
-```bash
+node --version                 # v20 이상 확인 (없으면 https://nodejs.org LTS 설치)
 python3 --version              # 3.x 확인
 python3 -m pip install numpy   # Command Builder에 필요
 ```
+gpredict는 OS 패키지로 설치(맥 `brew install gpredict`, 우분투 `sudo apt install gpredict`).
 
-**프로젝트 폴더로 이동** (경로는 본인 환경에 맞게):
-
-```bash
-cd scenario2-uplink-attack
-```
-
-이 폴더 안 구조:
+프로젝트 폴더 구조:
 
 ```
 scenario2-uplink-attack/
-├─ ground-station/     ② 피해 지상국 (대시보드 + 백엔드)   ← Node
-├─ packet-generator/   ① Command Builder (명령 조립 웹앱)  ← Python
-├─ openvsa-plugin/     OpenVSA용 위성 플러그인 (정식 모드)
-├─ arduino/            물리 태양광 패널/안테나 (선택)
+├─ ground-station/     지상국 (대시보드 + 백엔드)      ← Node
+├─ packet-generator/   Command Builder (명령 조립 웹)  ← Python
+├─ openvsa-plugin/     OpenVSA용 위성 플러그인
+├─ arduino/            물리 안테나·솔라패널 스케치 + 브릿지
 └─ docs/               가이드 문서 (지금 이 문서)
 ```
 
----
-
-## 3. ⭐ 간편 모드 — 노트북 1대로 5분 만에 시연
-
-OpenVSA 없이, **터미널 2개**만으로 전체 스토리를 시연합니다. 부스에서 가장 안정적인 경로입니다.
-
-### 3-1. 터미널 A — 피해 지상국 실행
-
-```bash
-cd ground-station/backend
-node server.js
-```
-
-아래처럼 뜨면 성공:
-
-```
-[uplink] WS listening on :4536 (point OpenVSA UPLINK_DEST here)
-[gs]     dashboard http://localhost:4540
-```
-
-브라우저에서 **http://localhost:4540** 을 열고 **F11로 전체화면**. 아래처럼 초록색 정상 화면이
-보이면 됩니다 👇
-
-![지상국 정상 상태 — 초록 배너, SUN-TRACKING, 배터리 100%](screenshots/gs-nominal.png)
-
-> 화면 읽는 법: 상단 초록 배너 **NOMINAL**, Solar Panel **SUN-TRACKING**, Power Gen 정상,
-> Battery 100%, Comm **CONNECTED**. 이게 “평화로운 위성”의 모습입니다.
-
-### 3-2. 터미널 B — Command Builder(명령 조립 웹앱) 실행
-
-새 터미널을 열고:
-
-```bash
-cd packet-generator/webapp
-UPLINK_OUT_DIR=~/uplink python3 app.py
-```
-
-아래처럼 뜨면 성공:
-
-```
-serving on http://localhost:8000
-  output dir: ~/uplink  (generated attack.cf32 lands here)
-```
-
-브라우저 새 탭에서 **http://localhost:8000** 을 엽니다. 이게 관람객이 조작하는 “공격자 콘솔”입니다 👇
-
-![Command Builder 시작 화면 — 4스텝 퍼즐, UPLINK LOCKED 0/4](screenshots/generator-puzzle-start.png)
-
-> 화면 읽는 법: **왼쪽 TARGET INTEL(정보 도시어)** 에 모든 정답이 적혀 있습니다. 가운데가
-> 채워야 할 **4단계 퍼즐**, 오른쪽은 조립되는 실제 **CCSDS 패킷**과 신호 파형입니다. 지금은
-> `UPLINK LOCKED — 0/4 CONFIGURED` 상태(잠김)입니다.
-
-### 3-3. 4단계 퍼즐 풀기 (관람객이 직접, 정답은 왼쪽 도시어에)
-
-| 단계                      | 무엇을                                                     | 정답                         | 왜                                  |
-| ------------------------- | ---------------------------------------------------------- | ---------------------------- | ----------------------------------- |
-| **1 · TARGET ADDRESSING** | Spacecraft ID(SCID) 선택                                   | **SCID 200**                 | 잘못된 ID → 다른 위성 → 명령 무시됨 |
-| **2 · COMMAND SELECT**    | 서브시스템·명령 선택                                       | **ADCS → `adcs_torque`** (★) | 위성의 리액션휠 토크 명령           |
-| **3 · COMMAND VALUE**     | 토크 슬라이더를 안전구간(초록) 넘겨 빨강까지 → **CONFIRM** | **999 mNm** (안전 ≤500 초과) | 과도한 토크 → 자세 상실의 원인      |
-| **4 · RF CONFIG**         | 변조·통신속도·샘플레이트 맞추기                            | **OOK · 100 bps · 24 kSa/s** | 수신기와 안 맞으면 위성이 복조 못함 |
-
-네 단계가 모두 `LOCKED ✓` 로 잠기면 오른쪽 **UPLINK ASSEMBLY 4 / 4**, 빨간 **⚡ GENERATE UPLINK IQ**
-버튼이 활성화됩니다 👇
-
-![Command Builder 완성 — 4/4 armed, CCSDS 프레임 조립, GENERATE 버튼 활성화](screenshots/generator-command-builder.png)
-
-> 오른쪽 **LIVE CCSDS FRAME** 이 바이트 단위로 조립되는 걸 보여주세요. `OPCODE 21`(adcs_torque),
-> `PAYLOAD 03 E7`(= 999)이 실제 텔레커맨드 패킷이 만들어지는 과정입니다. 3단계에서 빨간 경고
-> “torque 999 EXCEEDS SAFE — satellite tumbles → power collapses” 문구가 스토리를 미리 예고합니다.
-
-### 3-4. GENERATE → 공격 파일 생성
-
-**⚡ GENERATE UPLINK IQ** 를 누르면 `~/uplink/attack.cf32`(IQ 신호 파일)가 생성됩니다. 간편 모드에서는
-이 파일을 OpenVSA에 넣는 대신, 아래 한 줄로 **업링크가 위성에 도달한 상황을 그대로 재현**합니다.
-
-### 3-5. 터미널 C — 업링크 발사 (inject 폴백)
-
-새 터미널에서:
-
-```bash
-curl -X POST http://localhost:4540/api/inject \
-  -H 'Content-Type: application/json' \
-  -d '{"command":"adcs_torque","payload":["0x03","0xe7"]}'
-```
-
-> `0x03 0xe7` = 999. Command Builder가 만든 값과 동일합니다.
-
-### 3-6. 지상국 화면을 보세요 🚨
-
-몇 초(`ATTACK_DELAY_MS`, 기본 4초) 뒤, 지상국이 폭발합니다:
-
-**① 경보 플래시** — 전체화면 빨간 경고가 ~5초 번쩍입니다 👇
-
-![경보 플래시 — ENERGY SUPPLY CRITICAL 팝업](screenshots/gs-alarm-flash.png)
-
-**② 지속 위기 상태** — 팝업이 사라진 뒤에도 라이브 텔레메트리가 붕괴를 계속 보여줍니다 👇
-
-![위기 지속 — Power Gen 그래프 0으로 붕괴, TUMBLING, Comm LOST, 배터리 방전](screenshots/gs-energy-critical.png)
-
-> **“정상 동작” 판정 기준:** 상단 배너 빨강 **ENERGY SUPPLY CRITICAL**, Solar Panel **SUN-TRACK LOST**,
-> Reaction Wheel Torque **999 mNm**, ADCS **TUMBLING**, Stabilization **DISABLED**, Power Gen 그래프가
-> **0 W 부근으로 곤두박질쳐 유지**, Battery 서서히 방전, Comm Link **LOST**, 우하단 UPLINK ACTIVITY에
-> `ACCEPTED · adcs_torque [0x03 0xe7]` 로그. 여기까지 나오면 시연 성공입니다. ✅
-
----
-
-## 4. 관람객 응대 스크립트
-
-부스에서 관람객에게 이렇게 안내하면 자연스럽습니다.
-
-1. **“이 위성은 태양광으로만 살아요.”** — 지상국 정상 화면(초록)을 보여주며 태양 추적 중임을 설명.
-2. **“당신은 이 위성의 명령 업링크 권한을 손에 넣었습니다.”** — Command Builder를 관람객에게 넘김.
-3. **“왼쪽 정보(TARGET INTEL)를 보고 4단계를 맞춰 보세요.”** — 막히면 도시어의 해당 값을 손가락으로 가리켜 줌.
-   - 특히 **3단계**: “토크 슬라이더를 안전(초록) 넘어 빨강 끝(999)까지 올리고 CONFIRM.”
-4. **“모든 칸이 정상 명령입니다. 규칙을 어긴 게 없어요. 값만 과했을 뿐.”** — 핵심 메시지 전달.
-5. **GENERATE 누르게 하고** → (간편 모드면 운영자가 inject 실행 / 정식 모드면 관람객이 OpenVSA에서 송신).
-6. **지상국 화면을 같이 보며** 경보가 뜨는 순간을 함께 감상. “정당한 명령 하나가 위성을 죽였습니다.”
-
-> 팁: 관람객이 **일부러 틀린 SCID나 틀린 RF**를 골라 보게 하면 “왜 아무 일도 안 일어나는지”를 통해
-> ‘모든 요소가 맞아야 명령이 도달한다’는 점을 체험시킬 수 있습니다.
-
----
-
-## 5. 관람객 사이 리셋
-
-다음 관람객을 받기 전에 지상국을 정상으로 되돌립니다:
-
-```bash
-curl -X POST http://localhost:4540/api/reset
-```
-
-지상국 대시보드가 즉시 초록 정상 상태로 복귀합니다. **Command Builder는 상태가 없으므로 리셋 불필요**
-(원하면 브라우저 새로고침).
-
-> 운영 팁: 이 리셋 명령을 바탕화면 스크립트(`reset.sh` / `reset.bat`)로 만들어 두면 한 번에 누르기 편합니다.
-
----
-
-## 6. 정식 모드 — OpenVSA 실제 업링크 연동
-
-간편 모드의 `inject` 대신, 관람객이 만든 `attack.cf32`를 **실제로 OpenVSA에 로드해 업링크**하는 경로입니다.
-2대(공격자 PC + 지상국 PC) 구성에 적합합니다.
-
-### 토폴로지
-
-```
-[공격자 랩탑]                                     [Victim 지상국 PC]
-  · Command Builder 웹  http://localhost:8000        · GS 대시보드  http://<GS>:4540
-  · OpenVSA (VSA)                                     · GS 백엔드    :4536 (업링크 수신)
-      rotctld :4533 / rigctld :4532 / ws :4534             │
-      forward → ws://<GS>:4536 ────────────────────────────┘
-                                                            └→ 시리얼 브릿지 → Arduino 패널/안테나 (선택)
-```
-
-`<GS>` = 지상국 PC의 LAN IP (예: `192.168.0.42`). 맥은 `ipconfig getifaddr en0`, 윈도우는 `ipconfig`로 확인.
-
-### 6-1. 지상국 실행 (지상국 PC)
-
-간편 모드 [3-1](#3-1-터미널-a--피해-지상국-실행)과 동일하게 `node server.js`.
-
-### 6-2. OpenVSA에 위성 플러그인 드롭인 (공격자 PC, 최초 1회)
+### 2-2. OpenVSA에 위성 플러그인 드롭인
 
 ```bash
 cp -r openvsa-plugin/demosat/*             <OpenVSA>/satellites/demosat/
 cp    openvsa-plugin/hardware-effects.json <OpenVSA>/satellites/hardware-effects.json
 git -C <OpenVSA> apply openvsa-plugin/server-forward-payload.patch   # 토크 값까지 지상국에 전달
 ```
+> `satellites/demosat/`에 `ccsds_ook.py`가 `decoder.py`와 **함께** 있어야 합니다(디코더가 import).
+> forward 패치가 없으면 지상국이 명령 이름만 보이고 토크 수치(999)는 안 보입니다.
 
-> **주의:** `satellites/demosat/` 폴더에 `ccsds_ook.py`가 `decoder.py`와 **함께** 있어야 합니다
-> (디코더가 이 파일을 import). forward 패치는 2줄짜리 선택 사항 — 없으면 지상국이 명령 이름만 보이고
-> 토크 수치(999)는 안 보입니다.
+### 2-3. 가상 TLE 등록 (gpredict)
 
-### 6-3. OpenVSA 실행 (공격자 PC)
+gpredict `Edit → Update TLE data`로 **DEMOSAT 가상 TLE**를 추가하고, 로테이터 인터페이스를 등록:
+`Edit → Preferences → Interfaces → Rotators → Add` → Host `localhost`, **Port `4533`**(OpenVSA rotctld),
+Az 0–360 / El 0–90.
 
-```bash
-cd <OpenVSA>
-UPLINK_DEST=ws://<GS>:4536 node server.js      # forward 대상 = 지상국 IP
-npm start                                        # Electron VSA UI (별도 프로세스/터미널)
+### 2-4. 아두이노 스케치 업로드 + 단독 테스트
+
+Arduino IDE에서 각 스케치를 열어 보드/포트 선택 후 업로드(추가 라이브러리 불필요):
+
+```
+arduino/solar_panel_uno/solar_panel_uno.ino   → 솔라패널 보드
+arduino/antenna_gimbal/antenna_gimbal.ino     → 안테나 보드
 ```
 
-### 6-4. 관람객 송신
+업로드 후 **시리얼 모니터 9600 baud**로 모터를 단독 검증(브릿지 없이):
 
-Command Builder에서 GENERATE → `~/uplink/attack.cf32` 생성 → **OpenVSA UI에서 이 파일 로드 →
-안테나를 위성에 정렬 → TRANSMIT**. OpenVSA가 업링크를 검증(안테나 정렬·주파수 449.5 MHz·링크 마진)한
-뒤 디코드된 명령을 지상국(:4536)으로 forward → 지상국 경보 발생.
+| 보드 | 입력 | 기대 동작 |
+|---|---|---|
+| ☀️ 솔라 | `SPIN` / `STOP` | 연속회전 서보가 무한 회전 / 정지 |
+| ☀️ 솔라 | `OFFSUN` / `SUN` | 0°(태양 이탈) / 90°(정상) — 표준 서보용 |
+| 🛰️ 안테나 | `SWEEP` | 좌↔우(150°↔210°) 조준 스윕 시작 |
+| 🛰️ 안테나 | `TRACK` | 스윕 정지, 위치 고정 |
 
-> **정식 모드 라이브 리허설은 부스 전 반드시 1회 실행**하세요. 헤드리스 경로(디코드→forward→지상국)는
-> 검증됐지만, Electron UI + 실제 업링크 전 구간 리허설은 현장에서 처음 돌리면 안 됩니다.
+> 배선표·포트 인식 문제(macOS)·다른 스텝 드라이버 교체법은 **`arduino/README.md`**에 정리되어 있습니다.
 
 ---
 
-## 7. (선택) 아두이노 물리 패널 연결
+## 3. 물리 셋업 (배선 + 브릿지)
 
-실제 태양광 패널 모형(서보)과 안테나(스텝모터)가 지상국 상태에 맞춰 물리적으로 움직입니다.
-**펌웨어·브릿지 코드는 완성**되어 있고, **실물 배선·모터 튜닝만 현장에서 하면 됩니다.**
+### 3-1. 배선
 
-```
-지상국 :4540 /api/state ──폴링──▶ bridge.js ──시리얼──▶ ① 솔라패널 (서보 SG90)
-                                            └─시리얼──▶ ② 안테나   (스텝 28BYJ-48)
-```
+`arduino/README.md`의 배선표를 따르세요. 요약:
 
-브릿지 실행 (포트는 본인 것으로):
+- 🛰️ **안테나 (28BYJ-48 + ULN2003):** IN1→D8, IN2→D9, IN3→D10, IN4→D11, V+/GND는 외부 5V(아두이노 GND와 공통).
+- ☀️ **솔라패널 (서보):** 신호선→D9, V+→외부 5V(부하용, 아두이노 5V 핀 X), GND 공통.
+
+### 3-2. 두 모터가 언제 움직이나 (자동)
+
+브릿지(`bridge.js`)가 지상국 상태를 폴링해 자동으로 구동합니다:
+
+- 🛰️ **안테나 = ③ 조준** — 지상국에 “조준 성공” 신호(`acquiring`)가 들어오면 → **좌↔우 스윕**.
+  공격(텀블링)이 시작되면 빔 상실 지터로 전환.
+- ☀️ **솔라패널 = ④ 송신 결과** — 공격이 적용되면 → **무한 회전(SPIN)**, 정상 복귀 시 정지(STOP).
+
+### 3-3. 브릿지 실행
+
+포트는 본인 것으로(`ls /dev/cu.usbmodem*`). **무한 회전 서보면 `PANEL_SPIN=1`을 꼭 붙이세요:**
 
 ```bash
 cd arduino/bridge
-SOLAR_PORT=/dev/cu.usbmodemXXXX ANT_PORT=/dev/cu.usbmodemYYYY node bridge.js
+SOLAR_PORT=/dev/cu.usbmodemXXXX ANT_PORT=/dev/cu.usbmodemYYYY PANEL_SPIN=1 node bridge.js
 ```
+- `PANEL_SPIN=1` — 솔라패널이 **연속회전 서보(FS90R/개조 SG90)**일 때. 공격 시 `SPIN`(무한 회전).
+- `PANEL_SPIN` 생략 — 표준 SG90. 공격 시 각도 스윙(0°, 태양 이탈)으로 대체 연출.
 
-- 아두이노 스케치 업로드, 배선표, 시리얼 단독 테스트(예: `OFFSUN`/`SUN`), macOS 포트 인식 문제 해결까지
-  **전부 `arduino/README.md`에 정리**되어 있습니다. 물리 연출이 필요하면 그 문서를 따르세요.
-- 아두이노 없이도 데모는 완결됩니다(대시보드만으로 충분). 물리 패널은 “보여주기” 강화용입니다.
+> **SG90이 계속 돌 수 있나요?** 표준 SG90은 내부 스토퍼+피드백 포텐쇼미터 때문에 **무한 회전 불가**입니다.
+> ① **FS90R**(같은 9g 규격의 연속회전 버전, 무납땜 드롭인) 또는 ② **SG90을 연속회전 개조**(스토퍼 탭 제거 +
+> 포텐쇼미터를 고정저항으로 대체)하면 됩니다. 둘 다 펌웨어의 `SPIN`/`STOP`(중립 1500µs 정지)으로 그대로 구동됩니다.
 
 ---
 
-## 8. 연출 튜닝 노브
+## 4. 시연 (5단계, 순서대로)
 
-| 목적                           | 위치                                                                                           | 값                                                                                 |
-| ------------------------------ | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| 업링크 후 경보까지 지연        | 지상국 env `ATTACK_DELAY_MS`                                                                   | 기본 4000 ms. 부스는 **1500–3000** 권장. 예: `ATTACK_DELAY_MS=2500 node server.js` |
-| 안전 토크 임계값               | `openvsa-plugin/demosat/c2protocol.json` opcode `0x21` → `safeAbsMax`                          | 기본 500                                                                           |
-| 배터리 방전·태양추적 이탈 속도 | `ground-station/backend/satellite-state.js` → `adcs_torque_magnitude` (drainRate / swingSpeed) | 토크 크기에 비례                                                                   |
-| 아두이노 HTTP 트리거(선택)     | 지상국 env `ARDUINO_URL` (공격 순간 POST)                                                      | 미설정 시 로그만                                                                   |
-| 지상국 포트 변경               | 지상국 env `GS_HTTP_PORT` / `UPLINK_PORT`                                                      | 기본 4540 / 4536                                                                   |
+### 준비: 4개 프로세스 실행
 
-예) 지연을 짧게 + 아두이노 트리거까지:
+각각 별도 터미널에서 (지상국을 가장 먼저):
 
 ```bash
-ATTACK_DELAY_MS=2000 ARDUINO_URL=http://<arduino-ip>/trigger node server.js
+# 터미널 A — victim 지상국 (대시보드 :4540 / 업링크 수신 :4536)
+cd ground-station/backend && node server.js
+#   부스 연출: ATTACK_DELAY_MS=2500 node server.js  (경보까지 지연 단축)
+
+# 터미널 B — OpenVSA (공격자 VSA)  ※ rotctld :4533 / rigctld :4532 오픈
+cd <OpenVSA> && UPLINK_DEST=ws://localhost:4536 node server.js
+#   별도 터미널/프로세스: npm start   (Electron VSA UI)
+
+# 터미널 C — 시리얼 브릿지 (물리 모터)
+cd arduino/bridge && SOLAR_PORT=/dev/cu.usbmodemXXXX ANT_PORT=/dev/cu.usbmodemYYYY PANEL_SPIN=1 node bridge.js
+
+# 터미널 D — Command Builder (관람객 조작)
+cd packet-generator/webapp && UPLINK_OUT_DIR=~/uplink python3 app.py   # :8000
 ```
 
----
+지상국 대시보드 `http://localhost:4540`을 관객 모니터에 **F11 전체화면**으로. 초록 정상 화면 확인 👇
 
-## 9. 트러블슈팅
-
-| 증상                                                 | 확인 / 해결                                                                                                                      |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 대시보드가 “CONNECTING…”에서 멈춤                    | 지상국 백엔드(:4540) 실행 여부, 방화벽, 브라우저가 맞는 주소인지                                                                 |
-| `node: command not found`                            | Node.js 20 미설치 → https://nodejs.org 에서 LTS 설치 후 터미널 재시작                                                            |
-| Command Builder 실행 시 `ModuleNotFoundError: numpy` | `python3 -m pip install numpy`                                                                                                   |
-| GENERATE 버튼이 계속 잠김(회색)                      | 4단계가 모두 `LOCKED ✓`인지 확인. 특히 3단계 **CONFIRM VALUE**를 눌렀는지, 4단계 RF 3개(OOK/100bps/24kSa/s) 모두 선택했는지      |
-| inject 했는데 경보 안 뜸                             | 명령이 `adcs_torque`이고 payload가 안전 임계값 초과(999)인지. `ATTACK_DELAY_MS`만큼 기다렸는지                                   |
-| (정식) 업링크가 지상국에 안 옴                       | OpenVSA `UPLINK_DEST`가 올바른 `<GS>` IP인지, 두 PC 같은 LAN인지, :4536 개방인지, OpenVSA 검증(안테나 정렬·449.5 MHz) 통과했는지 |
-| (정식) OpenVSA에서 cf32 디코드 실패                  | `satellites/demosat/`에 `ccsds_ook.py`가 `decoder.py`와 함께 복사됐는지                                                          |
-| 경보가 안 꺼짐 / 다음 관람객 준비                    | `curl -X POST http://localhost:4540/api/reset`                                                                                   |
-| 포트 충돌(EADDRINUSE)                                | 이미 떠 있는 서버 종료, 또는 `GS_HTTP_PORT`/`UPLINK_PORT`/`PORT`로 포트 변경                                                     |
+![지상국 정상 상태 — 초록 배너, SUN-TRACKING, 배터리 100%](screenshots/gs-nominal.png)
 
 ---
 
-## 10. 자주 묻는 질문
+### ① 명령 조립 — Command Builder 웹
 
-**Q. 인터넷·HackRF·안테나 없이 되나요?**
-A. 네. 간편 모드는 노트북 1대·오프라인으로 완결됩니다. 물리 RF는 시뮬레이션입니다.
+`http://localhost:8000`. 관람객이 조작하는 공격자 콘솔입니다. 왼쪽 **TARGET INTEL**에 모든 정답이 있습니다 👇
 
-**Q. OpenVSA를 꼭 써야 하나요?**
-A. 아니요. 스토리(명령 조립 → 경보)는 간편 모드로 완성됩니다. OpenVSA는 “실제로 IQ 파일을 업링크”하는
-연출을 원할 때만 씁니다. 부스에서는 **간편 모드를 기본 폴백**으로 항상 준비해 두세요.
+![Command Builder 시작 — 4스텝 퍼즐, UPLINK LOCKED 0/4](screenshots/generator-puzzle-start.png)
 
-**Q. 관람객이 값을 999 말고 다르게 넣으면?**
-A. 안전 임계값(500) 초과면 공격 성립. 임계값 이하면 위성이 견디고 경보가 안 뜹니다 — 이 대비 자체가
-좋은 교육 포인트입니다.
+4단계 퍼즐을 정답대로 조립(정답은 왼쪽 도시어):
 
-**Q. 두 브라우저 탭이 헷갈려요.**
-A. `:8000` = 공격자(Command Builder, 관람객 조작), `:4540` = 피해자(지상국 대시보드, 관객에게 보여줌).
+| 단계 | 무엇을 | 정답 | 왜 |
+|---|---|---|---|
+| **1 · TARGET ADDRESSING** | Spacecraft ID(SCID) | **SCID 200** | 잘못된 ID → 다른 위성 → 명령 무시 |
+| **2 · COMMAND SELECT** | 서브시스템·명령 | **ADCS → `adcs_torque`** ★ | 리액션휠 토크 명령 |
+| **3 · COMMAND VALUE** | 토크 슬라이더 → 안전(초록) 넘겨 빨강 → **CONFIRM** | **999 mNm** (안전 ≤500 초과) | 과도한 토크 → 자세 상실 |
+| **4 · RF CONFIG** | 변조·통신속도·샘플레이트 | **OOK · 100 bps · 24 kSa/s** | 수신기와 안 맞으면 복조 불가 |
+
+네 단계가 모두 `LOCKED ✓` → **UPLINK ASSEMBLY 4 / 4**, 빨간 **⚡ GENERATE UPLINK IQ** 버튼 활성화 👇
+
+![Command Builder 완성 — 4/4 armed, CCSDS 프레임, GENERATE 활성화](screenshots/generator-command-builder.png)
+
+> 오른쪽 **LIVE CCSDS FRAME**의 `OPCODE 21`, `PAYLOAD 03 E7`(=999)이 실제 텔레커맨드가 만들어지는 과정입니다.
+
+### ② IQ 생성
+
+**⚡ GENERATE UPLINK IQ** → `~/uplink/attack.cf32`(IQ 신호 파일) 생성. *(아직 송신 X — 먼저 조준.)*
+
+### ③ 위성 조준 — gpredict + VSA → 🛰️ 안테나 스윕
+
+1. gpredict `Antenna Control` → Target **DEMOSAT** → Rotator 선택 → **Engage / Track**.
+   gpredict가 az/el을 rotctld(`4533`)로 흘려 **OpenVSA 안테나가 위성을 향해 슬루**합니다.
+2. 위성이 지평선 위(el > 0°)이고 정렬되면 — **조준 성공을 지상국에 알립니다**(🛰️ 안테나가 좌↔우로 조준 스윕):
+
+```bash
+curl -X POST http://localhost:4540/api/acquire      # 안테나 SWEEP 시작
+```
+
+> 이 신호는 OpenVSA의 lock 이벤트에 연결해 자동화할 수도 있습니다(동일 엔드포인트 POST). 자동화 전까지는
+> 운영자가 정렬 확인 후 위 한 줄을 실행합니다. 조준을 풀려면 `-d '{"on":false}'`를 붙여 POST.
+
+### ④ 송신 — OpenVSA TRANSMIT → ☀️ 솔라패널 무한 회전
+
+OpenVSA UI에서 **`attack.cf32` 로드 → TRANSMIT**. OpenVSA가 업링크를 검증(안테나 정렬·449.5 MHz·링크 마진)한 뒤
+디코드된 명령을 지상국 `:4536`으로 forward → `ATTACK_DELAY_MS` 뒤 공격 적용 → ☀️ **솔라패널이 무한 회전**을 시작합니다.
+
+### ⑤ 피해 — victim 지상국 대시보드
+
+전체화면 빨간 경보가 ~5초 번쩍인 뒤, 라이브 텔레메트리가 붕괴를 계속 보여줍니다 👇
+
+![경보 플래시 — ENERGY SUPPLY CRITICAL 팝업](screenshots/gs-alarm-flash.png)
+
+![위기 지속 — Power Gen 0으로 붕괴, TUMBLING, Comm LOST, 배터리 방전](screenshots/gs-energy-critical.png)
+
+> **성공 판정:** 배너 빨강 **ENERGY SUPPLY CRITICAL**, Solar Panel **SUN-TRACK LOST**, Torque **999 mNm**,
+> ADCS **TUMBLING**, Power Gen **0 W 부근 유지**, Battery 방전, Comm **LOST**, UPLINK ACTIVITY에
+> `ACCEPTED · adcs_torque [0x03 0xe7]`. 물리적으로 🛰️ 안테나·☀️ 솔라패널 모터가 함께 움직이면 완성입니다. ✅
+
+---
+
+## 5. 리셋 (다음 관람객 준비)
+
+```bash
+curl -X POST http://localhost:4540/api/reset      # 지상국 정상 복귀 + 조준(acquiring) 해제
+```
+지상국 대시보드가 즉시 초록 정상으로 복귀하고, 🛰️ 안테나 스윕/☀️ 솔라 회전이 멈춥니다(브릿지가 정상 상태를
+반영). gpredict 추적은 그대로 두거나 다음 관람객을 위해 유지하면 됩니다. Command Builder는 상태가 없어
+리셋 불필요(원하면 새로고침).
+
+> 팁: 리셋 명령을 바탕화면 스크립트(`reset.sh`/`reset.bat`)로 만들어 두면 한 번에 누르기 편합니다.
+
+---
+
+## 6. 연출 튜닝 노브
+
+| 목적 | 위치 | 값 |
+|---|---|---|
+| 업링크 후 경보까지 지연 | 지상국 env `ATTACK_DELAY_MS` | 기본 4000 ms, 부스 **1500–3000** 권장 |
+| 안전 토크 임계값 | `openvsa-plugin/demosat/c2protocol.json` opcode `0x21` → `safeAbsMax` | 기본 500 |
+| 방전·태양추적 이탈 속도 | `ground-station/backend/satellite-state.js` → `adcs_torque_magnitude` | 토크 크기 비례 |
+| 안테나 스윕 범위 | `arduino/antenna_gimbal.ino` → `SWEEP_LO_AZ` / `SWEEP_HI_AZ` | 기본 150 / 210 |
+| 솔라 회전 속도 | 안테나 보드 `SPIN <us>`(1000–2000, 1500=정지) 또는 브릿지 기본 2000 | 연속회전 서보 |
+| 지상국 포트 | 지상국 env `GS_HTTP_PORT` / `UPLINK_PORT` | 기본 4540 / 4536 |
+
+---
+
+## 7. 트러블슈팅
+
+| 증상 | 확인 / 해결 |
+|---|---|
+| 대시보드가 “CONNECTING…”에서 멈춤 | 지상국(:4540) 실행 여부, 방화벽, 브라우저 주소 |
+| `node: command not found` | Node 20 미설치 → nodejs.org LTS 설치 후 터미널 재시작 |
+| Command Builder `ModuleNotFoundError: numpy` | `python3 -m pip install numpy` |
+| GENERATE 버튼 계속 잠김 | 4단계 모두 `LOCKED ✓`인지(특히 3단계 CONFIRM, 4단계 RF 3개 선택) |
+| gpredict가 안테나를 못 움직임 | Rotators 설정 Host/Port=OpenVSA `rotctld :4533`인지, Engage/Track 눌렀는지, 위성 el>0인지 |
+| ③에서 🛰️ 물리 안테나가 안 움직임 | `curl -X POST :4540/api/acquire` 실행했는지, 브릿지 실행·`ANT_PORT` 맞는지, 시리얼 모니터로 `SWEEP` 단독 확인 |
+| ④에서 ☀️ 솔라패널이 회전 안 함 | 연속회전 서보인지(표준 SG90 불가), 브릿지에 **`PANEL_SPIN=1`** 붙였는지, `SOLAR_PORT` 맞는지, 시리얼로 `SPIN` 단독 확인 |
+| TRANSMIT 눌러도 경보 없음 | 명령이 `adcs_torque`·값 999인지, `UPLINK_DEST`가 지상국 `:4536`인지, `ATTACK_DELAY_MS`만큼 기다렸는지 |
+| OpenVSA cf32 디코드 실패 | `satellites/demosat/`에 `ccsds_ook.py`가 `decoder.py`와 함께 있는지 |
+| 포트 인식 안 됨(macOS) | 데이터용 케이블인지, USB 허브 말고 직결인지, `cu.` 디바이스 사용 |
+| 초기화 | `curl -X POST :4540/api/reset` |
+
+> **부분 점검(개발용, 시연 경로 아님):** 하드웨어/OpenVSA 없이 지상국 반응만 확인하려면
+> `curl -X POST :4540/api/inject -H 'Content-Type: application/json' -d '{"command":"adcs_torque","payload":["0x03","0xe7"]}'`.
+> 이는 컴포넌트 단독 점검용이며, 실제 시연은 위 ①~⑤ 물리 경로로만 진행합니다.
+
+---
+
+## 8. 자주 묻는 질문
+
+**Q. 노트북 1대로 되나요?** 네. 지상국·OpenVSA·gpredict·Builder를 모두 localhost로 띄우고 아두이노 2대를 USB로 연결합니다. 관객 대시보드만 외부 모니터로 빼면 됩니다.
+
+**Q. 두 브라우저 탭이 헷갈려요.** `:8000` = 공격자(Command Builder, 관람객 조작), `:4540` = 피해자(지상국 대시보드, 관객에게 노출).
+
+**Q. 관람객이 값을 999가 아닌 다른 값으로?** 안전 임계값(500) 초과면 공격 성립, 이하면 위성이 견디고 경보가 안 뜹니다 — 이 대비가 좋은 교육 포인트입니다.
 
 ---
 
 ### 문서 유지보수 메모
-
-- 이 한국어 문서는 **부스 운영자용 상세 매뉴얼**입니다. 영어 `operator-guide.md`는 간결한 요약본이며,
-  절차·포트·환경변수를 바꿀 때는 **양쪽을 함께** 갱신하세요.
-- 스크린샷 원본: `docs/screenshots/` (gs-nominal / gs-alarm-flash / gs-energy-critical /
-  generator-puzzle-start / generator-command-builder).
+- 이 한국어 문서가 **부스 운영 기준(source of truth)**입니다. 영어 `operator-guide.md`는 요약본이며 절차·포트·환경변수 변경 시 함께 갱신하세요.
+- 스크린샷 원본: `docs/screenshots/`.

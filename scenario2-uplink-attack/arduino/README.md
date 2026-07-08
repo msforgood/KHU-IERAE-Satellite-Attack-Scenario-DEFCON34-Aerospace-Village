@@ -1,18 +1,19 @@
 # Arduino actuators — Scenario 2 Uplink Attack
 
-Physical hardware that mirrors the satellite state engine. During an uplink
-attack the panel swings off the sun and the antenna loses its beam — live,
-driven straight from the ground-station dashboard state.
+Physical hardware that mirrors the satellite state engine — live, driven straight
+from the ground-station dashboard state. During **pointing** the antenna sweeps to
+acquire the target; on **attack** the solar panel spins (or swings off-sun) and the
+antenna loses its beam.
 
 ```
-GS :4540 /api/state ──poll──▶ bridge.js ──serial──▶ ① solar_panel_uno   (SG90 servo)
+GS :4540 /api/state ──poll──▶ bridge.js ──serial──▶ ① solar_panel_uno   (servo)
                                         └─serial──▶ ② antenna_gimbal    (stepper)
 ```
 
-| Piece | Board | Motor | Mirrors |
+| Piece | Board | Motor | Behavior |
 |---|---|---|---|
-| `solar_panel_uno/` | Arduino **Uno** | standard servo (SG90) | `solar_panel.angle` 90°→0° |
-| `antenna_gimbal/`  | Arduino (any)   | stepper (28BYJ-48 + ULN2003) | `antenna.az` drift |
+| `solar_panel_uno/` | Arduino **Uno** | servo — continuous-rotation (FS90R) for endless spin, or standard SG90 for off-sun swing | attack → `SPIN` (`PANEL_SPIN=1`) or `solar_panel.angle` 90°→0° |
+| `antenna_gimbal/`  | Arduino (any)   | stepper (28BYJ-48 + ULN2003) | acquire → `SWEEP` (`/api/acquire`); attack → `antenna.az` jitter |
 | `bridge/bridge.js` | — (host, Node)  | — | polls GS, writes serial |
 
 The existing ground-station JS is **not modified** — the bridge glues on via the
@@ -74,15 +75,18 @@ Open the **Serial Monitor @ 9600 baud** and type:
 OFFSUN     → servo swings to 0° (off-sun), LED blinks
 SUN        → servo returns to 90° (sun-track), LED solid
 ANG 45     → servo to 45°
+SPIN       → continuous rotation (continuous-rotation servo only), LED blinks
+STOP       → halt spin (neutral 1500µs), hold position
 PING       → prints  SOLAR READY angle=45 mode=0
 ```
 
 **Antenna**
 ```
 AZ 270     → stepper rotates to azimuth 270°
+SWEEP      → acquisition gesture: head sweeps left↔right (150°↔210°)
 TUMBLE     → attack mode, LED blinks
 AZEL 90 30 → azimuth 90° (elevation logged)
-TRACK      → nominal
+TRACK      → nominal (stops a sweep)
 PING       → prints  ANT READY az=90
 ```
 
@@ -95,10 +99,13 @@ PING       → prints  ANT READY az=90
 | solar | `ANG <0-180>` | target servo angle |
 | solar | `MODE <0\|1>` | 0 nominal / 1 attack |
 | solar | `SUN` / `OFFSUN` | shortcuts (90+nominal / 0+attack) |
+| solar | `SPIN [us]` | continuous rotation (1000–2000µs, 1500=stop); needs a continuous-rotation servo |
+| solar | `STOP` | halt spin (neutral pulse), hold position |
 | solar | `PING` | status reply |
 | antenna | `AZEL <az> <el>` | set azimuth (elevation logged) |
 | antenna | `AZ <az>` | set azimuth only |
 | antenna | `MODE <0\|1>` | 0 nominal / 1 tumbling |
+| antenna | `SWEEP` / `ACQUIRE` | acquisition sweep, head left↔right |
 | antenna | `TRACK` / `TUMBLE` | shortcuts |
 | antenna | `PING` | status reply |
 
@@ -111,16 +118,22 @@ PING       → prints  ANT READY az=90
 cd ../ground-station/backend && node server.js          # http://localhost:4540
 
 # terminal 2 — serial bridge (fill in your actual ports)
+#   PANEL_SPIN=1 → solar panel is a continuous-rotation servo (spins on attack)
 cd ../arduino/bridge
-SOLAR_PORT=/dev/cu.usbmodemXXXX ANT_PORT=/dev/cu.usbmodemYYYY node bridge.js
+SOLAR_PORT=/dev/cu.usbmodemXXXX ANT_PORT=/dev/cu.usbmodemYYYY PANEL_SPIN=1 node bridge.js
 
-# terminal 3 — inject a mock uplink attack
+# terminal 3 — pointing: fire the antenna acquisition sweep (gpredict lock)
+curl -X POST localhost:4540/api/acquire
+
+# terminal 3 — transmit/attack (real demo uses OpenVSA TRANSMIT → :4536 forward;
+#              this inject is a GS-only self-test, not the demo path)
 curl -X POST localhost:4540/api/inject -H 'Content-Type: application/json' \
   -d '{"command":"adcs_torque","payload":["0x03","0xe7"]}'
 ```
 
-Expected: after `ATTACK_DELAY_MS` (~4 s) the servo swings the panel toward 0°
-and the stepper jitters the antenna, in sync with the dashboard alarm.
+Expected: on `/api/acquire` the antenna sweeps left↔right; then after
+`ATTACK_DELAY_MS` (~4 s) the solar panel spins (or swings off-sun without
+`PANEL_SPIN`) and the antenna jitters, in sync with the dashboard alarm.
 
 Reset:
 ```bash
