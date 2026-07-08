@@ -24,6 +24,7 @@
 #   GP_PORT      gpredict noVNC Docker 포트(프록시 대상). 기본 6080
 #   GP_IMG       gpredict Docker 이미지명. 기본 demosat-gpredict
 #   UPLINK_OUT_DIR  attack.cf32 출력 폴더. 기본 ~/uplink
+#   NO_OPEN      1이면 브라우저 자동 열기 끄기 (기본: 실행 후 ①③ 화면 자동 오픈)
 #
 # ⚠️ 이 스크립트는 '공격자 쪽'만 띄웁니다. 피해 지상국(⑤)은 별도로 실행하세요:
 #     cd victim/backend && node server.js
@@ -45,12 +46,21 @@ UPLINK_OUT_DIR="${UPLINK_OUT_DIR:-$HOME/uplink}"
 BUILDER_DIR="packet-generator/webapp"
 VENV="$BUILDER_DIR/.venv"
 
-# ── helpers ──────────────────────────────────────────────────────────────────
-c_ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
-c_warn() { printf '  \033[33m![warn]\033[0m %s\n' "$*"; }
-c_err()  { printf '  \033[31m✗\033[0m %s\n' "$*"; }
-die()    { c_err "$*"; exit 1; }
+# ── helpers (start-victim.sh와 동일 디자인) ───────────────────────────────────
+say()    { printf "\033[36m▸ %s\033[0m\n" "$*"; }
+c_ok()   { printf "\033[32m  ✓ %s\033[0m\n" "$*"; }
+c_warn() { printf "\033[33m  ! %s\033[0m\n" "$*"; }
+c_err()  { printf "\033[31m  ✗ %s\033[0m\n" "$*"; }
+die()    { c_err "$*" >&2; exit 1; }
 have()   { command -v "$1" >/dev/null 2>&1; }
+open_url() {
+  [ "${NO_OPEN:-0}" = "1" ] && return 0
+  case "$(uname)" in
+    Darwin) open "$1" ;;
+    Linux)  xdg-open "$1" >/dev/null 2>&1 || true ;;
+    *)      command -v powershell >/dev/null 2>&1 && powershell.exe start "$1" || true ;;
+  esac
+}
 
 # numpy 를 가진 python 인터프리터 경로를 고른다 (venv 우선).
 pick_python() {
@@ -59,7 +69,7 @@ pick_python() {
 
 # ── 최초 설치 ────────────────────────────────────────────────────────────────
 install() {
-  echo "════════ [1] 최초 설치 ════════"
+  say "1/3  최초 설치"
   have node   || die "node 가 없습니다 → https://nodejs.org (LTS) 설치 후 다시 실행"
   have npm    || die "npm 이 없습니다 (Node 설치 시 함께 제공)"
   have python3|| die "python3 가 없습니다"
@@ -93,7 +103,7 @@ install() {
 
 # ── 설치 확인 ────────────────────────────────────────────────────────────────
 check() {
-  echo "════════ [2] 설치 확인 ════════"
+  say "2/3  설치 확인"
   local ok=1 py; py="$(pick_python)"
 
   have node && c_ok "node $(node --version)" || { c_err "node 없음"; ok=0; }
@@ -128,7 +138,7 @@ check() {
 
 # ── attacker 화면 실행 ────────────────────────────────────────────────────────
 up() {
-  echo "════════ [3] attacker 화면 실행 ════════"
+  say "3/3  attacker 화면 실행"
   local py; py="$(pick_python)"
   "$py" -c "import numpy" 2>/dev/null || die "numpy 없음 → './start-attacker.sh install' 먼저"
   # 서브셸에서 cd 후에도 안전하도록 파이썬을 절대경로로 고정
@@ -179,7 +189,12 @@ up() {
   fi
   local CONSOLE_URL="http://localhost:$CONSOLE_PORT/?$CQ"
 
-  sleep 2
+  # 콘솔이 응답할 때까지 대기(최대 ~10초)
+  for _ in $(seq 1 50); do
+    curl -fsS "http://localhost:$CONSOLE_PORT/" >/dev/null 2>&1 && break
+    sleep 0.2
+  done
+
   echo "───────────────────────────────────────────────"
   c_ok "① Command Builder → http://localhost:$BUILDER_PORT   (로그 /tmp/demosat-builder.log)"
   c_ok "③ 위성 조준 콘솔(단일 포트) → $CONSOLE_URL"
@@ -188,6 +203,11 @@ up() {
   echo "   ⑤ 피해 지상국은 별도 실행:  ./start-victim.sh  (또는 cd victim/backend && node server.js)"
   echo "   ℹ️ VSA TRANSMIT은 브라우저 IPC가 없으므로 피해 GS API(/api/inject)로 처리하는 흐름입니다."
   echo "───────────────────────────────────────────────"
+
+  open_url "http://localhost:$BUILDER_PORT"   # ① 명령 조립
+  open_url "$CONSOLE_URL"                      # ③ 위성 조준(브라우저 최상단)
+  c_ok "브라우저에서 화면 열림  (자동 열기 끄려면 NO_OPEN=1)"
+
   echo "종료하려면 Ctrl-C"
   wait
 }
