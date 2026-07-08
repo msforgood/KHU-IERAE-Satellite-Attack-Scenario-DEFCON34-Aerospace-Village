@@ -28,12 +28,19 @@ async function boot() {
   // skipped the wiring and the checkbox couldn't enable the button).
   initPhases();
   try {
-    M = await (await fetch('/api/mission')).json();
+    const res = await fetch('/api/mission');
+    if (!res.ok) throw new Error('/api/mission HTTP ' + res.status);
+    M = await res.json();
     renderDossier();
     renderSteps();
     rebuild();
   } catch (e) {
-    console.error('[boot] mission load failed — briefing gate still works:', e);
+    console.error('[boot] mission load failed:', e);
+    // Make the failure visible instead of a blank builder.
+    const msg = `⚠ mission 데이터 로드 실패 — <code>/api/mission</code> (${e && e.message ? e.message : e}).`
+      + ` Command Builder 서버를 재시작(Ctrl-C 후 <code>python3 app.py</code>)하고 새로고침하세요.`;
+    const d = $('#dossier'); if (d) d.innerHTML = `<div class="dnote">${msg}</div>`;
+    const sl = $('#stepList'); if (sl) sl.innerHTML = `<div class="dnote">${msg}</div>`;
   }
 }
 
