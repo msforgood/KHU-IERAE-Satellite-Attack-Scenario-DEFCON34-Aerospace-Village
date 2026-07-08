@@ -91,19 +91,19 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-wei
 .star{color:var(--star);font-size:13px}
 
 /* ═══════════ STEP 1 · Scratch-style command composer ═══════════ */
-/* Drag a subsystem block from the palette into the script, then TYPE the real
+/* Click a subsystem block to load it into the script, then TYPE the real
    command and its value into the block's slots. Subsystem colour-coding:
    ADCS=cyan · POWER=amber · COMM=green · OBC=violet. */
 .composer{display:grid;grid-template-columns:196px 1fr;gap:16px;margin-top:4px}
 .palette{display:flex;flex-direction:column;gap:10px}
 .palcap,.scriptcap{font-size:12px;letter-spacing:.14em;color:var(--dim);font-weight:800;margin-bottom:2px}
 .palblock{position:relative;display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:9px;
-  color:#04121a;font-weight:800;font-size:15px;cursor:grab;user-select:none;touch-action:none;
-  box-shadow:0 3px 0 rgba(0,0,0,.4);transition:transform .1s,filter .1s}
+  color:#04121a;font-weight:800;font-size:15px;cursor:pointer;user-select:none;
+  box-shadow:0 3px 0 rgba(0,0,0,.4);transition:transform .1s,filter .1s,box-shadow .1s}
 .palblock:hover{filter:brightness(1.06)}
-.palblock:active{cursor:grabbing;transform:translateY(1px)}
+.palblock:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.4)}
+.palblock.active{box-shadow:0 0 0 2px #eaf2fb,0 3px 0 rgba(0,0,0,.4)}
 .palblock .pbgrip{opacity:.5;font-size:12px;letter-spacing:-2px}
-.palblock.ghost{position:fixed;z-index:200;pointer-events:none;opacity:.92;transform:rotate(-3deg) scale(1.04)}
 .palhint{margin-top:6px;font-size:13px;color:var(--dim);line-height:1.5}
 .sub-ADCS{background:#39c5ff}.sub-POWER{background:#ffb020}.sub-COMM{background:#33d17a}.sub-OBC{background:#8a7dff}
 
@@ -113,7 +113,6 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-wei
 .dropzone{margin-top:-3px;border:2px dashed var(--line);border-radius:0 10px 10px 10px;min-height:130px;
   padding:12px;transition:.15s}
 .dropzone.empty{display:flex;align-items:center;justify-content:center;min-height:120px}
-.dropzone.dragover{border-color:var(--accent);border-style:solid;background:rgba(57,197,255,.07)}
 .dzhint{color:var(--dim);font-size:15px;font-style:italic}
 
 .cblock{border-radius:10px;padding:12px 14px;box-shadow:0 3px 0 rgba(0,0,0,.35)}

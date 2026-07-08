@@ -1,7 +1,7 @@
 // DEMOSAT Command Builder — a booth puzzle. The visitor must assemble every
 // element of a valid uplink to match the target dossier; only then does GENERATE
-// unlock. STEP 1 is a Scratch-style block composer: you drag a subsystem block
-// into the script, then TYPE the real command and its value into the block's
+// unlock. STEP 1 is a Scratch-style block composer: you click a subsystem block
+// to load it into the script, then TYPE the real command and its value into the block's
 // slots (no click-to-pick shortcut — you write the actual command line). All
 // CCSDS/OOK logic lives in the Python backend; this script drives the UI.
 'use strict';
@@ -127,7 +127,7 @@ const collapseOverride = {};
 
 // ── render the step cards ───────────────────────────────────────────────────
 const STEP_DEFS = [
-  [1, 'COMPOSE COMMAND', 'Drag a subsystem block into the script, then TYPE the real command and its value into the block.', bodyCompose],
+  [1, 'COMPOSE COMMAND', 'Click a subsystem block to load it into the script, then TYPE the real command and its value into the block.', bodyCompose],
   [2, 'RF CONFIG', 'Match the modulation, baud and sample rate to the satellite receiver.', bodyRF],
 ];
 function renderSteps() {
@@ -201,12 +201,13 @@ function bodyCompose(body) {
   const palette = el('div', 'palette');
   palette.appendChild(el('div', 'palcap', 'BLOCK PALETTE'));
   M.subsystems.forEach((sub) => {
-    const b = el('div', 'palblock sub-' + sub, `<span class="pbgrip">⣿</span>${sub} command`);
+    const b = el('div', 'palblock sub-' + sub + (S.block && S.block.sub === sub ? ' active' : ''),
+      `<span class="pbgrip">⣿</span>${sub} command`);
     b.dataset.sub = sub;
-    attachDrag(b, sub);
+    b.onclick = () => placeBlock(sub);
     palette.appendChild(b);
   });
-  palette.appendChild(el('div', 'palhint', 'Drag a block ▶ into the script, then type the command.'));
+  palette.appendChild(el('div', 'palhint', 'Click a block ▶ to load it into the script, then type the command.'));
 
   const script = el('div', 'script');
   script.appendChild(el('div', 'scriptcap', 'SCRIPT'));
@@ -218,43 +219,6 @@ function bodyCompose(body) {
   wrap.appendChild(script);
   body.appendChild(wrap);
   renderBlock();
-}
-
-// pointer-based drag (works on mouse + touch); a short press without moving
-// counts as a tap that also drops the block onto the script.
-function attachDrag(node, sub) {
-  node.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    const ghost = node.cloneNode(true);
-    ghost.classList.add('ghost');
-    document.body.appendChild(ghost);
-    const startX = e.clientX, startY = e.clientY;
-    let moved = false;
-    const overZone = (ev) => {
-      const zone = document.querySelector('#dropzone');
-      if (!zone) return false;
-      const r = zone.getBoundingClientRect();
-      return ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
-    };
-    const move = (ev) => {
-      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 5) moved = true;
-      ghost.style.left = (ev.clientX + 10) + 'px';
-      ghost.style.top = (ev.clientY + 10) + 'px';
-      const zone = document.querySelector('#dropzone');
-      if (zone) zone.classList.toggle('dragover', overZone(ev));
-    };
-    const up = (ev) => {
-      document.removeEventListener('pointermove', move);
-      document.removeEventListener('pointerup', up);
-      ghost.remove();
-      const zone = document.querySelector('#dropzone');
-      if (zone) zone.classList.remove('dragover');
-      if (!moved || overZone(ev)) placeBlock(sub);
-    };
-    move(e);
-    document.addEventListener('pointermove', move);
-    document.addEventListener('pointerup', up);
-  });
 }
 
 function placeBlock(sub) {
@@ -280,7 +244,7 @@ function renderBlock() {
   if (!zone) return;
   if (!S.block) {
     zone.className = 'dropzone empty';
-    zone.innerHTML = '<div class="dzhint">▶ drag a command block here</div>';
+    zone.innerHTML = '<div class="dzhint">▶ click a command block to load it here</div>';
     return;
   }
   zone.className = 'dropzone';
@@ -343,7 +307,7 @@ function renderArgs() {
       const typed = S.verbText.trim();
       const other = typed ? M.commands.find((x) => x.command === typed) : null;
       msg.textContent = !typed ? ''
-        : other && other.subsystem !== sub ? `“${typed}” is a ${other.subsystem} command — drag a ${other.subsystem} block`
+        : other && other.subsystem !== sub ? `“${typed}” is a ${other.subsystem} command — pick the ${other.subsystem} block`
         : names.some((n) => n.startsWith(typed)) ? ''
         : 'unknown command — check the spelling';
     }

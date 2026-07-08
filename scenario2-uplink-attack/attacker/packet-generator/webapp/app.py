@@ -4,7 +4,7 @@ DEMOSAT Command Builder — local web UI (stdlib http.server, no pip deps)
 
 A booth "puzzle": to generate the uplink IQ file the visitor must assemble every
 element of a valid uplink, matching the target satellite's dossier:
-  STEP 1  Compose command    — a Scratch-style block: drag a subsystem block, then
+  STEP 1  Compose command    — a Scratch-style block: click a subsystem block, then
                                TYPE the real command name + payload value into it
   STEP 2  RF config          — modulation / baud / sample rate (satellite RX)
 Only when both are correct does GENERATE unlock and write attack.cf32.
@@ -253,6 +253,7 @@ class Handler(BaseHTTPRequestHandler):
             if fp.startswith(STATIC_DIR) and os.path.isfile(fp):
                 ctype = ("text/css" if fp.endswith(".css")
                          else "application/javascript" if fp.endswith(".js")
+                         else "image/svg+xml" if fp.endswith(".svg")
                          else "application/octet-stream")
                 with open(fp, "rb") as f:
                     return self._send(200, ctype, f.read())

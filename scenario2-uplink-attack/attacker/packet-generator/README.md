@@ -11,7 +11,7 @@ UPLINK_OUT_DIR=~/uplink python3 app.py       # http://localhost:8000
 ```
 A 2-system puzzle: the visitor must assemble a valid uplink to match the on-screen
 **TARGET INTEL** dossier — **1** compose the command in a **Scratch-style block editor**
-(drag a subsystem block into the script, then **type the real command name and its
+(click a subsystem block to load it into the script, then **type the real command name and its
 value** into the block's slots — no click-to-pick shortcut), **2** RF config
 (modulation/baud/sample rate). Only when both lock does GENERATE unlock and write
 `~/uplink/attack.cf32`. The CCSDS frame assembles byte-by-byte as they go. Zero build
