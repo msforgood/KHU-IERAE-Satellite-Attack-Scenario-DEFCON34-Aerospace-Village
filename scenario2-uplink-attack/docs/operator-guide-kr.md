@@ -90,7 +90,8 @@ gpredict는 OS 패키지로 설치(맥 `brew install gpredict`, 우분투 `sudo 
 scenario2-uplink-attack/
 ├─ ground-station/     지상국 (대시보드 + 백엔드)      ← Node
 ├─ packet-generator/   Command Builder (명령 조립 웹)  ← Python
-├─ openvsa-plugin/     OpenVSA용 위성 플러그인
+├─ openvsa-plugin/     OpenVSA용 위성 플러그인(드롭인 원본)
+├─ attacker/           ③ 3화면 콘솔 — gpredict+OpenVSA 포크·임베드
 ├─ arduino/            물리 안테나·솔라패널 스케치 + 브릿지
 └─ docs/               가이드 문서 (지금 이 문서)
 ```
@@ -178,9 +179,10 @@ SOLAR_PORT=/dev/cu.usbmodemXXXX ANT_PORT=/dev/cu.usbmodemYYYY PANEL_SPIN=1 node 
 cd ground-station/backend && node server.js
 #   부스 연출: ATTACK_DELAY_MS=2500 node server.js  (경보까지 지연 단축)
 
-# 터미널 B — OpenVSA (공격자 VSA)  ※ rotctld :4533 / rigctld :4532 오픈
-cd <OpenVSA> && UPLINK_DEST=ws://localhost:4536 node server.js
-#   별도 터미널/프로세스: npm start   (Electron VSA UI)
+# 터미널 B — attacker 3화면 (OpenVSA + gpredict + 콘솔). 최초 1회: attacker/setup.sh
+cd attacker && ./run-gpredict-web.sh &                         # 실제 gpredict → noVNC(:6080)
+GPREDICT_WEB_URL='http://localhost:6080/vnc.html?autoconnect=1&resize=remote' ./launch.sh
+#   OpenVSA(rotctld :4533 / forward :4536) + 콘솔(:8090)을 함께 띄우고 3화면 URL을 출력
 
 # 터미널 C — 시리얼 브릿지 (물리 모터)
 cd arduino/bridge && SOLAR_PORT=/dev/cu.usbmodemXXXX ANT_PORT=/dev/cu.usbmodemYYYY PANEL_SPIN=1 node bridge.js
@@ -220,18 +222,18 @@ cd packet-generator/webapp && UPLINK_OUT_DIR=~/uplink python3 app.py   # :8000
 
 **⚡ GENERATE UPLINK IQ** → `~/uplink/attack.cf32`(IQ 신호 파일) 생성. *(아직 송신 X — 먼저 조준.)*
 
-### ③ 위성 조준 — gpredict + VSA → 🛰️ 안테나 스윕
+### ③ 위성 조준 — 3화면 콘솔(gpredict + OpenVSA) → 🛰️ 안테나 스윕
 
-1. gpredict `Antenna Control` → Target **DEMOSAT** → Rotator 선택 → **Engage / Track**.
+터미널 B가 출력한 **3화면 URL**을 엽니다 (`http://localhost:8090/?gs=…&gp=…`). 한 웹 화면에
+**gpredict(위성 추적)** 와 **OpenVSA(VSA)** 가 나란히 임베드됩니다.
+
+1. 콘솔의 gpredict 창 → `Antenna Control` → Target **DEMOSAT** → Rotator **OpenVSA** → **Engage**.
    gpredict가 az/el을 rotctld(`4533`)로 흘려 **OpenVSA 안테나가 위성을 향해 슬루**합니다.
-2. 위성이 지평선 위(el > 0°)이고 정렬되면 — **조준 성공을 지상국에 알립니다**(🛰️ 안테나가 좌↔우로 조준 스윕):
+2. 위성이 지평선 위(el > 0°)이고 정렬되면 콘솔 상단 **◎ ACQUIRE LOCK** 버튼을 누릅니다 →
+   지상국에 조준 성공(`/api/acquire`)이 전달되고 **🛰️ 물리 안테나가 좌↔우로 조준 스윕**합니다.
 
-```bash
-curl -X POST http://localhost:4540/api/acquire      # 안테나 SWEEP 시작
-```
-
-> 이 신호는 OpenVSA의 lock 이벤트에 연결해 자동화할 수도 있습니다(동일 엔드포인트 POST). 자동화 전까지는
-> 운영자가 정렬 확인 후 위 한 줄을 실행합니다. 조준을 풀려면 `-d '{"on":false}'`를 붙여 POST.
+> 버튼 대신 CLI로도 가능: `curl -X POST http://localhost:4540/api/acquire` (해제는 `-d '{"on":false}'`).
+> OpenVSA의 lock 이벤트에 연결해 자동화할 수도 있습니다(동일 엔드포인트).
 
 ### ④ 송신 — OpenVSA TRANSMIT → ☀️ 솔라패널 무한 회전
 
