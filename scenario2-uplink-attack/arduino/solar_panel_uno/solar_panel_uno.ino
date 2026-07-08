@@ -1,12 +1,15 @@
 // solar_panel_uno.ino — Scenario 2 "Uplink Attack" solar-panel actuator.
 //
 //   Board : Arduino Uno (or any AVR/SAMD board with the standard Servo lib)
-//   Motor : standard hobby servo (SG90) on the solar-panel hinge
+//   Motor : solar-panel hinge servo. Two options:
+//           · standard positional SG90 → panel SWINGS off the sun (0°) on attack.
+//           · continuous-rotation servo (FS90R, or an SG90 modded for continuous
+//             rotation) → panel SPINS endlessly on attack (SPIN/STOP commands).
 //
 // Mirrors the satellite state engine's `solar_panel.angle`:
 //   90° = optimal, sun-tracking   →   0° = swung off the sun (power collapse).
 // During an uplink attack the ground-station bridge streams the falling angle
-// here and the servo physically swings the panel off the sun.
+// here (positional) or fires SPIN (continuous-rotation panel).
 //
 // The sketch is fully testable WITHOUT the bridge: open the Serial Monitor at
 // 9600 baud and type the commands below.
@@ -16,7 +19,14 @@
 //   MODE <0|1>    0 = nominal (sun-track) / 1 = attack (off-sun) — LED effect
 //   SUN           shortcut: ANG 90 + MODE 0
 //   OFFSUN        shortcut: ANG 0  + MODE 1
+//   SPIN [us]     continuous rotation (needs a continuous-rotation servo); optional
+//                 pulse 1000-2000us (1500=stop, 2000=full). Default 2000 = full spin.
+//   STOP          leave spin, hold current position
 //   PING          replies "SOLAR READY angle=<n> mode=<m>"
+//
+//   NOTE: a stock SG90 cannot rotate continuously — SPIN just drives it to an end
+//   stop and holds. For endless rotation use an FS90R or a continuous-rotation-
+//   modified SG90 (remove the stopper tab + fix the feedback pot).
 //
 // ── Wiring ──────────────────────────────────────────────────────────────────
 //   Servo signal → D9      Servo V+ → external 5V (NOT the Uno 5V pin for load)
@@ -32,10 +42,13 @@ const int      ANGLE_MAX   = 180;
 const int      STEP_PER_LOOP = 2;     // deg moved toward target each loop (smoothing)
 const uint16_t LOOP_DELAY_MS = 15;    // servo settle time between micro-steps
 
+const int SPIN_US_DEFAULT = 2000;   // full-speed continuous rotation (1500 = stop)
+
 Servo panel;
 int  targetAngle  = 90;   // sun-track default
 int  currentAngle = 90;
-int  mode         = 0;    // 0 nominal, 1 attack
+int  mode         = 0;    // 0 nominal (positional) · 1 attack (positional) · 2 continuous spin
+int  spinUs       = SPIN_US_DEFAULT;
 char lineBuf[48];
 uint8_t lineLen = 0;
 
@@ -60,8 +73,11 @@ void loop() {
     }
   }
 
-  // 2) ease the servo toward the target so it never slams
-  if (currentAngle != targetAngle) {
+  // 2) continuous spin (mode 2) drives a constant pulse; otherwise ease the
+  //    positional servo toward the target so it never slams.
+  if (mode == 2) {
+    panel.writeMicroseconds(spinUs);
+  } else if (currentAngle != targetAngle) {
     int diff = targetAngle - currentAngle;
     int step = diff;
     if (step >  STEP_PER_LOOP) step =  STEP_PER_LOOP;
@@ -70,8 +86,8 @@ void loop() {
     panel.write(currentAngle);
   }
 
-  // 3) status LED: solid in nominal, blinking under attack
-  if (mode == 1) digitalWrite(LED_PIN, (millis() / 150) % 2);
+  // 3) status LED: solid in nominal, blinking under attack (swing or spin)
+  if (mode != 0) digitalWrite(LED_PIN, (millis() / 150) % 2);
   else           digitalWrite(LED_PIN, HIGH);
 
   delay(LOOP_DELAY_MS);
@@ -94,6 +110,12 @@ void applyLine(char *line) {
     targetAngle = 90; mode = 0;
   } else if (strncmp(line, "OFFSUN", 6) == 0) {
     targetAngle = 0;  mode = 1;
+  } else if (strncmp(line, "SPIN", 4) == 0) {
+    if (hasArg) spinUs = constrain(arg, 1000, 2000);
+    mode = 2;
+  } else if (strncmp(line, "STOP", 4) == 0) {
+    mode = 0; targetAngle = currentAngle;   // hold where it is
+    panel.writeMicroseconds(1500);          // neutral pulse halts a continuous-rotation servo
   } else if (strncmp(line, "PING", 4) == 0) {
     Serial.print(F("SOLAR READY angle="));
     Serial.print(targetAngle);

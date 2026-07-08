@@ -14,8 +14,10 @@
 //   AZEL <az 0-360> <el -90..90>   set azimuth (el is logged; 2-axis-ready)
 //   AZ <az 0-360>                  set azimuth only
 //   MODE <0|1>                     0 = nominal / 1 = tumbling — LED effect
-//   TRACK                          shortcut: MODE 0
+//   TRACK                          shortcut: MODE 0 (stops a sweep, holds position)
 //   TUMBLE                         shortcut: MODE 1
+//   SWEEP / ACQUIRE                acquisition gesture: sweep the head left↔right
+//                                  (fired when gpredict locks onto the virtual sat)
 //   PING                           replies "ANT READY az=<n>"
 //
 // ── Wiring (28BYJ-48 + ULN2003) ─────────────────────────────────────────────
@@ -34,6 +36,8 @@ const int  STEPS_PER_REV   = 2048;   // 28BYJ-48 with internal gearing (~2038-20
 const int  MAX_STEPS_LOOP  = 12;     // steps moved per loop → keeps serial responsive
 const int  STEPPER_RPM     = 12;
 const uint8_t LED_PIN      = 13;
+const int  SWEEP_LO_AZ     = 150;    // acquisition sweep: left bound
+const int  SWEEP_HI_AZ     = 210;    // acquisition sweep: right bound (head turns ±30°)
 
 // 28BYJ-48 coil order via ULN2003 is IN1,IN3,IN2,IN4 → pins 8,10,9,11.
 Stepper motor(STEPS_PER_REV, 8, 10, 9, 11);
@@ -42,7 +46,7 @@ long targetStep  = 0;    // desired absolute step position
 long currentStep = 0;    // where we are now
 int  az          = 180;  // last commanded azimuth (default antenna.az)
 int  el          = 45;   // last commanded elevation (logged only)
-int  mode        = 0;
+int  mode        = 0;    // 0 nominal · 1 tumbling · 2 acquisition sweep
 char lineBuf[48];
 uint8_t lineLen = 0;
 
@@ -82,11 +86,16 @@ void loop() {
     int n = (int)constrain(diff, -MAX_STEPS_LOOP, MAX_STEPS_LOOP);
     motor.step(n);
     currentStep = ((currentStep + n) % STEPS_PER_REV + STEPS_PER_REV) % STEPS_PER_REV;
+  } else if (mode == 2) {
+    // acquisition sweep: bound reached → head to the other side (left↔right)
+    long hiStep = azToStep(SWEEP_HI_AZ);
+    targetStep = (targetStep == hiStep) ? azToStep(SWEEP_LO_AZ) : hiStep;
   }
 
-  // 3) LED: solid nominal, blink under tumbling
-  if (mode == 1) digitalWrite(LED_PIN, (millis() / 120) % 2);
-  else           digitalWrite(LED_PIN, HIGH);
+  // 3) LED: solid nominal · fast blink tumbling · slow blink acquisition sweep
+  if      (mode == 1) digitalWrite(LED_PIN, (millis() / 120) % 2);
+  else if (mode == 2) digitalWrite(LED_PIN, (millis() / 300) % 2);
+  else                digitalWrite(LED_PIN, HIGH);
 }
 
 void setAzimuth(int a) { az = a; targetStep = azToStep(a); }
@@ -107,6 +116,9 @@ void applyLine(char *line) {
     mode = 0;
   } else if (strncmp(line, "TUMBLE", 6) == 0) {
     mode = 1;
+  } else if (strncmp(line, "SWEEP", 5) == 0 || strncmp(line, "ACQUIRE", 7) == 0) {
+    mode = 2;
+    targetStep = azToStep(SWEEP_HI_AZ);   // kick the head toward one side to start
   } else if (strncmp(line, "PING", 4) == 0) {
     Serial.print(F("ANT READY az="));
     Serial.println(az);
