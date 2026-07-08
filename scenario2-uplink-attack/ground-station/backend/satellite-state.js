@@ -87,6 +87,9 @@ function createSatelliteState() {
 
   function getState() { return { ...state, _flags: { ...flags } }; }
   function getPanelConfig() { return panelConfig; }
+  // set/clear a bare flag (e.g. `acquiring` during the gpredict pointing phase).
+  // Not an attack flag — the tick() physics ignore it; only the Arduino bridge reads it.
+  function setFlag(name, value) { if (value) flags[name] = true; else delete flags[name]; notify(); }
   function onChange(fn) { listeners.push(fn); }
   function notify() { const s = getState(); listeners.forEach(fn => fn(s)); }
 
@@ -353,7 +356,7 @@ function createSatelliteState() {
     recoveryTimers.forEach(t => clearTimeout(t)); recoveryTimers = [];
   }
 
-  return { getState, getPanelConfig, onChange, reset, applyCommand, loadFromFiles, start, stop, notify, tick };
+  return { getState, getPanelConfig, setFlag, onChange, reset, applyCommand, loadFromFiles, start, stop, notify, tick };
 }
 
 module.exports = { createSatelliteState };

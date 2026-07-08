@@ -99,6 +99,20 @@ const httpServer = http.createServer((req, res) => {
     });
     return;
   }
+  // pointing hook: gpredict/OpenVSA (or the operator) signals "target acquired" →
+  // the antenna sweeps left↔right. POST {} to set, {"on":false} to clear.
+  if (url === "/api/acquire" && req.method === "POST") {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      let on = true;
+      try { const j = JSON.parse(body || "{}"); if (j.on === false) on = false; } catch {}
+      sat.setFlag("acquiring", on);
+      console.log(`[point] target ${on ? "ACQUIRED — antenna sweep" : "released"}`);
+      res.writeHead(200); res.end("{}");
+    });
+    return;
+  }
   if (url === "/api/reset" && req.method === "POST") {
     sat.reset(); tumblingWas = false; res.writeHead(200); return res.end("{}");
   }

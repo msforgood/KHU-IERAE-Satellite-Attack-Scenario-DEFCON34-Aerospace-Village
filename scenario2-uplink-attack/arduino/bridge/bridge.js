@@ -5,8 +5,11 @@
 // polls its /api/state endpoint and streams the live satellite state to the two
 // Arduinos over USB serial, so the physical panel/antenna track the dashboard.
 //
-//   GS :4540 /api/state ──poll──▶ bridge ──serial──▶ solar_panel_uno  (ANG/MODE)
-//                                        └─serial──▶ antenna_gimbal   (AZEL/MODE)
+//   GS :4540 /api/state ──poll──▶ bridge ──serial──▶ solar_panel_uno  (ANG/MODE or SPIN/STOP)
+//                                        └─serial──▶ antenna_gimbal   (AZEL/MODE, SWEEP on acquire)
+//
+// Antenna: on the `acquiring` flag (POST /api/acquire during gpredict pointing) the
+// antenna SWEEPs left↔right; under attack (tumbling) it jitters; else it tracks az/el.
 //
 // Serial is done without the `serialport` npm package: on macOS/Linux a tty is
 // just a file, so we configure it with stty(1) then fs.createWriteStream(). This
@@ -22,6 +25,7 @@
 //   GS_URL         (default http://localhost:4540)
 //   POLL_MS        (default 150)
 //   BAUD           (default 9600)
+//   PANEL_SPIN     (default off) 1 = solar panel is a continuous-rotation servo → SPIN
 
 const http = require("http");
 const fs = require("fs");
@@ -30,6 +34,9 @@ const { execFileSync } = require("child_process");
 const GS_URL   = process.env.GS_URL || "http://localhost:4540";
 const POLL_MS  = +(process.env.POLL_MS || 150);
 const BAUD     = +(process.env.BAUD || 9600);
+// PANEL_SPIN=1 → the solar panel is a continuous-rotation servo (FS90R / modded
+// SG90): under attack it SPINs endlessly instead of swinging to an off-sun angle.
+const PANEL_SPIN = /^(1|true|yes)$/i.test(process.env.PANEL_SPIN || "");
 const RESET_WAIT_MS = 2000;   // Uno auto-resets when the port opens; wait it out
 
 // ── serial port helper ──────────────────────────────────────────────────────
@@ -114,19 +121,33 @@ function drive(state) {
 
   // ── solar panel ──
   if (solar) {
-    const ang = Math.round(clamp(state["solar_panel.angle"] ?? 90, 0, 180));
-    const mode = attack ? 1 : 0;
-    if (ang !== lastSolarAng)   { send(solar, "ANG " + ang);   lastSolarAng = ang; }
-    if (mode !== lastSolarMode) { send(solar, "MODE " + mode); lastSolarMode = mode; }
+    if (PANEL_SPIN) {
+      // continuous-rotation panel: SPIN under attack, STOP otherwise.
+      const mode = attack ? 1 : 0;
+      if (mode !== lastSolarMode) { send(solar, mode ? "SPIN" : "STOP"); lastSolarMode = mode; }
+    } else {
+      // standard positional servo: stream the falling angle + attack LED mode.
+      const ang = Math.round(clamp(state["solar_panel.angle"] ?? 90, 0, 180));
+      const mode = attack ? 1 : 0;
+      if (ang !== lastSolarAng)   { send(solar, "ANG " + ang);   lastSolarAng = ang; }
+      if (mode !== lastSolarMode) { send(solar, "MODE " + mode); lastSolarMode = mode; }
+    }
   }
 
-  // ── antenna ──
+  // ── antenna ── priority: tumbling(1) > acquiring sweep(2) > nominal(0)
   if (ant) {
-    const az = Math.round(state["antenna.az"] ?? 180);
-    const el = Math.round(state["antenna.el"] ?? 45);
-    const mode = flags.tumbling ? 1 : 0;
-    if (az !== lastAz || el !== lastEl) { send(ant, `AZEL ${az} ${el}`); lastAz = az; lastEl = el; }
-    if (mode !== lastAntMode)           { send(ant, "MODE " + mode);     lastAntMode = mode; }
+    const antMode = flags.tumbling ? 1 : (flags.acquiring ? 2 : 0);
+    if (antMode !== lastAntMode) {
+      send(ant, antMode === 2 ? "SWEEP" : "MODE " + antMode);
+      lastAntMode = antMode;
+      if (antMode !== 2) { lastAz = lastEl = null; }   // force an AZEL resync after a sweep
+    }
+    // SWEEP self-oscillates on the board — only stream az/el when not sweeping.
+    if (antMode !== 2) {
+      const az = Math.round(state["antenna.az"] ?? 180);
+      const el = Math.round(state["antenna.el"] ?? 45);
+      if (az !== lastAz || el !== lastEl) { send(ant, `AZEL ${az} ${el}`); lastAz = az; lastEl = el; }
+    }
   }
 }
 
