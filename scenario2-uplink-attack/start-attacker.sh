@@ -3,8 +3,13 @@
 # scn2 루트에 두지만, 실제 자원은 전부 attacker/ 아래에 있어 스스로 그리로 진입한다.
 #
 #   ① Command Builder   attacker/packet-generator/webapp (Python) → http://localhost:8000
-#   ③ 위성 조준 콘솔      attacker/console + OpenVSA(+gpredict web)  → http://localhost:8090
-#   (③에 임베드) gpredict  Docker + noVNC                          → http://localhost:6080
+#   ③ 위성 조준 콘솔(단일 포트)  console-proxy.js               → http://localhost:8090
+#      ├ /          console (정적)
+#      ├ /vsa/      OpenVSA 렌더러 (정적, 데스크탑 앱 아님)
+#      └ /gpredict/ gpredict noVNC (Docker :6080 로 HTTP+WS 프록시)
+#
+# ※ OpenVSA는 Electron 앱이지만 렌더러는 정적 웹(+WS :4534)이라 프록시가 /vsa 로 서빙해
+#   브라우저 iframe으로 띄운다(네이티브 창 안 뜸). TRANSMIT은 피해 GS API(/api/inject)로 처리.
 #
 # 사용법 (scn2 루트에서):
 #   ./start-attacker.sh            # 설치 + 확인 + 실행 (전체)
@@ -15,7 +20,8 @@
 # 환경변수(선택):
 #   GS_URL       피해 지상국 base (ACQUIRE/RESET·forward 대상). 기본 http://localhost:4540
 #   BUILDER_PORT ① Command Builder 포트. 기본 8000
-#   GP_PORT      gpredict noVNC 포트. 기본 6080
+#   CONSOLE_PORT ③ 조준 콘솔 단일 포트(console+vsa+gpredict). 기본 8090
+#   GP_PORT      gpredict noVNC Docker 포트(프록시 대상). 기본 6080
 #   GP_IMG       gpredict Docker 이미지명. 기본 demosat-gpredict
 #   UPLINK_OUT_DIR  attack.cf32 출력 폴더. 기본 ~/uplink
 #
@@ -24,14 +30,16 @@
 
 set -uo pipefail
 # 스크립트는 scn2 루트에 있지만 모든 자원은 attacker/ 아래 → 그리로 진입해
-# 이하 상대경로(packet-generator·openvsa·gpredict-web·launch.sh)를 그대로 쓴다.
+# 이하 상대경로(packet-generator·openvsa·gpredict-web·console)를 그대로 쓴다.
 cd "$(dirname "$0")/attacker"
 
 MODE="${1:-all}"
 GS_URL="${GS_URL:-http://localhost:4540}"
 BUILDER_PORT="${BUILDER_PORT:-8000}"
+CONSOLE_PORT="${CONSOLE_PORT:-8090}"   # 단일 포트: console(/) + OpenVSA(/vsa) + gpredict(/gpredict)
 GP_PORT="${GP_PORT:-6080}"
 GP_IMG="${GP_IMG:-demosat-gpredict}"
+UPLINK_DEST="${UPLINK_DEST:-ws://localhost:4536}"
 UPLINK_OUT_DIR="${UPLINK_OUT_DIR:-$HOME/uplink}"
 
 BUILDER_DIR="packet-generator/webapp"
@@ -151,16 +159,37 @@ up() {
     GP="http://localhost:$GP_PORT/vnc.html?autoconnect=1&resize=remote"
   fi
 
+  # ③ OpenVSA 백엔드(rotctld :4533 / rigctld :4532 / WS :4534 / forward).
+  #   UI(렌더러)는 아래 단일 포트 프록시가 /vsa 로 서빙한다(데스크탑 Electron 창 없음).
+  ( cd openvsa && UPLINK_DEST="$UPLINK_DEST" node server.js ) >/tmp/demosat-openvsa.log 2>&1 &
+  pids+=($!)
+
+  # ③ 단일 포트 콘솔 프록시 — 한 포트로 console(/) + OpenVSA(/vsa) + gpredict(/gpredict, HTTP+WS)
+  ( PORT="$CONSOLE_PORT" GP_PORT="$GP_PORT" node console-proxy.js ) >/tmp/demosat-console.log 2>&1 &
+  pids+=($!)
+
+  # 콘솔 iframe은 전부 같은 오리진의 상대경로. gpredict는 noVNC WS를 /gpredict/ 아래로
+  # 잡도록 path= 를 지정한다(프록시가 /gpredict/* WS를 :GP_PORT 로 포워딩).
+  local CQ="gs=$GS_URL&vsa=/vsa/"
+  if [ -n "$GP" ]; then
+    local GP_REL="/gpredict/vnc.html?autoconnect=1&resize=remote&path=gpredict/websockify"
+    # gp 값 안의 ?,&,= 때문에 콘솔의 쿼리 파서가 쪼개지 않도록 통째로 URL 인코딩
+    local GP_ENC; GP_ENC=$("$PY_ABS" -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=""))' "$GP_REL")
+    CQ="$CQ&gp=$GP_ENC"
+  fi
+  local CONSOLE_URL="http://localhost:$CONSOLE_PORT/?$CQ"
+
   sleep 2
   echo "───────────────────────────────────────────────"
-  c_ok "① Command Builder → http://localhost:$BUILDER_PORT   (로그: /tmp/demosat-builder.log)"
-  [ -n "$GP" ] && c_ok "   gpredict(web)   → $GP   (로그: /tmp/demosat-gpredict.log, 최초 기동 수십초)"
-  echo "   ③ 위성 조준 콘솔은 아래 OpenVSA 기동 후 URL이 출력됩니다."
-  echo "   ⑤ 피해 지상국은 별도 실행 필요:  (다른 터미널) cd victim/backend && node server.js"
+  c_ok "① Command Builder → http://localhost:$BUILDER_PORT   (로그 /tmp/demosat-builder.log)"
+  c_ok "③ 위성 조준 콘솔(단일 포트) → $CONSOLE_URL"
+  echo "     └ /  console   ·   /vsa  OpenVSA(웹)   ·   /gpredict  gpredict(:$GP_PORT 프록시)"
+  [ -z "$GP" ] && c_warn "gpredict 미실행(docker 없음) → /gpredict 비활성, 나머지는 정상"
+  echo "   ⑤ 피해 지상국은 별도 실행:  ./start-victim.sh  (또는 cd victim/backend && node server.js)"
+  echo "   ℹ️ VSA TRANSMIT은 브라우저 IPC가 없으므로 피해 GS API(/api/inject)로 처리하는 흐름입니다."
   echo "───────────────────────────────────────────────"
-
-  # ③ OpenVSA + 콘솔 (포그라운드, Ctrl-C 로 전체 종료). 기존 launch.sh 재사용.
-  GS_URL="$GS_URL" GPREDICT_WEB_URL="$GP" ./launch.sh
+  echo "종료하려면 Ctrl-C"
+  wait
 }
 
 case "$MODE" in
