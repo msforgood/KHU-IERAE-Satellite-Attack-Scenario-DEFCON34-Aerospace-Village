@@ -6,6 +6,17 @@ cd "$(dirname "$0")"
 IMG=${IMG:-demosat-gpredict}
 PORT=${WEB_PORT:-6080}
 
+# The #1 cause of "build failed" here is a stopped Docker daemon — surface it clearly.
+if ! command -v docker >/dev/null 2>&1; then
+  echo "✗ docker 명령을 찾을 수 없습니다. Docker Desktop을 설치하세요." >&2
+  exit 1
+fi
+if ! docker info >/dev/null 2>&1; then
+  echo "✗ Docker 데몬이 실행 중이 아닙니다. Docker Desktop을 먼저 켜세요 (open -a Docker)." >&2
+  echo "  ③ 조준 화면(gpredict)은 이 컨테이너가 떠야 동작합니다. 나머지 화면은 데몬 없이도 정상." >&2
+  exit 1
+fi
+
 docker build -t "$IMG" .
 URL="http://localhost:$PORT/vnc.html?autoconnect=1&resize=remote"
 echo "───────────────────────────────────────────────"

@@ -276,7 +276,10 @@ function bodyCompose(body) {
   wrap.appendChild(palette);
   wrap.appendChild(script);
   body.appendChild(wrap);
-  renderBlock();
+  // Pass the freshly-built zone directly: bodyCompose runs while the step card is
+  // still DETACHED from the document, so a document.querySelector("#dropzone") here
+  // would find nothing and the block would never render.
+  renderBlock(zone);
 }
 
 function placeBlock(sub) {
@@ -329,8 +332,8 @@ function changeCommand() {
 
 // render the script from state: a subsystem block shows its command list until a
 // command is picked; once picked it becomes a scratch block with typed value slots.
-function renderBlock() {
-  const zone = document.querySelector("#dropzone");
+function renderBlock(zone) {
+  zone = zone || document.querySelector("#dropzone");
   if (!zone) return;
   if (!S.block) {
     zone.className = "dropzone empty";
@@ -382,14 +385,15 @@ function renderBlock() {
     </div>`;
   zone.querySelector(".cbx").onclick = clearBlock;
   zone.querySelector(".cbchg").onclick = changeCommand;
-  renderArgs();
+  renderArgs(zone);
 }
 
 // argument slots for the recognised command (values are TYPED, not clicked).
 // Rendered purely from S so it survives the re-render on every keystroke.
-function renderArgs() {
-  const box = document.querySelector(".cbargs");
-  const msg = document.querySelector(".cbmsg");
+function renderArgs(scope) {
+  scope = scope || document;
+  const box = scope.querySelector(".cbargs");
+  const msg = scope.querySelector(".cbmsg");
   if (!box) return;
   box.innerHTML = "";
   if (!S.command) return; // command list is shown by renderBlock in this state

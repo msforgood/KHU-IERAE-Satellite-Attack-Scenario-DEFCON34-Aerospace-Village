@@ -162,7 +162,7 @@ def mission_payload():
             continue
         cmds.append({"command": name, "opcode": hexop, "apid": meta["apid"],
                      "description": meta.get("description", ""), **ui})
-    order = ["POWER", "ADCS", "COMM", "OBC"]
+    order = ["ADCS", "COMM", "OBC"]
     cmds.sort(key=lambda c: (order.index(c["subsystem"]) if c["subsystem"] in order else 9,
                              0 if c.get("star") else 1))
     return {"target": TARGET, "options": OPTIONS, "commands": cmds, "subsystems": order}
