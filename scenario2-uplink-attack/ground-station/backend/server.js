@@ -85,6 +85,14 @@ const CT = { ".html": "text/html; charset=utf-8", ".css": "text/css",
 const httpServer = http.createServer((req, res) => {
   const url = req.url.split("?")[0];
 
+  // CORS: let the attacker console (served from another origin) call the API.
+  if (url.startsWith("/api/")) {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "content-type");
+    if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); }
+  }
+
   if (url === "/api/state") {
     res.writeHead(200, { "Content-Type": "application/json" });
     return res.end(JSON.stringify({ state: lastState, panel: sat.getPanelConfig() }));
