@@ -27,6 +27,8 @@
   button:hover{border-color:var(--cyan);color:var(--cyan)}
   button.lock{border-color:var(--good);color:var(--good)}
   button.lock.on{background:var(--good);color:#06120b}
+  button.fire{border-color:var(--crit);color:var(--crit)}
+  button.fire:hover{background:var(--crit);color:#120606}
   #status{font-family:var(--mono);font-size:12px;color:var(--dim);min-width:180px;text-align:right}
   #status b{color:var(--ink)}
   main{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);min-height:0}
@@ -45,6 +47,7 @@
   <h1>ATTACKER · Targeting Console — DEMOSAT</h1>
   <span class="spacer"></span>
   <button class="lock" id="lock">◎ ACQUIRE LOCK</button>
+  <button class="fire" id="transmit">⚡ TRANSMIT</button>
   <button id="reset">RESET</button>
   <span id="status">idle</span>
 </header>
@@ -98,6 +101,18 @@
                 locked ? "var(--good)" : "");
     } catch (e) { setStatus("GS 연결 실패 (" + e.message + ")", "var(--crit)"); locked = !locked; }
   };
+  // ⚡ TRANSMIT — fire the uplink at the victim GS. OpenVSA's Electron decode/forward
+  // isn't available in the browser, so we POST the attack command straight to the GS
+  // API (/api/inject) — the same effect the forwarded uplink would have.
+  //   adcs_torque · payload 0x03e7 (999 mNm) → tumbling → sun-track loss → ENERGY SUPPLY CRITICAL
+  const ATTACK = { command: "adcs_torque", payload: ["0x03", "0xe7"] };
+  document.getElementById("transmit").onclick = async () => {
+    try {
+      await post("/api/inject", ATTACK);
+      setStatus("⚡ UPLINK TRANSMITTED · adcs_torque 999 mNm", "var(--crit)");
+    } catch (e) { setStatus("GS 연결 실패 (" + e.message + ")", "var(--crit)"); }
+  };
+
   document.getElementById("reset").onclick = async () => {
     try { await post("/api/reset"); locked = false; lock.classList.remove("on");
           lock.textContent = "◎ ACQUIRE LOCK"; setStatus("reset → nominal"); }
