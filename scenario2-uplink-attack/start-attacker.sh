@@ -67,6 +67,21 @@ pick_python() {
   if [ -x "$VENV/bin/python" ]; then echo "$VENV/bin/python"; else echo "python3"; fi
 }
 
+# 지정 포트를 잡고 있는 '이전 실행의 좀비 서버'를 정리한다 (데모 전용 포트라 안전).
+# 이걸 안 하면 새 서버가 bind 실패(Address already in use)하고, 죽은 옛 서버가 화면을
+# 계속 서빙해서 디버깅이 꼬인다(예: /api/mission 이 옛 경로 때문에 500).
+free_port() {
+  local port="$1" name="$2" pids
+  have lsof || return 0
+  pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null)" || true
+  [ -z "$pids" ] && return 0
+  c_warn ":$port 사용 중(${name}) → 이전 인스턴스 정리: $(echo "$pids" | tr '\n' ' ')"
+  echo "$pids" | xargs kill 2>/dev/null || true
+  sleep 1
+  pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null)" || true
+  [ -n "$pids" ] && { echo "$pids" | xargs kill -9 2>/dev/null || true; sleep 1; }
+}
+
 # ── 최초 설치 ────────────────────────────────────────────────────────────────
 install() {
   say "1/3  최초 설치"
@@ -154,6 +169,10 @@ up() {
     fi
   }
   trap cleanup EXIT INT TERM
+
+  # ── preflight: 이전 실행이 남긴 좀비가 포트를 물고 있으면 정리(bind 실패 사고 예방) ──
+  free_port "$BUILDER_PORT" "Command Builder"
+  free_port "$CONSOLE_PORT" "콘솔 프록시"
 
   # ① Command Builder (:BUILDER_PORT)
   mkdir -p "$UPLINK_OUT_DIR"
