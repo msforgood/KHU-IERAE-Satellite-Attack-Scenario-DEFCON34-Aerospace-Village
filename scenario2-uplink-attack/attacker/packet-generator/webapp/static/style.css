@@ -118,16 +118,24 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-wei
 .cblock{border-radius:10px;padding:12px 14px;box-shadow:0 3px 0 rgba(0,0,0,.35)}
 .cbrow{display:flex;align-items:center;gap:9px}
 .cbkw{font-weight:800;color:#04121a;font-size:16px}
-.cbverb{flex:1;min-width:120px;font-family:var(--mono);font-size:18px;font-weight:700;padding:9px 11px;
-  border:2px solid transparent;border-radius:7px;background:#fff;color:#0a0e14;outline:none}
-.cbverb::placeholder{color:#8aa;font-weight:500}
-.cbverb.good{border-color:#0b7a3f;box-shadow:0 0 0 2px rgba(11,122,63,.4)}
-.cbverb.bad{background:#ffe1e4;color:#b3001b;border-color:var(--danger)}
+/* the chosen command name, and the tag shown above the command list */
+.cbcmd{flex:1;min-width:120px;font-family:var(--mono);font-size:18px;font-weight:800;padding:9px 11px;
+  border-radius:7px;background:#fff;color:#0a0e14;border:2px solid #0b7a3f;box-shadow:0 0 0 2px rgba(11,122,63,.4)}
+.cbpicktag{flex:1;font-weight:800;color:#04121a;font-size:15px;letter-spacing:.02em}
+.cbchg{background:rgba(0,0,0,.28);color:#fff;border:none;border-radius:7px;padding:0 11px;height:30px;
+  font-size:13px;font-weight:700;cursor:pointer;flex:none;white-space:nowrap}
+.cbchg:hover{background:rgba(0,0,0,.45)}
 .cbx{margin-left:2px;background:rgba(0,0,0,.28);color:#fff;border:none;border-radius:7px;width:30px;height:30px;
   font-size:14px;cursor:pointer;flex:none}
 .cbx:hover{background:rgba(0,0,0,.45)}
-.cbref{margin-top:9px;font-size:13px;color:#04121a;opacity:.82;line-height:1.7}
-.cbref code{background:rgba(0,0,0,.16);padding:2px 7px;border-radius:5px;color:#04121a;font-family:var(--mono);font-size:12.5px}
+/* click-to-pick command list */
+.cbpicklist{margin-top:11px;display:flex;flex-direction:column;gap:7px}
+.cmdpick{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;width:100%;
+  padding:9px 12px;border:2px solid rgba(0,0,0,.18);border-radius:8px;background:rgba(255,255,255,.55);
+  cursor:pointer;transition:.12s}
+.cmdpick:hover{background:#fff;border-color:#0a0e14;transform:translateX(2px)}
+.cmdpick code{font-family:var(--mono);font-size:16px;font-weight:800;color:#0a0e14;background:none;padding:0}
+.cmdpick .cmddesc{font-size:12.5px;color:#04121a;opacity:.72;line-height:1.4}
 .cbargs{margin-top:11px;display:flex;flex-direction:column;gap:9px}
 .cbarg{display:flex;align-items:center;gap:9px}
 .cbflag{font-family:var(--mono);font-weight:800;color:#04121a;min-width:92px}
