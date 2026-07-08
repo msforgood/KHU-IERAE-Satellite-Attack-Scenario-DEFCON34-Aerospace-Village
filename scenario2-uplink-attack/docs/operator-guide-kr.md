@@ -57,7 +57,7 @@ Command Builder ─▶ attack.cf32 ─▶ gpredict+VSA로       ─▶ VSA가 IQ
 - [ ] **Node.js 20 이상** — 지상국 서버 + 시리얼 브릿지 구동
 - [ ] **Python 3 + numpy** — Command Builder 웹앱 구동
 - [ ] **OpenVSA** (공격자 VSA 도구) 소스 — ④ 송신
-- [ ] **gpredict** — 가상 TLE로 위성 추적/조준 (③)
+- [ ] **Docker Desktop** — gpredict(위성 추적/조준, ③)를 컨테이너로 격리 실행(호스트 설치 불필요)
 - [ ] 최신 브라우저 (Chrome / Edge / Firefox) — 전체화면(F11)
 
 **하드웨어 (물리 연출)**
@@ -82,7 +82,9 @@ node --version                 # v20 이상 확인 (없으면 https://nodejs.org
 python3 --version              # 3.x 확인
 python3 -m pip install numpy   # Command Builder에 필요
 ```
-gpredict는 OS 패키지로 설치(맥 `brew install gpredict`, 우분투 `sudo apt install gpredict`).
+gpredict는 **호스트에 설치하지 않습니다** — `attacker/gpredict-web/run.sh`가 Docker 컨테이너 안에서
+gpredict+noVNC를 돌립니다(호스트 오염 없음). Docker Desktop만 있으면 됩니다. numpy는 conda/전역 대신
+venv 권장: `cd packet-generator/webapp && python3 -m venv .venv && . .venv/bin/activate && pip install numpy`.
 
 프로젝트 폴더 구조:
 
@@ -180,9 +182,10 @@ cd ground-station/backend && node server.js
 #   부스 연출: ATTACK_DELAY_MS=2500 node server.js  (경보까지 지연 단축)
 
 # 터미널 B — attacker 3화면 (OpenVSA + gpredict + 콘솔). 최초 1회: attacker/setup.sh
-cd attacker && ./run-gpredict-web.sh &                         # 실제 gpredict → noVNC(:6080)
+cd attacker && ./gpredict-web/run.sh &                         # gpredict는 Docker 격리 → noVNC(:6080)
 GPREDICT_WEB_URL='http://localhost:6080/vnc.html?autoconnect=1&resize=remote' ./launch.sh
 #   OpenVSA(rotctld :4533 / forward :4536) + 콘솔(:8090)을 함께 띄우고 3화면 URL을 출력
+#   ※ gpredict는 호스트에 설치 안 됨(컨테이너 안에만). 네이티브 설치는 선택.
 
 # 터미널 C — 시리얼 브릿지 (물리 모터)
 cd arduino/bridge && SOLAR_PORT=/dev/cu.usbmodemXXXX ANT_PORT=/dev/cu.usbmodemYYYY PANEL_SPIN=1 node bridge.js
