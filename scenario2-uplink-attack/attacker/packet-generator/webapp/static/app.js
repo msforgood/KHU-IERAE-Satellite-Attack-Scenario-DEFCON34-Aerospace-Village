@@ -19,6 +19,22 @@ const S = {
   rf: { modulation: null, baud: null, sampleRate: null },
 };
 
+// STEP 2 is no longer a manual choice — the attacker's SDR "auto-detects" the RF
+// parameters off the intercepted carrier and magically types them in. RFA holds the
+// typewriter animation's progress; S.rf is committed one field at a time as it lands.
+let RFA = null;
+let timerRF = null;
+const RF_FIELDS = [
+  { key: "modulation", label: "MODULATION", text: (t) => t.modulation, val: (t) => t.modulation },
+  { key: "baud", label: "BAUD RATE", text: (t) => t.baud + " bps", val: (t) => t.baud },
+  { key: "sampleRate", label: "SAMPLE RATE", text: (t) => t.sampleRate / 1000 + " kSa/s", val: (t) => t.sampleRate },
+];
+function rfAutoReset() {
+  clearTimeout(timerRF);
+  RFA = { started: false, done: false, i: 0, typed: { modulation: "", baud: "", sampleRate: "" } };
+  S.rf = { modulation: null, baud: null, sampleRate: null };
+}
+
 const $ = (s) => document.querySelector(s);
 const el = (t, c, h) => {
   const e = document.createElement(t);
@@ -37,7 +53,6 @@ async function boot() {
     const res = await fetch("/api/mission");
     if (!res.ok) throw new Error("/api/mission HTTP " + res.status);
     M = await res.json();
-    renderDossier();
     renderSteps();
     rebuild();
   } catch (e) {
@@ -46,8 +61,6 @@ async function boot() {
     const msg =
       `⚠ mission 데이터 로드 실패 — <code>/api/mission</code> (${e && e.message ? e.message : e}).` +
       ` Command Builder 서버를 재시작(Ctrl-C 후 <code>python3 app.py</code>)하고 새로고침하세요.`;
-    const d = $("#dossier");
-    if (d) d.innerHTML = `<div class="dnote">${msg}</div>`;
     const sl = $("#stepList");
     if (sl) sl.innerHTML = `<div class="dnote">${msg}</div>`;
   }
@@ -100,19 +113,6 @@ const FRAME_MAP = [
   },
   { field: "crc", label: "Frame CRC-16 · integrity", anno: () => "computed over the whole frame" },
 ];
-
-// ── TARGET INTEL dossier (the answer key the visitor matches) ───────────────
-function renderDossier() {
-  const t = M.target;
-  $("#dossier").innerHTML = `
-    <div class="drow"><span>SATELLITE</span><b>${t.satellite}</b></div>
-    <div class="dsep">RECEIVER (RF)</div>
-    <div class="drow"><span>MODULATION</span><b>${t.modulation}</b></div>
-    <div class="drow"><span>BAUD RATE</span><b>${t.baud} bps</b></div>
-    <div class="drow"><span>SAMPLE RATE</span><b>${t.sampleRate / 1000} kSa/s</b></div>
-    <div class="dnote">${t.notes}</div>
-    <div class="dnote dim">Match every field on the right to arm the uplink.</div>`;
-}
 
 // ── status of each step (client-side tri-state; server re-checks on generate) ─
 function stepStatus() {
@@ -174,7 +174,7 @@ const STEP_DEFS = [
     "Click a subsystem block to reveal its commands, click the command you think is right, then type the value into the block.",
     bodyCompose,
   ],
-  [2, "RF CONFIG", "Match the modulation, baud and sample rate to the satellite receiver.", bodyRF],
+  [2, "RF CONFIG", "The SDR auto-detects the RF parameters off the intercepted carrier — no input needed.", bodyRF],
 ];
 function renderSteps() {
   const wrap = $("#stepList");
@@ -290,6 +290,7 @@ function placeBlock(sub) {
     S.valText = {};
     S.params = {};
     S.valueConfirmed = false;
+    rfAutoReset(); // new command line → SDR re-detects RF from scratch
   }
   renderSteps();
   rebuild();
@@ -301,6 +302,7 @@ function clearBlock() {
   S.valText = {};
   S.params = {};
   S.valueConfirmed = false;
+  rfAutoReset();
   renderSteps();
   rebuild();
 }
@@ -315,6 +317,7 @@ function pickCommand(name) {
   S.valText = {};
   S.params = {};
   S.valueConfirmed = false;
+  rfAutoReset();
   evalValue(); // no-payload commands (e.g. obc_reboot) confirm on selection
   renderSteps();
   rebuild();
@@ -326,6 +329,7 @@ function changeCommand() {
   S.valText = {};
   S.params = {};
   S.valueConfirmed = false;
+  rfAutoReset();
   renderSteps();
   rebuild();
 }
@@ -519,12 +523,75 @@ function withFocusPreserved(fn) {
   }
 }
 
-// ── STEP 2 — RF config chips ────────────────────────────────────────────────
+// ── STEP 2 — RF config, auto-typed by the "SDR" (no participant input) ───────
 function bodyRF(body) {
-  body.appendChild(rfRow("MODULATION", "modulation", M.options.modulation, (v) => v));
+  if (!RFA) rfAutoReset();
+  const t = M.target;
+  body.appendChild(
+    el(
+      "div",
+      "rfauto-intro" + (RFA.done ? " done" : ""),
+      RFA.done
+        ? `🔒 <b>RF LOCKED</b> — parameters recovered from the intercepted carrier.`
+        : `🔍 <b>AUTO-DETECT</b> — sniffing the intercepted carrier… RF parameters lock in automatically.`,
+    ),
+  );
+  const active = RFA.started && !RFA.done ? RFA.i : -1;
+  RF_FIELDS.forEach((f, i) => {
+    const row = el("div", "rfrow");
+    row.appendChild(el("div", "rflabel", f.label));
+    const typed = RFA.typed[f.key];
+    const complete = S.rf[f.key] != null;
+    const cell = el(
+      "div",
+      "rfauto" + (complete ? " done" : ""),
+      `<span class="rfval">${escapeAttr(typed)}</span>${i === active ? '<span class="rfcaret">▌</span>' : ""}${complete ? '<span class="rfok">✓</span>' : ""}`,
+    );
+    row.appendChild(cell);
+    body.appendChild(row);
+  });
   body.appendChild(modLegend());
-  body.appendChild(rfRow("BAUD RATE", "baud", M.options.baud, (v) => v + " bps"));
-  body.appendChild(rfRow("SAMPLE RATE", "sampleRate", M.options.sampleRate, (v) => v / 1000 + " kSa/s"));
+  if (!RFA.started) startRFAuto();
+}
+
+// the typewriter: type each field's value char-by-char, committing S.rf[key] as it lands
+function startRFAuto() {
+  RFA.started = true;
+  const t = M.target;
+  const seq = RF_FIELDS.map((f) => ({ key: f.key, text: f.text(t), val: f.val(t) }));
+  let fi = 0,
+    ci = 0;
+  function step() {
+    if (fi >= seq.length) {
+      RFA.done = true;
+      withFocusPreserved(renderSteps); // full re-render: pills, progress, GENERATE gate
+      rebuild();
+      return;
+    }
+    RFA.i = fi;
+    const cur = seq[fi];
+    if (ci < cur.text.length) {
+      ci++;
+      RFA.typed[cur.key] = cur.text.slice(0, ci);
+      renderRFBody();
+      timerRF = setTimeout(step, 55);
+    } else {
+      S.rf[cur.key] = cur.val; // field fully typed → commit the real value
+      fi++;
+      ci = 0;
+      refreshPills(); // light up progress as each field locks
+      renderRFBody();
+      timerRF = setTimeout(step, 320);
+    }
+  }
+  timerRF = setTimeout(step, 420);
+}
+// re-render only Step 2's body from RFA/S state (survives the detached-card render path)
+function renderRFBody() {
+  const b = document.querySelector('.step[data-step="2"] .sbody');
+  if (!b) return;
+  b.innerHTML = "";
+  bodyRF(b);
 }
 // what the three modulation schemes mean — bits → radio wave
 function modLegend() {
@@ -539,28 +606,6 @@ function modLegend() {
        (one tone = 0, another tone = 1). The classic dial-up modem sound.</div>`,
   );
 }
-function rfRow(label, key, opts, fmt) {
-  const row = el("div", "rfrow");
-  row.appendChild(el("div", "rflabel", label));
-  const chips = el("div", "chips");
-  opts.forEach((v) => {
-    const c = el("button", "chip" + (S.rf[key] === v ? " sel" : ""), fmt(v));
-    c.onclick = () => {
-      S.rf[key] = v;
-      markSel(chips, c);
-      refreshPills();
-      rebuild();
-    };
-    chips.appendChild(c);
-  });
-  row.appendChild(chips);
-  return row;
-}
-function markSel(row, sel) {
-  row.querySelectorAll(".chip").forEach((c) => c.classList.remove("sel"));
-  sel.classList.add("sel");
-}
-
 // ── frame preview (server build) ────────────────────────────────────────────
 let timer = null;
 function rebuild() {
@@ -604,7 +649,7 @@ async function build() {
       : "";
   } else {
     drawWave([]);
-    hint.textContent = "RF not configured — complete Step 2.";
+    hint.textContent = "RF auto-detects once the command is composed (Step 2).";
     hint.classList.remove("hidden");
     $("#frameMeta").textContent = "";
   }

@@ -119,21 +119,22 @@
   <section id="builder" class="phase hidden">
     <div class="objbar">
       <span class="phasetag">PHASE 2 / 3 · BUILD</span>
-      <span>Assemble a valid uplink: <b>compose the command by typing it</b> into the
-        block, then match the <b>TARGET INTEL</b> RF. Watch the CCSDS packet fill in
-        field by field — only a complete, correct frame can be generated into an IQ file.</span>
+      <span>Assemble a valid uplink: <b>pick the subsystem block and its command</b>, then type
+        the parameter. The SDR <b>auto-detects the RF</b> off the intercepted carrier. Watch the
+        CCSDS packet fill in field by field — only a complete frame can be generated into an IQ file.</span>
     </div>
 
     <main class="grid">
-      <section class="panel intel">
-        <h2>TARGET INTEL</h2>
-        <div id="dossier" class="dossier"></div>
+      <section class="panel steps">
         <div class="progresswrap">
           <div class="prow"><span>UPLINK ASSEMBLY</span><span id="progText">0 / 2</span></div>
           <div class="prail"><i id="progFill"></i></div>
           <div class="phint" id="progHint">Complete both systems to arm the uplink.</div>
         </div>
+        <div id="stepList"></div>
+      </section>
 
+      <section class="panel wire">
         <!-- persistent reminder: what this uplink does to DEMOSAT -->
         <div class="scene minisc">
           <div class="scenecap">▶ WHAT YOUR UPLINK DOES</div>
@@ -184,19 +185,12 @@
             <div class="powerbar"><i class="powerfill"></i></div>
           </div>
         </div>
-      </section>
-
-      <section class="panel steps">
-        <div id="stepList"></div>
-      </section>
-
-      <section class="panel wire">
         <h2>CCSDS PACKET · <span id="frameProg">0 / 5 fields</span></h2>
         <div id="breakdown" class="breakdown"></div>
         <div class="metaline" id="frameMeta"></div>
         <h2>OOK UPLINK SIGNAL</h2>
         <canvas id="wave" width="600" height="100"></canvas>
-        <div id="waveHint" class="wavehint">RF not configured — complete Step 3.</div>
+        <div id="waveHint" class="wavehint">RF auto-detects once the command is composed (Step 2).</div>
         <button id="genBtn" class="genbtn locked" disabled>🔒 UPLINK LOCKED — 0/2 CONFIGURED</button>
         <div id="result" class="result hidden"></div>
         <button id="toTargeting" class="bigbtn hidden" style="margin-top:14px">③ 위성 조준으로 진행 →</button>
