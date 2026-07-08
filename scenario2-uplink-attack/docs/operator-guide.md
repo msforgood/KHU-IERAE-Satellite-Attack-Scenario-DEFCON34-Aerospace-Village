@@ -45,25 +45,24 @@ margin) and forwards the decoded command to the GS. `GS` = the victim PC's LAN I
 
 **① Victim ground station (start first)**
 ```
-cd ground-station/backend
+cd victim/backend
 node server.js
 #   dashboard  http://localhost:4540    ·    uplink input  :4536
 #   optional:  ATTACK_DELAY_MS=2500  ARDUINO_URL=http://<arduino>/trigger
 ```
 Open `http://localhost:4540` full-screen on the audience-facing monitor.
 
-**② OpenVSA (attacker VSA)** — drop in the plugin first:
+**② OpenVSA (attacker VSA)** — use the forked, pre-integrated copy in `attacker/openvsa`
+(demosat plugin + forward patch already applied):
 ```
-cp -r openvsa-plugin/demosat/*             <OpenVSA>/satellites/demosat/
-cp    openvsa-plugin/hardware-effects.json <OpenVSA>/satellites/hardware-effects.json
-git -C <OpenVSA> apply openvsa-plugin/server-forward-payload.patch   # relay opcode/payload to GS
-cd <OpenVSA>
+cd attacker/openvsa
 UPLINK_DEST=ws://<GS>:4536 node server.js      # forward target = victim GS
 npm start                                        # Electron VSA UI (separate process)
 ```
-Note: `satellites/demosat/` must include `ccsds_ook.py` (the decoder imports it).
-The forward patch is optional (2 lines); without it the GS shows the command name
-but not the torque value.
+`attacker/openvsa/satellites/demosat/` is the single source of truth for the satellite
+config + CCSDS codec (the victim GS and Command Builder load/import from here too).
+Using your OWN OpenVSA instead? Copy `attacker/openvsa/satellites/demosat/*` and
+`.../satellites/hardware-effects.json` into it and `git apply attacker/openvsa/server-forward-payload.patch`.
 
 **③ Command Builder console (attacker)**
 ```
@@ -104,8 +103,8 @@ The Command Builder is stateless — no reset needed (a refresh is optional).
 | Goal | Location | Value |
 |---|---|---|
 | Telemetry reaction delay | GS env `ATTACK_DELAY_MS` | default 4000 ms (booth: 1500–3000) |
-| Safe torque threshold | `openvsa-plugin/demosat/c2protocol.json` opcode `0x21` → `safeAbsMax` | 500 |
-| Battery drain / sun-track loss speed | `ground-station/backend/satellite-state.js` → `adcs_torque_magnitude` (drainRate / swingSpeed) | scales with torque magnitude |
+| Safe torque threshold | `attacker/openvsa/satellites/demosat/c2protocol.json` opcode `0x21` → `safeAbsMax` | 500 |
+| Battery drain / sun-track loss speed | `victim/backend/satellite-state.js` → `adcs_torque_magnitude` (drainRate / swingSpeed) | scales with torque magnitude |
 | Antenna acquisition sweep | `POST /api/acquire` → bridge sends `SWEEP`; arc in `antenna_gimbal.ino` `SWEEP_LO_AZ`/`SWEEP_HI_AZ` | default 150°/210° |
 | Solar panel spin | bridge `PANEL_SPIN=1` (continuous-rotation servo) → `SPIN` on attack; speed via `SPIN <us>` | 1000–2000µs (1500=stop) |
 | Arduino HTTP trigger | GS env `ARDUINO_URL` (POST on attack onset) | logs only if unset |

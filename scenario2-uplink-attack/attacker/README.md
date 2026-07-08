@@ -33,7 +33,7 @@ attacker/
 ```bash
 ./setup.sh                       # once: OpenVSA npm install (project-local)
 
-# 1) ground station (other terminal): ../ground-station/backend  → node server.js
+# 1) ground station (other terminal): ../victim/backend  → node server.js
 # 2) real gpredict in the browser — ISOLATED in Docker (nothing installs on your Mac):
 ./gpredict-web/run.sh            # → http://localhost:6080/vnc.html?autoconnect=1&resize=remote
 #    (config is auto-mounted from gpredict-config/ — no ~/.config copy needed)
@@ -58,8 +58,11 @@ OpenVSA load `attack.cf32` → **TRANSMIT** (→ solar panel spins, GS alarms).
 - `vsa` — OpenVSA UI URL to iframe. Empty → run OpenVSA as its own window.
 
 ## Notes
-- `openvsa/` is a **fork we modify** (plugin + patch) → kept in-tree. Re-sync the plugin
-  from `../openvsa-plugin/` if it changes.
+- `openvsa/` is a **fork we modify** (demosat plugin + forward patch, applied). Its
+  `satellites/demosat/` is the **single source of truth** for the satellite config +
+  CCSDS codec — the victim GS and the Command Builder load/import from here (so there's
+  no separate `openvsa-plugin/` copy). The `server-forward-payload.patch` here is kept
+  as provenance (already applied to `server.js`).
 - `gpredict/` is the **unmodified upstream source** (we only configure it). Building it
   needs GTK dev libs; `setup.sh` prefers a package install (`brew`/`apt`).
 - macOS has no Xvfb, so `run-gpredict-web.sh` (host Xvfb) is Linux-only. On macOS use

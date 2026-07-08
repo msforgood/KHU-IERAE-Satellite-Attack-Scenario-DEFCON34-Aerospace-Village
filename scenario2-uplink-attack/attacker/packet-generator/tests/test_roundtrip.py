@@ -9,7 +9,7 @@ Run:  python3 tests/test_roundtrip.py
 import os
 import sys
 
-_PLUGIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "openvsa-plugin", "demosat")
+_PLUGIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "openvsa", "satellites", "demosat")
 sys.path.insert(0, os.path.abspath(_PLUGIN))
 import ccsds_ook as codec  # noqa: E402
 

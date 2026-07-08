@@ -1,7 +1,7 @@
 # Arduino actuators — Scenario 2 Uplink Attack
 
 Physical hardware that mirrors the satellite state engine — live, driven straight
-from the ground-station dashboard state. During **pointing** the antenna sweeps to
+from the victim dashboard state. During **pointing** the antenna sweeps to
 acquire the target; on **attack** the solar panel spins (or swings off-sun) and the
 antenna loses its beam.
 
@@ -16,7 +16,7 @@ GS :4540 /api/state ──poll──▶ bridge.js ──serial──▶ ① sola
 | `antenna_gimbal/`  | Arduino (any)   | stepper (28BYJ-48 + ULN2003) | acquire → `SWEEP` (`/api/acquire`); attack → `antenna.az` jitter |
 | `bridge/bridge.js` | — (host, Node)  | — | polls GS, writes serial |
 
-The existing ground-station JS is **not modified** — the bridge glues on via the
+The existing victim JS is **not modified** — the bridge glues on via the
 public `/api/state` endpoint.
 
 ---
@@ -115,7 +115,7 @@ PING       → prints  ANT READY az=90
 
 ```bash
 # terminal 1 — victim ground station
-cd ../ground-station/backend && node server.js          # http://localhost:4540
+cd ../victim/backend && node server.js          # http://localhost:4540
 
 # terminal 2 — serial bridge (fill in your actual ports)
 #   PANEL_SPIN=1 → solar panel is a continuous-rotation servo (spins on attack)

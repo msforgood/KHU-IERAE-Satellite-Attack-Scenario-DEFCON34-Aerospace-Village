@@ -57,7 +57,7 @@ physical layer.
 ## Verification
 - Phase 1: `python3 attacker/packet-generator/tests/test_roundtrip.py` → ALL PASSED. Web UI:
   `cd attacker/packet-generator/webapp && python3 app.py`.
-- Phase 3/4: `node ground-station/backend/server.js`, inject a mock uplink, observe the
+- Phase 3/4: `node victim/backend/server.js`, inject a mock uplink, observe the
   dashboard escalate to ENERGY SUPPLY CRITICAL. Verified headless with Playwright +
   Chromium; reference screenshots in `docs/screenshots/`.
 - Phase 2 (pending): drop the plugin into OpenVSA, run `UPLINK_DEST=ws://<GS>:4536 node

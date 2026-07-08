@@ -14,7 +14,8 @@ const path = require("path");
 const { WSServer } = require("./miniws");
 const { createSatelliteState } = require("./satellite-state");
 
-const PLUGIN = path.resolve(__dirname, "..", "..", "openvsa-plugin");
+// satellite config lives in the OpenVSA fork's demosat plugin (single source of truth)
+const PLUGIN = path.resolve(__dirname, "..", "..", "attacker", "openvsa", "satellites");
 const FRONTEND = path.resolve(__dirname, "..", "frontend");
 const HTTP_PORT = +(process.env.GS_HTTP_PORT || 4540);
 const UPLINK_PORT = +(process.env.UPLINK_PORT || 4536);

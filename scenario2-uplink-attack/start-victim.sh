@@ -8,8 +8,8 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-BACKEND="$DIR/ground-station/backend"
-FRONTEND="$DIR/ground-station/frontend"
+BACKEND="$DIR/victim/backend"
+FRONTEND="$DIR/victim/frontend"
 PORT="${GS_HTTP_PORT:-4540}"
 URL="http://localhost:$PORT"
 

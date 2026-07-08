@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // bridge.js — GS backend → Arduino serial bridge (zero-dependency, pure Node).
 //
-// Non-invasive glue: the ground-station server is NOT modified. This process
+// Non-invasive glue: the victim server is NOT modified. This process
 // polls its /api/state endpoint and streams the live satellite state to the two
 // Arduinos over USB serial, so the physical panel/antenna track the dashboard.
 //

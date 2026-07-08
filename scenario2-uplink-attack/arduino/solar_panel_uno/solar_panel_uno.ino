@@ -8,7 +8,7 @@
 //
 // Mirrors the satellite state engine's `solar_panel.angle`:
 //   90° = optimal, sun-tracking   →   0° = swung off the sun (power collapse).
-// During an uplink attack the ground-station bridge streams the falling angle
+// During an uplink attack the victim bridge streams the falling angle
 // here (positional) or fires SPIN (continuous-rotation panel).
 //
 // The sketch is fully testable WITHOUT the bridge: open the Serial Monitor at

@@ -2,7 +2,7 @@
 """
 DEMOSAT Uplink Command Generator — CLI  (CCSDS TC over OOK)
 
-Thin wrapper over the canonical codec (openvsa-plugin/demosat/ccsds_ook.py).
+Thin wrapper over the canonical codec (attacker/openvsa/satellites/demosat/ccsds_ook.py).
 Builds an OOK-modulated cf32 IQ file that OpenVSA's decoder.py can decode.
 
 Examples:
@@ -15,8 +15,8 @@ import sys
 import json
 import argparse
 
-# import canonical codec from the plugin dir
-_PLUGIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "openvsa-plugin", "demosat")
+# import canonical codec from the OpenVSA fork's demosat plugin
+_PLUGIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "openvsa", "satellites", "demosat")
 sys.path.insert(0, os.path.abspath(_PLUGIN))
 import ccsds_ook as codec  # noqa: E402
 

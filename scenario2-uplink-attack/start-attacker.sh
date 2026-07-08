@@ -20,7 +20,7 @@
 #   UPLINK_OUT_DIR  attack.cf32 출력 폴더. 기본 ~/uplink
 #
 # ⚠️ 이 스크립트는 '공격자 쪽'만 띄웁니다. 피해 지상국(⑤)은 별도로 실행하세요:
-#     cd ground-station/backend && node server.js
+#     cd victim/backend && node server.js
 
 set -uo pipefail
 # 스크립트는 scn2 루트에 있지만 모든 자원은 attacker/ 아래 → 그리로 진입해
@@ -156,7 +156,7 @@ up() {
   c_ok "① Command Builder → http://localhost:$BUILDER_PORT   (로그: /tmp/demosat-builder.log)"
   [ -n "$GP" ] && c_ok "   gpredict(web)   → $GP   (로그: /tmp/demosat-gpredict.log, 최초 기동 수십초)"
   echo "   ③ 위성 조준 콘솔은 아래 OpenVSA 기동 후 URL이 출력됩니다."
-  echo "   ⑤ 피해 지상국은 별도 실행 필요:  (다른 터미널) cd ground-station/backend && node server.js"
+  echo "   ⑤ 피해 지상국은 별도 실행 필요:  (다른 터미널) cd victim/backend && node server.js"
   echo "───────────────────────────────────────────────"
 
   # ③ OpenVSA + 콘솔 (포그라운드, Ctrl-C 로 전체 종료). 기존 launch.sh 재사용.
