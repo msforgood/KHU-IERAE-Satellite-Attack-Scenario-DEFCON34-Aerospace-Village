@@ -28,10 +28,16 @@ h2{font-size:16px;letter-spacing:.16em;color:var(--dim);margin:0 0 14px;font-wei
 .banner.danger{background:rgba(255,59,78,.14);color:#ff8f9a;animation:bpulse 1s infinite}
 @keyframes bpulse{50%{background:rgba(255,59,78,.28)}}
 
-.grid{display:grid;grid-template-columns:1fr 440px;gap:18px;padding:18px}
-.panels{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-content:start}
-.side{display:flex;flex-direction:column;gap:18px}
+/* mission-control layout: top half = energy/battery (left) + big tracking map
+   (right); bottom = the four subsystem telemetry cards in a single row. */
+.ground{display:flex;flex-direction:column;gap:18px;padding:18px}
+.toprow{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+.leftcol{display:flex;flex-direction:column;gap:18px;min-width:0}
+.panels{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;align-content:start}
 .card,.section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
+/* map fills the right half; equirectangular Blue Marble locked at 2:1 so it never distorts */
+.mapcard{min-width:0}
+.mapcard #orbit{width:100%;height:auto;aspect-ratio:2/1}
 .section.attacked{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger),0 0 24px rgba(255,59,78,.15)}
 .section .stitle{font-size:16px;letter-spacing:.14em;color:var(--accent);margin-bottom:16px;font-weight:700}
 
@@ -57,7 +63,7 @@ h2{font-size:16px;letter-spacing:.16em;color:var(--dim);margin:0 0 14px;font-wei
 .metric{display:flex;justify-content:space-between;font-size:17px;color:var(--dim);margin:10px 0 6px}
 .metric .mv{color:#eaf2fb;font-weight:700;font-size:19px}
 .metric .mv.danger{color:var(--danger)}
-#powGraph,#batGraph{width:100%;height:96px;background:#070c12;border:1px solid var(--line);border-radius:6px;margin-bottom:12px;display:block}
+#powGraph,#batGraph{width:100%;height:120px;background:#070c12;border:1px solid var(--line);border-radius:6px;margin-bottom:14px;display:block}
 .log{display:flex;flex-direction:column;gap:8px;max-height:300px;overflow:auto;font-size:16px}
 .logitem{padding:10px 12px;border-left:4px solid var(--danger);background:var(--panel2);border-radius:0 6px 6px 0}
 .logitem .lt{color:var(--dim);font-size:14px}
@@ -102,4 +108,5 @@ h2{font-size:16px;letter-spacing:.16em;color:var(--dim);margin:0 0 14px;font-wei
 .atitle{font-size:46px;font-weight:800;color:var(--danger);letter-spacing:.04em}
 .adesc{margin-top:14px;color:#ff9aa5;font-size:21px;max-width:660px}
 
-@media(max-width:1000px){.grid{grid-template-columns:1fr}.panels{grid-template-columns:1fr}}
+@media(max-width:1200px){.panels{grid-template-columns:1fr 1fr}}
+@media(max-width:1000px){.toprow{grid-template-columns:1fr}.panels{grid-template-columns:1fr 1fr}}
