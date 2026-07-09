@@ -1,0 +1,10 @@
+{
+  "name": "gs-uplink-attack",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Victim ground station backend for Scenario 2 Uplink Attack (zero deps, pure Node)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
