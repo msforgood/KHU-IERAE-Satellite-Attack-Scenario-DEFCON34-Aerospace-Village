@@ -1,0 +1,247 @@
+{
+  "solar_panel": {
+    "operatorDelay": 10,
+    "onAttack": {
+      "immediate": {
+        "flag": "solarAttacked"
+      },
+      "movement": {
+        "key": "solar_panel.angle",
+        "type": "offset",
+        "defaultOffset": 180,
+        "speed": "HW:solar_panel.motorSpeed"
+      },
+      "cascading": {
+        "battery.level": { "rate": -0.25, "min": 0 }
+      },
+      "powerFormula": {
+        "output": "solar_panel.power",
+        "type": "cosineDropoff",
+        "maxPower": "HW:solar_panel.maxPower",
+        "optimalAngle": "HW:solar_panel.optimalAngle",
+        "angleSource": "solar_panel.angle"
+      }
+    }
+  },
+
+  "antenna_stow": {
+    "operatorDelay": 10,
+    "onAttack": {
+      "immediate": {
+        "set": { "antenna.deployed": false },
+        "flag": "antennaAttacked"
+      },
+      "movement": {
+        "keys": { "antenna.az": 0, "antenna.el": 0 },
+        "speed": "HW:antenna.motorSpeed"
+      },
+      "commEffect": { "status": "LOST", "delay": 1 }
+    }
+  },
+
+  "antenna_gimbal": {
+    "operatorDelay": 10,
+    "onAttack": {
+      "immediate": {
+        "flag": "antennaAttacked"
+      },
+      "movement": {
+        "keys": { "antenna.az": "OFFSET:PAYLOAD:0", "antenna.el": "OFFSET:PAYLOAD:1" },
+        "speed": "HW:antenna.motorSpeed"
+      },
+      "commEffect": { "status": "LOST", "delay": 1 }
+    }
+  },
+
+  "adcs_target": {
+    "operatorDelay": 15,
+    "prerequisite": { "key": "adcs.mode", "value": "manual", "rejectMessage": "ADCS target rejected — ADCS not in manual mode" },
+    "onAttack": {
+      "payloadLogic": "adcs_attitude",
+      "immediate": {
+        "set": { "adcs.mode": "manual" },
+        "flag": "solarAttacked"
+      },
+      "delayed": [
+        { "delay": 2, "set": { "adcs.stabilization": false }, "flag": ["tumbling", "solarAttacked"] }
+      ],
+      "selfEffect": {
+        "tempRise": { "key": "obc.temp", "rate": 0.15, "max": "HW:obc.maxTemp" }
+      },
+      "movement": {
+        "key": "adcs.yaw",
+        "type": "offset",
+        "defaultOffset": 180,
+        "speed": "HW:adcs.motorSpeed"
+      },
+      "affectedHardware": {
+        "antenna": {
+          "drift": { "antenna.az": 3, "antenna.el": 3 }
+        },
+        "solar_panel": {
+          "drift": { "solar_panel.angle": 2 },
+          "powerFormula": {
+            "type": "cosineDropoff",
+            "maxPower": "HW:solar_panel.maxPower",
+            "optimalAngle": "HW:solar_panel.optimalAngle",
+            "angleSource": "solar_panel.angle"
+          }
+        }
+      },
+      "cascading": {
+        "adcs.roll": { "drift": 10 },
+        "adcs.pitch": { "drift": 10 },
+        "adcs.yaw": { "drift": 10 },
+        "battery.level": { "rate": -0.25, "min": 0 }
+      }
+    }
+  },
+
+  "adcs_idle": {
+    "operatorDelay": 10,
+    "onAttack": {
+      "immediate": {
+        "set": { "adcs.mode": "idle" }
+      },
+      "delayed": [
+        { "delay": 2, "set": { "adcs.stabilization": false } }
+      ],
+      "cascading": {
+        "adcs.roll":  { "drift": 3 },
+        "adcs.pitch": { "drift": 3 },
+        "adcs.yaw":   { "drift": 3 },
+        "battery.level": { "rate": -0.2, "min": 0 }
+      }
+    }
+  },
+
+  "adcs_manual": {
+    "operatorDelay": 10,
+    "onAttack": {
+      "immediate": {
+        "set": { "adcs.mode": "manual" }
+      },
+      "delayed": [
+        { "delay": 2, "set": { "adcs.stabilization": false } }
+      ],
+      "cascading": {
+        "adcs.roll":  { "drift": 1.5 },
+        "adcs.pitch": { "drift": 1.5 },
+        "adcs.yaw":   { "drift": 1.5 },
+        "battery.level": { "rate": -0.3, "min": 0 }
+      }
+    }
+  },
+
+  "transponder_ctrl": {
+    "operatorDelay": 10,
+    "onAttack": {
+      "payloadLogic": "transponder_toggle",
+      "immediate": {
+        "set": { "transponder.state": false, "comm.status": "NO DOWNLINK" }
+      }
+    }
+  },
+
+  "subsystem_ctrl": {
+    "operatorDelay": 10,
+    "onAttack": {
+      "payloadLogic": "subsystem_bitmask",
+      "immediate": {
+        "set": { "adcs.stabilization": false },
+        "flag": "tumbling"
+      },
+      "delayed": [
+        { "delay": 2, "set": { "transponder.state": false, "comm.status": "NO DOWNLINK" } }
+      ]
+    }
+  },
+
+  "obc_reboot": {
+    "operatorDelay": "afterRecovery+1",
+    "onAttack": {
+      "immediate": {
+        "set": { "obc.rebooting": true, "obc.uptime": 0, "comm.status": "REBOOTING", "transponder.state": false }
+      },
+      "recovery": {
+        "after": "HW:obc.rebootTime",
+        "set": { "obc.rebooting": false, "transponder.state": true, "comm.status": "CONNECTED" }
+      }
+    }
+  },
+
+  "auth_change": {
+    "operatorDelay": 10,
+    "onAttack": {
+      "immediate": {
+        "set": { "auth.key": "ATTACKER" }
+      }
+    }
+  },
+
+  "firmware_upload": {
+    "operatorDelay": 10,
+    "onAttack": {
+      "immediate": {
+        "set": { "adcs.stabilization": false, "transponder.state": false, "solar_panel.power": 0, "auth.key": "CORRUPTED" },
+        "flag": ["tumbling", "bricked"]
+      },
+      "cascading": {
+        "battery.level": { "rate": -0.7, "min": 0 },
+        "obc.temp": { "rate": 0.3, "max": "HW:obc.maxTemp" }
+      },
+      "commEffect": { "status": "DEAD", "delay": 1 }
+    }
+  },
+
+  "_idle": {
+    "solar_panel.angle": { "type": "sine", "center": 90, "amplitude": 15, "period": 60000 },
+    "solar_panel.power": { "type": "sine", "center": "HW:solar_panel.maxPower", "amplitude": 0.3, "period": 60000 },
+    "antenna.az":        { "type": "sine", "center": "HW:antenna.defaults.az", "amplitude": 5, "period": 45000 },
+    "antenna.el":        { "type": "sine", "center": "HW:antenna.defaults.el", "amplitude": 3, "period": 50000 },
+    "adcs.roll":         { "type": "jitter", "amplitude": 0.4 },
+    "adcs.pitch":        { "type": "jitter", "amplitude": 0.4 },
+    "adcs.yaw":          { "type": "jitter", "amplitude": 0.4 },
+    "obc.temp":          { "type": "jitter", "center": 22, "amplitude": 1.5 },
+    "battery.level":     { "type": "drift", "center": 100, "min": 95, "rate": 0.3 }
+  },
+
+  "_commRules": {
+    "bricked":         { "status": "DEAD", "priority": 1 },
+    "antennaAttacked": { "status": "LOST", "priority": 2 },
+    "tumbling":        { "status": "fromBeamwidth", "priority": 3 },
+    "obc.rebooting":   { "status": "REBOOTING", "priority": 4 },
+    "lowBattery":      { "threshold": 10, "status": "LOW POWER", "priority": 5 },
+    "deadBattery":     { "threshold": 0, "status": "DEAD", "priority": 1 }
+  },
+
+  "_statusDefinitions": {
+    "comm.status": {
+      "values": {
+        "CONNECTED":   { "style": "nominal" },
+        "LOST":        { "style": "danger" },
+        "DEAD":        { "style": "danger" },
+        "NO DOWNLINK": { "style": "warn" },
+        "REBOOTING":   { "style": "warn" },
+        "LOW POWER":   { "style": "warn" }
+      },
+      "default": "CONNECTED"
+    },
+    "adcs.mode": {
+      "values": {
+        "sun-track":  { "style": "nominal" },
+        "manual":     { "style": "warn" },
+        "idle":       { "style": "warn" }
+      },
+      "default": "sun-track"
+    },
+    "auth.key": {
+      "values": {
+        "DEFAULT":   { "style": "nominal" },
+        "ATTACKER":  { "style": "danger" },
+        "CORRUPTED": { "style": "danger" }
+      },
+      "default": "DEFAULT"
+    }
+  }
+}

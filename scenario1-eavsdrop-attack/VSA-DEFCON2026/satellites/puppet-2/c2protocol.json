@@ -1,0 +1,22 @@
+{
+  "name": "PUPPET-2",
+  "modulation": "OOK",
+  "baudRate": 100,
+  "sampleRate": 24000,
+  "preamble": "AAAA",
+  "packetFormat": "[preamble 2B][length 1B][opcode 1B][payload 0-NB][CRC-8 1B]",
+  "crc": {
+    "type": "CRC-8",
+    "polynomial": "0x07",
+    "init": "0x00"
+  },
+  "authentication": "none — no signature, HMAC, or sequence counter is verified; any well-formed packet is executed",
+  "multiCommand": "a single IQ file may carry several packets back-to-back; they are executed in order",
+  "opcodes": {
+    "0x01": { "name": "ping",         "payloadSize": 0, "description": "Link check (diagnostic)" },
+    "0x04": { "name": "obc_reboot",   "payloadSize": 0, "description": "Hard reboot OBC (comm drops to REBOOTING, then recovers)" },
+    "0x14": { "name": "adcs_mode",    "payloadSize": 1, "description": "0x00=idle, 0x01=sun-track (default), 0x02=manual (disables sun-tracking)" },
+    "0x15": { "name": "adcs_target",  "payloadSize": 4, "description": "yaw(int16)+pitch(int16) big-endian degrees; requires manual mode; large slews saturate the wheels -> tumble" },
+    "0x18": { "name": "transponder",  "payloadSize": 1, "description": "0x00=off (downlink blackout), 0x01=on" }
+  }
+}
