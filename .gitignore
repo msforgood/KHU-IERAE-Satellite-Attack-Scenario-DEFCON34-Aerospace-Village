@@ -219,3 +219,8 @@ __marimo__/
 
 # ai
 start-claude.sh
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
