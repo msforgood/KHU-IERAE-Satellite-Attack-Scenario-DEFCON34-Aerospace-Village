@@ -111,9 +111,9 @@ validates, forwards `uplink-command` to the GS (:4536).
 ## 6. Deployment — OpenVSA core untouched
 
 Reuse the existing **DEMOSAT slot** to avoid editing core (`src/data/satellites.js`).
-Drop the `openvsa-plugin/` contents into OpenVSA:
-- `openvsa-plugin/demosat/*` → `OpenVSA/satellites/demosat/`
-- `openvsa-plugin/hardware-effects.json` → `OpenVSA/satellites/hardware-effects.json`
+The forked `attacker/openvsa` already ships this plugin. For your own OpenVSA, copy:
+- `attacker/openvsa/satellites/demosat/*` → `OpenVSA/satellites/demosat/`
+- `attacker/openvsa/satellites/hardware-effects.json` → `OpenVSA/satellites/hardware-effects.json`
 
 DEMOSAT's uplink parameters (449.5 MHz, rxSensitivity −110 dBm) are used as-is.
 

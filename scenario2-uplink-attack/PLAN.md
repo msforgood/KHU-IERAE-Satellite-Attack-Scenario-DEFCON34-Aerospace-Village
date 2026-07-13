@@ -22,7 +22,7 @@ physical layer.
 | OpenVSA forward patch | Adopt a small patch to include opcode/payload (to show the torque value on the dashboard) |
 | Build order | Build the GS first (mock injection); OpenVSA integration later |
 | Reliability principle | Avoid build tooling / external deps — generator = numpy only, GS backend = pure Node (RFC6455 hand-rolled), frontends = plain HTML/CSS/vanilla JS |
-| Arduino solar panel | Trigger hook only for now (`ARDUINO_URL`); firmware TBD |
+| Arduino solar panel | Sketches + serial bridge done (servo panel + stepper antenna, driven off `/api/state`); physical wiring bring-up + motor tuning pending |
 
 ## Integration interface (from reading OpenVSA; no core edit)
 - `server.js` `forwardUplinkCommand()` → on a validated uplink, sends
@@ -40,8 +40,8 @@ physical layer.
 | 2 | OpenVSA integration | cf32 load → decode → validate → :4536 forward + forward payload patch | ✅ verified (headless: decode + forward + GS apply; Electron UI/RF not run) |
 | 3 | GS backend | pure Node, miniws, ported state engine + Arduino hook | ✅ done, verified |
 | 4 | GS frontend | `panel.json` dashboard + ENERGY SUPPLY CRITICAL alarm | ✅ done, browser-verified |
-| 5 | E2E + booth tuning + guides | operator & participant guides, screenshots, visual tuning | ◑ GS side done (alarm auto-dismiss, physics fix); OpenVSA E2E pending Phase 2 |
-| 6 (TBD) | Arduino trigger | hook ready (`ARDUINO_URL`); firmware after the Drive code | ⏳ TBD |
+| 5 | E2E + booth tuning + guides | operator & participant guides, screenshots, visual tuning | ◑ GS side done (alarm auto-dismiss, physics fix); OpenVSA live E2E pending Phase 2 |
+| 6 | Arduino actuators | solar-panel servo + antenna stepper sketches, dependency-free serial bridge polling `/api/state`, wiring/protocol docs | ◑ code done, self-testable; physical bring-up + motor tuning pending |
 
 ## Key implementation notes
 - Main command `adcs_torque` (opcode 0x21): the effect sets tumbling + solarAttacked;
@@ -55,14 +55,17 @@ physical layer.
   panels + collapsing graphs persist so the live telemetry stays visible.
 
 ## Verification
-- Phase 1: `python3 packet-generator/tests/test_roundtrip.py` → ALL PASSED. Web UI:
-  `cd packet-generator/webapp && python3 app.py`.
-- Phase 3/4: `node ground-station/backend/server.js`, inject a mock uplink, observe the
+- Phase 1: `python3 attacker/packet-generator/tests/test_roundtrip.py` → ALL PASSED. Web UI:
+  `cd attacker/packet-generator/webapp && python3 app.py`.
+- Phase 3/4: `node victim/backend/server.js`, inject a mock uplink, observe the
   dashboard escalate to ENERGY SUPPLY CRITICAL. Verified headless with Playwright +
   Chromium; reference screenshots in `docs/screenshots/`.
 - Phase 2 (pending): drop the plugin into OpenVSA, run `UPLINK_DEST=ws://<GS>:4536 node
   server.js`, and confirm the uplink reaches the GS end-to-end.
 
-## Open decisions
-- Arduino trigger: hook only vs full integration (after reviewing the Drive firmware).
-- OpenVSA end-to-end rehearsal against `docs/operator-guide.md`.
+## Open decisions / remaining work
+- Arduino: firmware direction resolved — full live integration via a serial bridge
+  polling `/api/state` (not just the HTTP hook). Remaining = physical wiring bring-up
+  on real boards + booth motor tuning (servo travel, stepper speed).
+- OpenVSA live end-to-end rehearsal (Electron UI + real uplink) against
+  `docs/operator-guide.md`. Headless decode→forward→GS path already verified.

@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEMOSAT · Uplink Command Builder</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="sat-ico">🛰</span>
+      <div>
+        <div class="title">DEMOSAT&nbsp;//&nbsp;UPLINK COMMAND BUILDER</div>
+        <div class="sub">CCSDS Telecommand over OOK · attacker console</div>
+      </div>
+    </div>
+    <div class="linkinfo"><span>TT&amp;C</span></div>
+  </header>
+
+  <!-- ═══════════ PHASE A · MISSION BRIEFING ═══════════ -->
+  <section id="briefing" class="phase">
+    <div class="briefwrap">
+      <div class="phasetag">PHASE 1 / 3 · MISSION BRIEFING</div>
+      <h1 class="brieftitle">Understand the attack before you build it</h1>
+
+      <div class="briefgrid">
+        <!-- animated satellite scene -->
+        <div class="scene">
+          <svg viewBox="0 0 460 300" class="satscene" aria-label="DEMOSAT attack animation">
+            <defs>
+              <radialGradient id="sunG" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff3b0"/><stop offset="55%" stop-color="#ffd23f"/>
+                <stop offset="100%" stop-color="#ff9d00"/>
+              </radialGradient>
+              <filter id="glow"><feGaussianBlur stdDeviation="6" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <!-- sun -->
+            <g class="sun" filter="url(#glow)">
+              <circle cx="74" cy="86" r="30" fill="url(#sunG)"/>
+            </g>
+            <g class="rays" stroke="#ffd23f" stroke-width="3" stroke-linecap="round" opacity="0.85">
+              <line x1="110" y1="96" x2="200" y2="130"/>
+              <line x1="112" y1="86" x2="205" y2="150"/>
+              <line x1="110" y1="76" x2="200" y2="170"/>
+            </g>
+            <!-- satellite (tumbles) -->
+            <g class="sat">
+              <!-- left panel -->
+              <rect class="panel" x="150" y="130" width="46" height="60" rx="3"/>
+              <line x1="173" y1="130" x2="173" y2="190" class="pgrid"/>
+              <line x1="150" y1="150" x2="196" y2="150" class="pgrid"/>
+              <line x1="150" y1="170" x2="196" y2="170" class="pgrid"/>
+              <!-- right panel -->
+              <rect class="panel" x="264" y="130" width="46" height="60" rx="3"/>
+              <line x1="287" y1="130" x2="287" y2="190" class="pgrid"/>
+              <line x1="264" y1="150" x2="310" y2="150" class="pgrid"/>
+              <line x1="264" y1="170" x2="310" y2="170" class="pgrid"/>
+              <!-- body -->
+              <rect x="200" y="132" width="60" height="56" rx="6" fill="#20303f" stroke="#4a6076" stroke-width="2"/>
+              <rect x="210" y="144" width="40" height="10" rx="2" fill="#39c5ff" opacity="0.7"/>
+              <rect x="210" y="160" width="26" height="6" rx="2" fill="#7c8da0"/>
+              <!-- antenna -->
+              <line x1="230" y1="132" x2="230" y2="112" stroke="#7c8da0" stroke-width="2"/>
+              <circle cx="230" cy="110" r="3" fill="#39c5ff"/>
+            </g>
+            <!-- command flash -->
+            <g class="cmdflash">
+              <rect x="150" y="238" width="230" height="30" rx="6" fill="#12060a" stroke="#ff3b4e"/>
+              <text x="265" y="258" text-anchor="middle" fill="#ff6a78" font-size="15"
+                    font-family="monospace">⚡ UPLINK  adcs_torque = 999 mNm</text>
+            </g>
+          </svg>
+
+          <div class="statebar">
+            <span class="stlabel ok">☀ SUN-TRACKING · POWER NOMINAL</span>
+            <span class="stlabel bad">↻ TUMBLING · SUN-TRACK LOST</span>
+          </div>
+          <div class="powerwrap">
+            <span>POWER</span>
+            <div class="powerbar"><i class="powerfill"></i></div>
+          </div>
+        </div>
+
+        <!-- briefing text -->
+        <div class="brieftext">
+          <div class="bsec"><h3>① The target</h3>
+            <p><b>DEMOSAT</b> is a small satellite that stays alive by keeping its solar
+            panels pointed at the sun. Its attitude is held steady by reaction wheels.</p></div>
+          <div class="bsec"><h3>② Your attack</h3>
+            <p>You will send <b>adcs_torque</b> — a <b>legitimate</b> reaction-wheel command —
+            but with an <b>abused value (999 mNm)</b>. The wheels overspin, the satellite
+            <b>tumbles</b>, the panels lose the sun, and <b>power generation collapses</b>.
+            <span class="hl">A legitimate command becomes an attack when it is abused.</span></p></div>
+          <div class="bsec"><h3>③ How the command reaches the satellite — RF</h3>
+            <p>The satellite is in orbit — you can't plug a cable into it. The <b>only</b>
+            way to reach it is <b>over the air by radio (RF, radio-frequency)</b>: the ground
+            station transmits your command as radio waves on the <b>uplink</b>,
+            and the satellite's receiver decodes them. So your text command has to become an
+            actual <b>radio signal</b> first.</p></div>
+          <div class="bsec"><h3>④ Turning the signal into an IQ file</h3>
+            <p>We transmit that RF with a <b>software-defined radio (SDR)</b>, which doesn't
+            take a command — it plays back a <b>digitized waveform</b>. An <b>IQ file</b> is
+            exactly that: the radio signal stored as a stream of <b>I/Q samples</b> the SDR
+            sends over the air. So you'll <b>assemble the command</b>, then <b>GENERATE</b>
+            turns it into the IQ file you uplink through the VSA.</p></div>
+        </div>
+      </div>
+
+      <label class="understand"><input type="checkbox" id="ackChk">
+        <span>I understand what command I'm sending, the damage it causes, and why I'm building an IQ file.</span></label>
+      <button id="toBuild" class="bigbtn" disabled>BUILD THE UPLINK →</button>
+    </div>
+  </section>
+
+  <!-- ═══════════ PHASE B · BUILD THE UPLINK ═══════════ -->
+  <section id="builder" class="phase hidden">
+    <div class="objbar">
+      <span class="phasetag">PHASE 2 / 3 · BUILD</span>
+      <span>Assemble a valid uplink: <b>pick the subsystem block and its command</b>, then type
+        the parameter. The SDR <b>auto-detects the RF</b> off the intercepted carrier. Watch the
+        CCSDS packet fill in field by field — only a complete frame can be generated into an IQ file.</span>
+    </div>
+
+    <main class="grid">
+      <section class="panel steps">
+        <div class="progresswrap">
+          <div class="prow"><span>UPLINK ASSEMBLY</span><span id="progText">0 / 2</span></div>
+          <div class="prail"><i id="progFill"></i></div>
+          <div class="phint" id="progHint">Complete both systems to arm the uplink.</div>
+        </div>
+        <div id="stepList"></div>
+      </section>
+
+      <section class="panel wire">
+        <!-- persistent reminder: what this uplink does to DEMOSAT -->
+        <div class="scene minisc">
+          <div class="scenecap">▶ WHAT YOUR UPLINK DOES</div>
+          <svg viewBox="0 0 460 300" class="satscene" aria-label="DEMOSAT attack animation">
+            <defs>
+              <radialGradient id="sunG2" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#fff3b0"/><stop offset="55%" stop-color="#ffd23f"/>
+                <stop offset="100%" stop-color="#ff9d00"/>
+              </radialGradient>
+              <filter id="glow2"><feGaussianBlur stdDeviation="6" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <g class="sun" filter="url(#glow2)">
+              <circle cx="74" cy="86" r="30" fill="url(#sunG2)"/>
+            </g>
+            <g class="rays" stroke="#ffd23f" stroke-width="3" stroke-linecap="round" opacity="0.85">
+              <line x1="110" y1="96" x2="200" y2="130"/>
+              <line x1="112" y1="86" x2="205" y2="150"/>
+              <line x1="110" y1="76" x2="200" y2="170"/>
+            </g>
+            <g class="sat">
+              <rect class="panel" x="150" y="130" width="46" height="60" rx="3"/>
+              <line x1="173" y1="130" x2="173" y2="190" class="pgrid"/>
+              <line x1="150" y1="150" x2="196" y2="150" class="pgrid"/>
+              <line x1="150" y1="170" x2="196" y2="170" class="pgrid"/>
+              <rect class="panel" x="264" y="130" width="46" height="60" rx="3"/>
+              <line x1="287" y1="130" x2="287" y2="190" class="pgrid"/>
+              <line x1="264" y1="150" x2="310" y2="150" class="pgrid"/>
+              <line x1="264" y1="170" x2="310" y2="170" class="pgrid"/>
+              <rect x="200" y="132" width="60" height="56" rx="6" fill="#20303f" stroke="#4a6076" stroke-width="2"/>
+              <rect x="210" y="144" width="40" height="10" rx="2" fill="#39c5ff" opacity="0.7"/>
+              <rect x="210" y="160" width="26" height="6" rx="2" fill="#7c8da0"/>
+              <line x1="230" y1="132" x2="230" y2="112" stroke="#7c8da0" stroke-width="2"/>
+              <circle cx="230" cy="110" r="3" fill="#39c5ff"/>
+            </g>
+            <g class="cmdflash">
+              <rect x="150" y="238" width="230" height="30" rx="6" fill="#12060a" stroke="#ff3b4e"/>
+              <text x="265" y="258" text-anchor="middle" fill="#ff6a78" font-size="15"
+                    font-family="monospace">⚡ UPLINK  adcs_torque = 999 mNm</text>
+            </g>
+          </svg>
+          <div class="statebar">
+            <span class="stlabel ok">☀ SUN-TRACKING · POWER NOMINAL</span>
+            <span class="stlabel bad">↻ TUMBLING · SUN-TRACK LOST</span>
+          </div>
+          <div class="powerwrap">
+            <span>POWER</span>
+            <div class="powerbar"><i class="powerfill"></i></div>
+          </div>
+        </div>
+        <h2>CCSDS PACKET · <span id="frameProg">0 / 5 fields</span></h2>
+        <div id="breakdown" class="breakdown"></div>
+        <div class="metaline" id="frameMeta"></div>
+        <h2>OOK UPLINK SIGNAL</h2>
+        <canvas id="wave" width="600" height="100"></canvas>
+        <div id="waveHint" class="wavehint">RF auto-detects once the command is composed (Step 2).</div>
+        <button id="genBtn" class="genbtn locked" disabled>🔒 UPLINK LOCKED — 0/2 CONFIGURED</button>
+        <div id="result" class="result hidden"></div>
+      </section>
+    </main>
+  </section>
+
+  <!-- PHASE 3 / 3 · 위성 조준 — gpredict + OpenVSA 콘솔을 iframe으로 임베드(별도 창 없음) -->
+  <section id="phase3" class="phase hidden">
+    <iframe id="phase3frame" title="Satellite targeting console" style="width:100%;height:100vh;border:0;display:block;background:#0c1118"></iframe>
+  </section>
+
+  <div id="tooltip" class="tooltip hidden"></div>
+  <script src="/static/app.js"></script>
+  <!-- self-contained phase-3 navigation (does not touch app.js): once an IQ file is
+       generated, reveal a button that switches to the embedded targeting console. -->
+  <script>
+    (function () {
+      var p = new URLSearchParams(location.search);
+      // 단일 포트: ③ 조준 콘솔은 이 앱(:8000)이 /targeting 으로 서빙, OpenVSA는 /vsa,
+      // gpredict noVNC는 Docker(:6080)를 직접 iframe(프록시 없음). 전부 이 앱 안에서 뜬다.
+      var GS = p.get('gs') || 'http://localhost:4540';
+      var GPORT = p.get('gpport') || '6080';
+      var gpUrl = 'http://localhost:' + GPORT + '/vnc.html?autoconnect=1&resize=remote';
+      var CONSOLE_URL = '/targeting?gs=' + encodeURIComponent(GS)
+        + '&gp=' + encodeURIComponent(gpUrl) + '&vsa=' + encodeURIComponent('/vsa/');
+      var result = document.getElementById('result');
+      var builder = document.getElementById('builder');
+      var phase3 = document.getElementById('phase3');
+      var frame = document.getElementById('phase3frame');
+      if (!result || !phase3 || !frame) return;
+      function goPhase3() {
+        if (!frame.getAttribute('src')) frame.setAttribute('src', CONSOLE_URL);
+        builder.classList.add('hidden');
+        phase3.classList.remove('hidden');
+        window.scrollTo(0, 0);
+      }
+      // 생성된 cf32를 클릭하면 ③ 조준 콘솔로 진행(파일 다운로드 없음).
+      new MutationObserver(function () {
+        var link = result.querySelector('.cf32go');
+        if (link && !link._wired) {
+          link._wired = true;
+          link.addEventListener('click', function (e) { e.preventDefault(); goPhase3(); });
+        }
+      }).observe(result, { attributes: true, childList: true, subtree: true });
+    })();
+  </script>
+</body>
+</html>

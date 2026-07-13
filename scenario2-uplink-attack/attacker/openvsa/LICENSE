@@ -1,0 +1,47 @@
+OpenVSA — Dual License
+
+Copyright (c) 2026 SunHyuk Hwang. All Rights Reserved.
+
+
+1. Open-Source License (GPLv3)
+
+This software is licensed under the GNU General Public License v3.0
+for the following uses:
+
+  - Personal and educational use
+  - Non-commercial research
+  - Non-commercial CTF competitions and challenges
+  - Contributions to other open-source projects (under GPLv3-compatible licenses)
+
+The full text of the GPLv3 is available at:
+https://www.gnu.org/licenses/gpl-3.0.html
+
+Under the GPLv3, you may use, modify, and distribute this software
+provided that:
+  - Any derivative work is also distributed under GPLv3
+  - You include the original copyright notice and license
+  - You make the source code of derivative works available
+
+
+2. Commercial License
+
+A separate commercial license is required for any use not covered by
+the GPLv3, including but not limited to:
+
+  - Integration into commercial products or services
+  - Use in paid training platforms or paid CTF platforms
+  - Bundling with proprietary software
+  - Any for-profit use where GPLv3 obligations are not met
+
+For commercial licensing inquiries, contact:
+
+  SunHyuk Hwang
+  hwang@sunhyuk.dev
+
+
+3. Third-Party Components
+
+This software uses the following open-source dependencies:
+  - ws (MIT License) — WebSocket library
+
+These components retain their original licenses.

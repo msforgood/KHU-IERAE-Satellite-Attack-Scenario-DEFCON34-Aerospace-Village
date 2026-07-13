@@ -13,24 +13,25 @@ dashboard raises a critical alarm and the physical solar panel spins wildly.
 | Directory | Contents | Ownership |
 |---|---|---|
 | `docs/` | Command spec (CCSDS TC + OOK), operator & participant guides | — |
-| `packet-generator/` | ① Python command generator + web UI (cf32 output) | ours |
-| `openvsa-plugin/` | OpenVSA drop-in satellite plugin (decoder / effects / dashboard defs) | ours |
-| `ground-station/` | ② Victim GS web UI (alarm dashboard) | ours |
-| (external) OpenVSA | Attacker VSA tool — used as-is, core untouched | reused |
+| `attacker/packet-generator/` | ① Python command generator + web UI (cf32 output) | ours |
+| `attacker/openvsa/` | Forked OpenVSA (VSA) — demosat plugin + forward patch applied; `satellites/demosat/` is the single source for satellite config + CCSDS codec | fork |
+| `attacker/gpredict/` + `attacker/console/` | ③ gpredict fork + web console (3rd screen) | fork/ours |
+| `victim/` | ② Victim GS web UI (alarm dashboard) | ours |
+| `arduino/` | ③ Physical solar panel + antenna sketches + serial bridge | ours |
 
 ## End-to-end flow
 ```
 generate → attack.cf32 → [OpenVSA load / uplink] → ws:4536 → [GS web UI alarm]
-                                                            └→ Arduino solar panel (TBD)
+                                                            └→ serial bridge → Arduino solar panel + antenna
 ```
 
 ## Quick start (local, without OpenVSA)
 ```
 # terminal 1 — victim ground station
-cd ground-station/backend && node server.js         # http://localhost:4540
+cd victim/backend && node server.js         # http://localhost:4540
 
 # terminal 2 — attacker command builder
-cd packet-generator/webapp && python3 app.py         # http://localhost:8000
+cd attacker/packet-generator/webapp && python3 app.py   # http://localhost:8000
 
 # terminal 3 — inject a mock uplink (until OpenVSA is wired in)
 curl -X POST http://localhost:4540/api/inject -H 'Content-Type: application/json' \

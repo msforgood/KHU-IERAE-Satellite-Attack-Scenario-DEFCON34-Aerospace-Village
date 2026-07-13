@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEMOSAT · Ground Station</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="sat">📡</span>
+      <div>
+        <div class="title">GROUND STATION&nbsp;//&nbsp;DEMOSAT TELEMETRY</div>
+        <div class="sub">victim · downlink 401.500 MHz · <span id="clock">--:--:--</span></div>
+      </div>
+    </div>
+    <div class="conn"><span id="connDot" class="dot off"></span><span id="connText">CONNECTING…</span></div>
+  </header>
+
+  <div id="statusBanner" class="banner nominal">
+    <span class="bl">SYSTEM STATUS</span>
+    <span id="bannerText">NOMINAL — all subsystems operational</span>
+  </div>
+
+  <section class="vitals">
+    <div class="vhead">
+      <div class="vtitle">SPACECRAFT VITALS <span class="vsub">· ATTITUDE / ENERGY LIFE-SIGN MONITOR</span></div>
+      <div class="vmeta">
+        <span class="vbox"><span id="bpm" class="vbpm">--</span><span class="vunit">BPM</span></span>
+        <span id="vitState" class="vstate ok">● STABLE RHYTHM</span>
+      </div>
+    </div>
+    <canvas id="ecg"></canvas>
+  </section>
+
+  <main class="ground">
+    <div class="toprow">
+      <div class="leftcol">
+        <div class="card">
+          <h2>ENERGY SUPPLY</h2>
+          <div class="metric"><span>Power Generation</span><span id="powNow" class="mv">– W</span></div>
+          <canvas id="powGraph" width="640" height="120"></canvas>
+          <div class="metric"><span>Battery</span><span id="batNow" class="mv">– %</span></div>
+          <canvas id="batGraph" width="640" height="120"></canvas>
+        </div>
+        <div class="card">
+          <h2>UPLINK ACTIVITY</h2>
+          <div id="log" class="log"></div>
+        </div>
+      </div>
+      <div class="card mapcard">
+        <div class="maphead"><h2>ORBITAL TRACKING · SUB-SATELLITE POINT</h2>
+          <span id="mapCoord" class="mapcoord">--.-° , --.-°</span></div>
+        <div class="mapwrap">
+          <canvas id="orbit"></canvas>
+          <div class="mapoverlay">
+            <span id="mapTag" class="maptag ok">● TRACKING</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section id="panels" class="panels"></section>
+  </main>
+
+  <div id="alarm" class="alarm hidden">
+    <div class="alarmbox">
+      <div class="atitle" id="alarmTitle">⚠ ENERGY SUPPLY CRITICAL</div>
+      <div class="adesc" id="alarmDesc">Unauthorized ADCS torque command — satellite tumbling, solar array off-sun.</div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
