@@ -2,30 +2,30 @@
 
 // Satellite configuration for the OpenVSA signal processing pipeline.
 //
-//   centerFreqMHz  – Downlink center frequency in MHz
-//   eirp           – Effective Isotropic Radiated Power in VSA-normalised units
-//   iqSampleRate   – Native sample rate (Hz) of the source IQ signal file
-//   uplink         – (optional) Uplink channel configuration
+//   centerFreqMHz  - Downlink center frequency in MHz
+//   eirp           - Effective Isotropic Radiated Power in VSA-normalised units
+//   iqSampleRate   - Native sample rate (Hz) of the source IQ signal file
+//   uplink         - (optional) Uplink channel configuration
 
 export const SATELLITES = {
   "ENIGMA-1": {
-    // Scenario 1 — Eavesdropping (downlink-only).
+    // Scenario 1 - Eavesdropping (downlink-only).
     // Fictional LEO Earth-observation cubesat broadcasting a packetized image
     // over AX.25 UI / G3RUH 9600-baud FSK. Visitor tunes in, captures IQ, then
     // decodes with gr-satellites (fsk_demodulator + ax25_deframer).
     centerFreqMHz: 433.5,        // UHF
-    eirp:          118,           // LEO UHF cubesat (VSA units) — 저궤도(~166km). 지평선 직후에도 또렷이 보이도록 +10dB(저고도 대기감쇠 완화와 병행)
-    iqSampleRate:  96_000,       // Hz — matches generator (9600 baud x 10 sps)
-    polarization:  "RHCP",       // helix is best; yagi gets −3 dB pol mismatch
+    eirp:          118,           // LEO UHF cubesat (VSA units) - low orbit (~166km). Boosted by +10dB so it stays clearly visible even right after it clears the horizon (also offsets low-altitude atmospheric attenuation)
+    iqSampleRate:  96_000,       // Hz - matches generator (9600 baud x 10 sps)
+    polarization:  "RHCP",       // helix is best; yagi gets -3 dB pol mismatch
   },
 
   "PUPPET-2": {
-    // Scenario 2 — Uplink Command Injection (commandable toy sat, no auth).
+    // Scenario 2 - Uplink Command Injection (commandable toy sat, no auth).
     // Downlink beacon exists only for tracking/tuning; the challenge is the
     // 449.5 MHz TT&C uplink, which executes any well-formed CRC-8 packet.
     centerFreqMHz: 401.5,        // UHF housekeeping downlink (for tracking)
     eirp:          116,           // LEO UHF beacon (VSA units)
-    iqSampleRate:  24_000,       // Hz — OOK uplink sample rate
+    iqSampleRate:  24_000,       // Hz - OOK uplink sample rate
     polarization:  "linear",
     uplink: {
       freqMHz:          449.5,   // UHF TT&C uplink

@@ -30,12 +30,12 @@ export function createRotatorScene({ container, store, antennaTypes }) {
           <div class="gs-operator-icon">&#x1F6A8;</div>
           <div class="gs-operator-title">CONNECTION TERMINATED</div>
           <div class="gs-operator-msg">Unauthorized access detected and logged.<br>Your rogue uplink session has been disconnected.</div>
-          <div class="gs-operator-from">— Ground Station Operator</div>
+          <div class="gs-operator-from">- Ground Station Operator</div>
           <div id="gs-operator-flag" class="gs-operator-flag"></div>
           <button id="btn-gs-reconnect" class="btn-gs-reconnect">Reconnect</button>
         </div>
         <div class="sat-status-title-row">
-          <span class="sat-status-title">SATELLITE STATUS — <span id="sat-status-name">—</span></span>
+          <span class="sat-status-title">SATELLITE STATUS - <span id="sat-status-name">-</span></span>
           <button id="btn-refresh-status" class="btn-refresh-status" title="Refresh telemetry">↺</button>
         </div>
         <div id="sat-panel-body"></div>
@@ -79,17 +79,17 @@ export function createRotatorScene({ container, store, antennaTypes }) {
         <div class="sdr-spec-box">
           <p class="sdr-spec-title">Virtual SDR</p>
           <table class="antenna-spec-table">
-            <tr><td>Frequency</td><td>1 MHz – 6 GHz</td></tr>
+            <tr><td>Frequency</td><td>1 MHz - 6 GHz</td></tr>
             <tr><td>Max Bandwidth</td><td>20 MHz</td></tr>
-            <tr><td>Gain</td><td>0 – 50 dB</td></tr>
+            <tr><td>Gain</td><td>0 - 50 dB</td></tr>
           </table>
         </div>
         <div class="sdr-spec-box" id="amp-spec-box" style="display:none">
           <p class="sdr-spec-title amp-spec-title">Power Amplifier</p>
           <table class="antenna-spec-table">
-            <tr><td>Model</td><td id="amp-spec-name">—</td></tr>
-            <tr><td>Freq Range</td><td id="amp-spec-freq">—</td></tr>
-            <tr><td>TX Power</td><td id="amp-spec-power">—</td></tr>
+            <tr><td>Model</td><td id="amp-spec-name">-</td></tr>
+            <tr><td>Freq Range</td><td id="amp-spec-freq">-</td></tr>
+            <tr><td>TX Power</td><td id="amp-spec-power">-</td></tr>
           </table>
         </div>
       </div>
@@ -139,14 +139,14 @@ export function createRotatorScene({ container, store, antennaTypes }) {
   // ── spectrum (FFT power plot) ──────────────────────────────────────────────
   const spCanvas = container.querySelector("#spectrum-canvas");
   const spCtx    = spCanvas.getContext("2d");
-  const SP_W = 231, SP_H = 38;    // 0.75x 축소 — 안테나 가림 방지(WF_W 와 동일 폭 유지)
+  const SP_W = 231, SP_H = 38;    // 0.75x scaled down to avoid covering the antenna (kept at the same width as WF_W)
   spCanvas.width  = SP_W;
   spCanvas.height = SP_H;
 
   // ── waterfall ─────────────────────────────────────────────────────────────
   const wfCanvas = container.querySelector("#waterfall-canvas");
   const wfCtx    = wfCanvas.getContext("2d");
-  const WF_W = 231, WF_H = 225;   // 0.75x 축소(비율 유지) — 안테나 가림 방지. 모든 버퍼 API 가 이 상수를 참조해 일관
+  const WF_W = 231, WF_H = 225;   // 0.75x scaled down (aspect ratio kept) to avoid covering the antenna. Every buffer API references this constant to stay consistent
   wfCanvas.width  = WF_W;
   wfCanvas.height = WF_H;
   wfCtx.fillStyle = "#000";
@@ -158,7 +158,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     wfRowHeight = Math.max(1, Math.min(8, wfRowHeight + (e.deltaY > 0 ? -1 : 1)));
   }, { passive: false });
 
-  const WF_AXIS_H = 16;   // 0.75x — 축소된 워터폴에서 주파수 축 밴드 비율 유지
+  const WF_AXIS_H = 16;   // 0.75x - keeps the frequency-axis band proportional on the scaled-down waterfall
 
   function drawFreqAxis() {
     const { frequency, bandwidth } = store.getState();
@@ -192,7 +192,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     wfCtx.lineTo(WF_W / 2, WF_AXIS_H - 1);
     wfCtx.stroke();
 
-    wfCtx.font = "bold 7px monospace";   // 0.75x — 축소 축 밴드에 맞춰 라벨 비율 유지
+    wfCtx.font = "bold 7px monospace";   // 0.75x - keeps the label proportional to the scaled-down axis band
     wfCtx.textBaseline = "top";
     wfCtx.fillStyle = "#4e6880";
     wfCtx.textAlign = "left";
@@ -206,7 +206,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // SHARED — Satellite lookup tables, SDR constants, signal processing helpers
+  // SHARED - Satellite lookup tables, SDR constants, signal processing helpers
   // ═══════════════════════════════════════════════════════════════════════════
   const SAT_CENTER_FREQ_MHZ = Object.fromEntries(
     Object.entries(SATELLITES).map(([k, v]) => [k, v.centerFreqMHz])
@@ -255,7 +255,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     return eirp - computeFSPL(satRangeKm, freqMHz);
   }
 
-  // Roll-off taper at band edges — smoothly fades signal into noise floor
+  // Roll-off taper at band edges - smoothly fades signal into noise floor
   function bandEdgeTaper(freqOffsetHz) {
     const edge = Math.abs(freqOffsetHz) / (iqSampleRate / 2);
     if (edge > 1.0) return 0;
@@ -342,12 +342,12 @@ export function createRotatorScene({ container, store, antennaTypes }) {
   let satDopplerHz    = 0;
   let satRangeKm      = null;
 
-  // 마지막 SGP4 샘플(base)과 초당 변화율(rate) — 워터폴 렌더 시점에 이 둘로 선형 보간(외삽)한다.
+  // The last SGP4 sample (base) and its per-second change rate (rate). At waterfall render time the two are used for linear interpolation (extrapolation).
   let _sampBase = null;                       // { az, el, dop, rng }
   let _sampRate = { az: 0, el: 0, dop: 0, rng: 0 };
   let _sampTime = 0;                          // performance.now() of last sample
   const _wrap360    = (d) => ((d % 360) + 360) % 360;
-  const _shortAngle = (a, b) => ((b - a + 540) % 360) - 180;   // a→b 최단 각차 -180 ~ +180 deg
+  const _shortAngle = (a, b) => ((b - a + 540) % 360) - 180;   // shortest angular difference from a to b, -180 to +180 deg
 
   async function updateSatPosition() {
     if (!window.electronAPI) return;
@@ -364,9 +364,9 @@ export function createRotatorScene({ container, store, antennaTypes }) {
       const az = pos.az, el = pos.el, dop = pos.dopplerHz ?? 0, rng = pos.rangeKm ?? null;
       const now = performance.now();
       if (_sampBase && rng !== null && _sampBase.rng !== null && now > _sampTime) {
-        const dt = (now - _sampTime) / 1000;                 // 초 단위 샘플 간격
+        const dt = (now - _sampTime) / 1000;                 // sample interval in seconds
         _sampRate = {
-          az:  _shortAngle(_sampBase.az, az) / dt,           // az 랩(0/360) 안전 최단각 변화율
+          az:  _shortAngle(_sampBase.az, az) / dt,           // shortest-angle change rate, safe across the az wrap (0/360)
           el:  (el  - _sampBase.el)  / dt,
           dop: (dop - _sampBase.dop) / dt,
           rng: (rng - _sampBase.rng) / dt,
@@ -386,9 +386,9 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     store.setState((s) => ({ ...s, _satEl: satEl, _satRangeKm: satRangeKm }));
   }
 
-  // 렌더 시점(매 워터폴/스펙트럼 프레임)에 마지막 샘플+변화율로 위성 상태를 선형 보간(외삽).
-  // 위치 샘플링은 드물게(200ms) 하되 화면은 매끄럽게 채워 신호강도/중심주파수 밴딩을 제거한다.
-  const _INTERP_CAP_S = 0.30;                 // 외삽 상한(샘플 간격보다 약간 크게) — 과도 외삽 방지
+  // At render time (every waterfall/spectrum frame), interpolate (extrapolate) the satellite state from the last sample plus its change rate.
+  // Position sampling stays infrequent (200ms) while the screen fills smoothly, removing signal-strength/center-frequency banding.
+  const _INTERP_CAP_S = 0.30;                 // extrapolation cap (a little larger than the sample interval) to prevent runaway extrapolation
   function interpolateSatState() {
     if (!_sampBase || _sampBase.rng === null || _sampTime <= 0) return;
     let dt = (performance.now() - _sampTime) / 1000;
@@ -400,13 +400,13 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     satRangeKm   = _sampBase.rng + _sampRate.rng * dt;
   }
 
-  const satPosInterval = setInterval(updateSatPosition, 200);  // 5Hz 샘플 — 렌더 시점 보간으로 매끄럽게 채움
+  const satPosInterval = setInterval(updateSatPosition, 200);  // 5Hz sampling, filled in smoothly by render-time interpolation
   updateSatPosition();
 
   function computeBeamAttenuationDb() {
     const state = store.getState();
     const EL_REFRACTION = 1;  // degrees of atmospheric refraction margin
-    const A_ZEN = 1;          // zenith atmospheric loss (dB) — 저고도 온셋이 죽지 않게 완화(2→1)
+    const A_ZEN = 1;          // zenith atmospheric loss (dB), relaxed (2 to 1) so the low-elevation onset does not die out
 
     // No TLE data → satellite position unknown, treat as below horizon
     if (satAz === null || satEl === null) return -60;
@@ -421,13 +421,13 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     const satAzRad = satAz * Math.PI / 180;
     const satElRad = satEl * Math.PI / 180;
 
-    // Gaussian beam model: −12·(θ/θ_HPBW)² dB  (−3 dB at half-beamwidth)
+    // Gaussian beam model: -12*(theta/theta_HPBW)^2 dB  (-3 dB at half-beamwidth)
     const cosTheta = Math.sin(antElRad) * Math.sin(satElRad)
                    + Math.cos(antElRad) * Math.cos(satElRad) * Math.cos(antAzRad - satAzRad);
     const thetaDeg = Math.acos(Math.max(-1, Math.min(1, cosTheta))) * 180 / Math.PI;
     const ant      = antennaTypes[state.antennaType];
     const beamLoss = -12 * (thetaDeg / ant.beamwidthDeg) ** 2;
-    const atmLoss = Math.max(-4, -A_ZEN / Math.sin(elEff * Math.PI / 180));   // 저고도 1/sin 발산에 -4dB 바닥 — 지평선 직후 신호가 바로 보이도록
+    const atmLoss = Math.max(-4, -A_ZEN / Math.sin(elEff * Math.PI / 180));   // -4 dB floor on the low-elevation 1/sin blow-up so the signal shows up right after the horizon
 
     // Frequency-dependent gain for dish antenna: G = η(πD/λ)²
     // The dish feed determines the usable frequency range.
@@ -436,13 +436,13 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     const satFreqMHz = getIQCenterMHz();
 
     if (state.antennaType === "dish") {
-      // Below 1 GHz the dish is electrically too small — no signal at all.
+      // Below 1 GHz the dish is electrically too small - no signal at all.
       if (satFreqMHz > 0 && satFreqMHz < 1000) return -60;
       // Feed type determines the usable frequency range
       const feedRanges = {
-        lband: [1500, 1800],   // L-band feed: 1.5–1.8 GHz
-        sband: [2000, 2500],   // S-band feed: 2.0–2.5 GHz
-        ku:    [10700, 12700], // Ku-band feed + LNB: 10.7–12.7 GHz
+        lband: [1500, 1800],   // L-band feed: 1.5-1.8 GHz
+        sband: [2000, 2500],   // S-band feed: 2.0-2.5 GHz
+        ku:    [10700, 12700], // Ku-band feed + LNB: 10.7-12.7 GHz
       };
       const feed = state.dishFeed || "ku";
       const range = feedRanges[feed];
@@ -454,8 +454,8 @@ export function createRotatorScene({ container, store, antennaTypes }) {
       }
     }
 
-    // Yagi and dipole antennas operate in VHF/UHF range (30 MHz – 3 GHz).
-    // Above 3 GHz the elements cannot function — no usable gain.
+    // Yagi and dipole antennas operate in VHF/UHF range (30 MHz - 3 GHz).
+    // Above 3 GHz the elements cannot function - no usable gain.
     if (state.antennaType === "yagi" || state.antennaType === "dipole") {
       if (satFreqMHz > 3000) return -60;
     }
@@ -465,7 +465,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     const antPol = ant.polarization ?? "linear";
     let polLoss = 0;
     if ((satPol === "RHCP" && antPol === "LHCP") || (satPol === "LHCP" && antPol === "RHCP")) {
-      polLoss = -60; // cross-polarized — signal blocked
+      polLoss = -60; // cross-polarized - signal blocked
     } else if (satPol !== antPol) {
       polLoss = -3;  // circular-linear mismatch
     }
@@ -474,7 +474,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // SPECTROGRAM — FFT, waterfall display, spectrum plot
+  // SPECTROGRAM - FFT, waterfall display, spectrum plot
   // ═══════════════════════════════════════════════════════════════════════════
   function computeFFTRow() {
     const n = iqSamples.length >> 1;
@@ -593,7 +593,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
   window.addEventListener("iq-start", (e) => {
     const { bytes, satName } = e.detail;
     // Electron IPC may deliver the Buffer as a plain object {0:byte, 1:byte, ...}
-    // instead of a Uint8Array in some versions — normalise it first.
+    // instead of a Uint8Array in some versions - normalise it first.
     let raw = bytes;
     if (!(raw instanceof Uint8Array)) raw = new Uint8Array(Object.values(raw));
     // Trim to a 4-byte (float32) boundary before reinterpreting
@@ -636,7 +636,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
 
   // ── Waterfall render loop ─────────────────────────────────────────────────
   function drawWaterfallRow() {
-    interpolateSatState();                    // 렌더 시점 보간 — 이후 강도/도플러/빔은 이 프레임 정확한 값 사용
+    interpolateSatState();                    // render-time interpolation, so strength/Doppler/beam below use this frame's exact values
     // scroll existing rows down by wfRowHeight pixels
     const img = wfCtx.getImageData(0, WF_AXIS_H, WF_W, WF_H - WF_AXIS_H - wfRowHeight);
     wfCtx.putImageData(img, 0, WF_AXIS_H + wfRowHeight);
@@ -682,7 +682,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
         }
       }
     } else {
-      // idle — faint noise floor, no signal (gain still affects noise)
+      // idle - faint noise floor, no signal (gain still affects noise)
       const { gain } = store.getState();
       const idleGainDb = Math.max(GAIN_MIN_DB, Math.min(GAIN_MAX_DB, gain || 0));
       for (let x = 0; x < WF_W; x++) {
@@ -737,7 +737,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
           qOut += (iIn * sinP + qIn * cosP) * signalAmp * gainAmp * sigPowerAmp;
         }
 
-        // ADC clipping — simulate saturation at ±1.0
+        // ADC clipping - simulate saturation at +/-1.0
         chunk[k * 2]     = Math.max(-1, Math.min(1, iOut));
         chunk[k * 2 + 1] = Math.max(-1, Math.min(1, qOut));
 
@@ -763,7 +763,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
   const wfTimer = setInterval(drawWaterfallRow, wfInterval);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // RECORDING — IQ capture, Doppler rotation, noise injection, ADC clipping
+  // RECORDING - IQ capture, Doppler rotation, noise injection, ADC clipping
   // ═══════════════════════════════════════════════════════════════════════════
   let recActive      = false; // true when streaming to disk
   let recTargetRate  = 0;     // sample rate (Hz) snapshotted at REC start
@@ -855,15 +855,15 @@ export function createRotatorScene({ container, store, antennaTypes }) {
   function buildAmplifierModel() {
     const blinkDotColor = ampBlinkOn ? ampBlinkColor : "#444";
     return [
-      // Main body — aluminium box
+      // Main body - aluminium box
       ...boxPart({ x: 90, y: -3, z: 8 }, { x: 24, y: 20, z: 16 }, "#a8b0b8"),
-      // Top panel — slightly darker to show depth
+      // Top panel - slightly darker to show depth
       ...boxPart({ x: 90, y: -3, z: 16 }, { x: 22, y: 18, z: 2 }, "#909aa2"),
-      // Front panel — darker aluminium
+      // Front panel - darker aluminium
       ...boxPart({ x: 102, y: -3, z: 8 }, { x: 2, y: 18, z: 14 }, "#8a929a"),
-      // Blinking status LED — on front panel, facing forward
+      // Blinking status LED - on front panel, facing forward
       ...boxPart({ x: 104, y: -1, z: 12 }, { x: 4, y: 6, z: 6 }, blinkDotColor),
-      // Wire — amplifier to antenna base (only when amp selected)
+      // Wire - amplifier to antenna base (only when amp selected)
       ...(ampSelected ? boxPart({ x: 44, y: -3, z: 8 }, { x: 68, y: 2, z: 2 }, "#222") : []),
     ];
   }
@@ -912,9 +912,9 @@ export function createRotatorScene({ container, store, antennaTypes }) {
       for (const field of section.fields) {
         const key = field.source || (field.sources ? field.sources.join(",") : "");
         html += `<div class="sat-status-row"><span>${field.label}</span>`;
-        html += `<span data-field="${key}">—</span>`;
+        html += `<span data-field="${key}">-</span>`;
         if (field.bar) html += `<span class="ss-bar"><span class="ss-bar-fill" data-bar="${key}" style="width:0%"></span></span>`;
-        if (field.indicator) html += `<span class="ss-ind" data-ind="${key}">—</span>`;
+        if (field.indicator) html += `<span class="ss-ind" data-ind="${key}">-</span>`;
         html += `</div>`;
       }
       html += `</div>`;
@@ -936,9 +936,9 @@ export function createRotatorScene({ container, store, antennaTypes }) {
 
   function clearPanel() {
     for (const el of Object.values(fieldEls)) {
-      if (el.val) { el.val.textContent = "—"; el.val.style.color = ""; el.val.className = ""; }
+      if (el.val) { el.val.textContent = "-"; el.val.style.color = ""; el.val.className = ""; }
       if (el.bar) { el.bar.style.width = "0%"; el.bar.style.background = "#3a4a5a"; }
-      if (el.ind) { el.ind.textContent = "—"; el.ind.className = "ss-ind"; }
+      if (el.ind) { el.ind.textContent = "-"; el.ind.className = "ss-ind"; }
     }
   }
 
@@ -958,7 +958,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     for (const [key, el] of Object.entries(fieldEls)) {
       const f = el.field;
 
-      // CommStatus field — always update
+      // CommStatus field - always update
       if (f.commStatus) {
         el.val.textContent = commStatus;
         const commStyle = satState.getStatusStyle("comm.status", commStatus) || "nominal";
@@ -966,16 +966,16 @@ export function createRotatorScene({ container, store, antennaTypes }) {
         continue;
       }
 
-      // AlwaysShow fields (auth, mode) — update even during comm disruption
+      // AlwaysShow fields (auth, mode) - update even during comm disruption
       if (f.alwaysShow) {
         const val = getVal(s, f.source);
-        el.val.textContent = val ?? "—";
+        el.val.textContent = val ?? "-";
         const style = satState.getStatusStyle(f.source, val);
         el.val.className = style ? `ss-ind ${style}` : "";
         continue;
       }
 
-      // Boolean fields (transponder, stabilization) — always show state
+      // Boolean fields (transponder, stabilization) - always show state
       if (f.boolean && f.dangerWhenFalse !== undefined) {
         const val = getVal(s, f.source);
         el.val.textContent = val ? f.boolean["true"] : f.boolean["false"];
@@ -989,7 +989,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
       // Single source value
       if (f.source && !f.sources) {
         let val = getVal(s, f.source);
-        if (val === undefined || val === null) { el.val.textContent = "—"; continue; }
+        if (val === undefined || val === null) { el.val.textContent = "-"; continue; }
 
         // Format
         if (f.format === "uptime") {
@@ -1014,7 +1014,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
       // Multi-source values (attitude, antenna)
       if (f.sources) {
         const vals = f.sources.map(src => getVal(s, src));
-        if (vals.some(v => v === undefined)) { el.val.textContent = "—"; continue; }
+        if (vals.some(v => v === undefined)) { el.val.textContent = "-"; continue; }
         const decimals = f.decimals !== undefined ? f.decimals : 0;
         let formatted = f.format;
         vals.forEach((v, i) => {
@@ -1061,7 +1061,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
       const amp = AMPLIFIERS[e.detail.ampKey];
       if (amp) {
         ampSpecName.textContent  = amp.label;
-        ampSpecFreq.textContent  = `${amp.freqRange[0]}–${amp.freqRange[1]} MHz`;
+        ampSpecFreq.textContent  = `${amp.freqRange[0]}-${amp.freqRange[1]} MHz`;
         ampSpecPower.textContent = `${amp.powerDbm} dBm`;
         ampSpecBox.style.display = "";
       }
@@ -1072,7 +1072,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     if (uplinkMode) {
       waterfallOvl.style.display = "none";
       statusPanel.style.display = "";
-      statusName.textContent = e.detail.satellite || "—";
+      statusName.textContent = e.detail.satellite || "-";
 
       if (e.detail.satellite && e.detail.satellite !== currentStatusSat) {
         currentStatusSat = e.detail.satellite;
@@ -1173,7 +1173,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     }
     if (rejected) return;
 
-    // Show overlay after 15s — gives enough time to see attack effects
+    // Show overlay after 15s - gives enough time to see attack effects
     setTimeout(() => showGsOperator(e.detail.satellite), 15000);
   });
 
