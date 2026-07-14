@@ -8,8 +8,8 @@ import { connectRotctld }      from "./rotctld-client.js";
 
 const store = createStore({
   antennaType:       "yagi",
-  azimuth:           131,
-  elevation:         47,
+  azimuth:           206,   // initial antenna pose — a "nice looking" angle so the
+  elevation:         31,    // dish sits pretty before ENGAGE sets it (206°/30°)
   autoRotate:        false,
   rotationSpeed:     12,
   bridgeConnected:   false,
