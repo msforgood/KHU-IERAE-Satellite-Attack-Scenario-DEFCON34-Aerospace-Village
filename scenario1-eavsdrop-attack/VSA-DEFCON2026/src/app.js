@@ -20,7 +20,7 @@ const store = createStore({
   lat:               37.241917,
   lon:               127.081127,
   targetSat:         "",
-  frequency:         123.4,
+  frequency:         0,
   sampleRate:        1,
   bandwidth:         1,
   gain:              0,

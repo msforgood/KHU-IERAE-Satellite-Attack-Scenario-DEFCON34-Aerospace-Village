@@ -42,8 +42,8 @@ export const SATELLITE_INFO = {
     },
     tle: [
       "ENIGMA-1",
-      "1 90001U 26200A   26180.50000000  .00001500  00000-0  70000-4 0  1003",
-      "2 90001  98.5000 100.0000 0010000  90.0000 270.0000 14.50000000  1005",
+      "1 90001U 26200A   26195.00000000  .00001500  00000-0  70000-4 0  1004",
+      "2 90001  98.5000 100.0000 0010000  90.0000 270.0000 16.40000000  1006",
     ],
     notes: [
       "Continuous, unencrypted AX.25 UI beacon — a passive-intercept target. No uplink, no command interface.",

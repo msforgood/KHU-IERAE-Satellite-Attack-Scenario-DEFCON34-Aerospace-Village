@@ -21,6 +21,10 @@ const { WebSocketServer } = require("ws");
 let az = 131;
 let el = 47;
 let gpredictConnected = false;
+// 열린 rotctld/rigctld 소켓 집합. 상태를 "연결 개수 > 0"으로 판정한다.
+// (단일 boolean 이면 소켓 하나가 닫힐 때 다른 연결이 살아있어도 false 로 떨어지는 버그가 있었음)
+const rotClients = new Set();
+const rigClients = new Set();
 
 // ── WebSocket helpers ─────────────────────────────────────────────────────────
 const wsClients = new Set();
@@ -45,7 +49,8 @@ const tcpServer = net.createServer((sock) => {
   const addr = `${sock.remoteAddress}:${sock.remotePort}`;
   console.log(`[rotctld] GPredict connected from ${addr}`);
 
-  gpredictConnected = true;
+  rotClients.add(sock);
+  gpredictConnected = rotClients.size > 0;
   broadcastStatus();
   broadcastPosition();  // sync browser rotator immediately on reconnect
 
@@ -123,7 +128,8 @@ const tcpServer = net.createServer((sock) => {
 
   sock.on("close", () => {
     console.log(`[rotctld] GPredict disconnected (${addr})`);
-    gpredictConnected = false;
+    rotClients.delete(sock);
+    gpredictConnected = rotClients.size > 0;
     broadcastStatus();
   });
 
@@ -235,7 +241,8 @@ let rigFreq = 0;
 const rigServer = net.createServer((sock) => {
   const addr = `${sock.remoteAddress}:${sock.remotePort}`;
   console.log(`[rigctld] GPredict radio connected from ${addr}`);
-  broadcast({ type: "radioStatus", radioConnected: true });
+  rigClients.add(sock);
+  broadcast({ type: "radioStatus", radioConnected: rigClients.size > 0 });
 
   let buf = "";
 
@@ -291,7 +298,8 @@ const rigServer = net.createServer((sock) => {
 
   sock.on("close", () => {
     console.log(`[rigctld] GPredict radio disconnected (${addr})`);
-    broadcast({ type: "radioStatus", radioConnected: false });
+    rigClients.delete(sock);
+    broadcast({ type: "radioStatus", radioConnected: rigClients.size > 0 });
   });
 
   sock.on("error", (e) => console.error("[rigctld] Socket error:", e.message));

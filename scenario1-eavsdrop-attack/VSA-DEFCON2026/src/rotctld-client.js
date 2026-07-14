@@ -1,6 +1,10 @@
 // Copyright (c) 2026 SunHyuk Hwang. All Rights Reserved.
 
-const WS_URL = "ws://localhost:4534";
+// 페이지가 로드된 호스트를 그대로 사용(localhost / WSL IP 등) → WSL·원격 접속에서도 브리지에 붙음.
+const WS_URL = `ws://${location.hostname || "localhost"}:4534`;
+// 재연결 간격(ms). 정의가 없어 close 핸들러가 ReferenceError 로 죽던 버그 → server.js
+// 를 나중에 켜도 자동 재연결되도록 상수를 명시.
+const RECONNECT_DELAY_MS = 2000;
 
 /**
  * Opens a WebSocket connection to the rotctld bridge server and keeps it alive.
