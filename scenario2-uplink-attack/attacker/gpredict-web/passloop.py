@@ -15,6 +15,7 @@ gpredict — so the rotator (rotctld → OpenVSA) stays engaged across re-arms.
 """
 import time
 import calendar
+import datetime
 import threading
 
 
@@ -70,6 +71,24 @@ def find_pass(qth_path, tle_path, min_alt=15.0, max_alt=45.0, search=40):
             return aos, los, a
         obs.date = ephem.Date(set_t + ephem.minute)   # step past this pass
     return best if best else (int(time.time()), int(time.time()) + 600, 0.0)
+
+
+def look_angles(qth_path, tle_path, when_unix):
+    """Satellite look-angles from the QTH at a given UTC unix time:
+    (elevation_deg, azimuth_deg, range_km). Used to show the participant the
+    live distance and whether the satellite is above the horizon (in range)."""
+    import ephem
+    import math
+    lat, lon, alt = parse_qth(qth_path)
+    l0, l1, l2 = read_tle(tle_path)
+    obs = ephem.Observer()
+    obs.lat = str(lat)
+    obs.lon = str(lon)
+    obs.elevation = alt
+    obs.date = ephem.Date(datetime.datetime.utcfromtimestamp(when_unix))
+    sat = ephem.readtle(l0, l1, l2)
+    sat.compute(obs)
+    return math.degrees(sat.alt), math.degrees(sat.az), sat.range / 1000.0
 
 
 def write_offset(ft_file, seconds):

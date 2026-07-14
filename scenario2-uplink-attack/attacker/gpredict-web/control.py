@@ -15,18 +15,21 @@ Endpoints (CORS open so the console at :8000 can call directly):
 import os
 import json
 import time
+import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import passloop
 
-FT_FILE  = os.environ.get("FAKETIME_FILE", "/tmp/faketime.rc")
-QTH      = os.environ.get("QTH_FILE", "/config/defcon.qth")
-TLE      = os.environ.get("TLE_FILE", "/config/demosat.tle")
-LEAD     = int(os.environ.get("PASS_LEAD", "20"))            # wait before AOS (s)
-INTERVAL = int(os.environ.get("RESET_INTERVAL", "300"))      # auto re-arm every (s)
-MIN_ALT  = float(os.environ.get("MIN_PASS_ALT", "15"))       # grazing band floor
-MAX_ALT  = float(os.environ.get("MAX_PASS_ALT", "45"))       # grazing band ceil
-PORT     = int(os.environ.get("CTRL_PORT", "6079"))
+FT_FILE   = os.environ.get("FAKETIME_FILE", "/tmp/faketime.rc")
+QTH       = os.environ.get("QTH_FILE", "/config/defcon.qth")
+TLE       = os.environ.get("TLE_FILE", "/config/demosat.tle")
+LEAD      = int(os.environ.get("PASS_LEAD", "20"))           # wait before AOS (s)
+INTERVAL  = int(os.environ.get("RESET_INTERVAL", "300"))     # auto re-arm every (s)
+MIN_ALT   = float(os.environ.get("MIN_PASS_ALT", "15"))      # grazing band floor
+MAX_ALT   = float(os.environ.get("MAX_PASS_ALT", "45"))      # grazing band ceil
+IN_RANGE  = float(os.environ.get("IN_RANGE_ELEV", "0"))      # "in range" elevation (deg)
+AUTOPILOT = os.environ.get("AUTOPILOT", "/autopilot.sh")     # xdotool gpredict driver
+PORT      = int(os.environ.get("CTRL_PORT", "6079"))
 
 # Find one nice grazing pass ONCE (fixed absolute AOS → replayed identically).
 AOS, LOS, MAXALT = passloop.find_pass(QTH, TLE, MIN_ALT, MAX_ALT)
@@ -36,6 +39,12 @@ ARMER.start()
 
 def status():
     sec = ARMER.seconds_to_rearm()
+    offset_ms = passloop.read_offset_ms(FT_FILE)
+    faked_now = time.time() + offset_ms / 1000.0
+    try:
+        el, az, rng = passloop.look_angles(QTH, TLE, faked_now)
+    except Exception:
+        el = az = rng = None
     return {
         "armed": ARMER.enabled,
         "leadSec": LEAD,
@@ -45,8 +54,26 @@ def status():
         "maxAltDeg": round(MAXALT, 1),
         "passDurSec": int(LOS - AOS),
         "aosUtc": time.strftime("%Y-%m-%d %H:%M:%SZ", time.gmtime(AOS)),
-        "offsetMs": passloop.read_offset_ms(FT_FILE),
+        "offsetMs": offset_ms,
+        # live look-angles at gpredict's faked time (for the wait/approach guide)
+        "elevDeg": round(el, 1) if el is not None else None,
+        "azimDeg": round(az, 1) if az is not None else None,
+        "rangeKm": round(rng) if rng is not None else None,
+        "secToAos": round(AOS - faked_now, 1),
+        "inRange": bool(el is not None and el >= IN_RANGE),
     }
+
+
+def run_autopilot(action):
+    """Drive the real gpredict UI via xdotool (autopilot.sh) to open Antenna
+    Control and toggle Track + Engage. Returns (ok, detail)."""
+    try:
+        env = dict(os.environ, DISPLAY=os.environ.get("DISPLAY", ":99"))
+        p = subprocess.run([AUTOPILOT, action], env=env, capture_output=True,
+                           text=True, timeout=30)
+        return p.returncode == 0, (p.stdout + p.stderr).strip()[-400:]
+    except Exception as e:
+        return False, str(e)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -70,6 +97,10 @@ class Handler(BaseHTTPRequestHandler):
             ARMER._next = float("inf")           # pause auto re-arm
             passloop.write_offset(FT_FILE, 0)
             return self._reply(200, {"ok": True, **status()})
+        if path == "/engage":
+            # auto-operate gpredict: Antenna Control → Track → Engage.
+            ok, detail = run_autopilot("engage")
+            return self._reply(200 if ok else 500, {"ok": ok, "detail": detail, **status()})
         if path == "/status":
             return self._reply(200, {"ok": True, **status()})
         if path == "/offset":
