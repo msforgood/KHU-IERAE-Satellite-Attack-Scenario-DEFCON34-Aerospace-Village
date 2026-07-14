@@ -24,6 +24,50 @@ import serial.tools.list_ports
 import websockets
 
 
+def _wsl_ip():
+    """Windows에서 WSL 배포판의 IP 조회 (WSL 안에서 도는 server.js 에 붙기 위해)."""
+    import subprocess
+    try:
+        out = subprocess.check_output(["wsl", "hostname", "-I"], text=True,
+                                      timeout=5, stderr=subprocess.DEVNULL).strip()
+        return out.split()[0] if out else None
+    except Exception:
+        return None
+
+
+def resolve_ws_url(ws_url):
+    """Windows에서 localhost 로 붙는데 그 포트에 리스너가 없고 WSL 쪽에 server.js 가
+    있으면, WSL IP 로 자동 대체한다(server.js 가 WSL 안에서 도는 흔한 구성 대응)."""
+    import sys
+    import socket
+    from urllib.parse import urlparse, urlunparse
+    if sys.platform != "win32":
+        return ws_url
+    u = urlparse(ws_url)
+    if (u.hostname or "") not in ("localhost", "127.0.0.1"):
+        return ws_url
+    port = u.port or 4534
+    try:  # localhost 에 이미 리스너가 있으면(미러드 네트워킹 등) 그대로 사용
+        socket.create_connection(("127.0.0.1", port), timeout=1).close()
+        # 'localhost' 는 파이썬 websockets 가 IPv6(::1) 로 먼저 붙어 미러드 네트워킹에서
+        # opening-handshake 타임아웃날 수 있다. 검증된 IPv4(127.0.0.1) 로 못박아 반환한다.
+        if (u.hostname or "") == "localhost":
+            return urlunparse(u._replace(netloc=f"127.0.0.1:{port}"))
+        return ws_url
+    except OSError:
+        pass
+    ip = _wsl_ip()
+    if not ip:
+        return ws_url
+    try:  # WSL IP 쪽에 server.js 가 실제로 떠 있는지 확인 후에만 대체
+        socket.create_connection((ip, port), timeout=2).close()
+    except OSError:
+        return ws_url
+    netloc = f"{ip}:{u.port}" if u.port else ip
+    print(f"[bridge] localhost:{port} 에 server.js 없음 → WSL({ip}) 로 자동 접속")
+    return urlunparse(u._replace(netloc=netloc))
+
+
 def find_arduino_port():
     """연결된 아두이노로 보이는 시리얼 포트 자동 탐지."""
     for p in serial.tools.list_ports.comports():
@@ -143,11 +187,12 @@ def main():
                     help="수신한 모든 WS 메시지와 디바운스 생략까지 로그")
     a = ap.parse_args()
 
+    ws_url = resolve_ws_url(a.ws)   # Windows+WSL 이면 WSL IP 로 자동 대체
     link = SerialLink(a.port, a.baud, verbose=a.verbose)
     detected = a.port or find_arduino_port()
-    print(f"[bridge] WS={a.ws}  serial={detected or '(자동탐지 대기)'} @ {a.baud}")
+    print(f"[bridge] WS={ws_url}  serial={detected or '(자동탐지 대기)'} @ {a.baud}")
     try:
-        asyncio.run(run(a.ws, link, verbose=a.verbose))
+        asyncio.run(run(ws_url, link, verbose=a.verbose))
     except KeyboardInterrupt:
         print("\n[bridge] 종료")
 
