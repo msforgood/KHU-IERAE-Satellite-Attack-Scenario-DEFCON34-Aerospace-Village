@@ -10,6 +10,7 @@ const PHASES = [
   { id: 'mission',   label: 'MISSION' },
   { id: 'target',    label: 'TARGET' },
   { id: 'track',     label: 'TRACK' },
+  { id: 'analyze',   label: 'ANALYZE' },
   { id: 'puzzle',    label: 'PUZZLE' },
   { id: 'flowgraph', label: 'FLOWGRAPH' },
   { id: 'result',    label: 'RESULT' },
@@ -19,7 +20,7 @@ const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls)
 
 const state = {
   phase: 'mission', reached: { mission: true }, puzzleSolved: false,
-  recUploaded: false, recFile: null,
+  recUploaded: false, recFile: null, recFileObj: null,
   cfg: {}, sat: null,
   qth: null, satrec: null, obs: null, offsetMs: 0,
   remain: { valid: false, boundaryMs: null, inPass: false, lastCalcMs: 0, lastOffset: 0 },
@@ -44,17 +45,18 @@ function buildStepper() {
   });
   renderPhaseTags();
 }
-// Render phase-tag labels ("PHASE n · NAME") from the PHASES order, so inserting a
+// Render phase-tag labels ("PHASE n / NAME") from the PHASES order, so inserting a
 // phase (e.g. a signal-analysis step after PHASE 4) auto-renumbers every tag.
 function renderPhaseTags() {
   PHASES.forEach((p, i) => {
     const t = $(`#p-${p.id} .phasetag[data-tag]`);
-    if (t) t.textContent = `PHASE ${i + 1} · ${t.dataset.tag}`;
+    if (t) t.textContent = `PHASE ${i + 1} / ${t.dataset.tag}`;
   });
 }
 function canGo(id) {
   if (state.reached[id]) return true;
-  if (id === 'flowgraph' && !state.puzzleSolved) return false;
+  if (id === 'puzzle') return state.recUploaded;      // the puzzle needs the PHASE 4 capture
+  if (id === 'flowgraph') return state.puzzleSolved;
   return false;
 }
 function refreshStepper() {
@@ -63,14 +65,15 @@ function refreshStepper() {
     const item = $(`.stepitem[data-id="${p.id}"]`); if (!item) return;
     item.classList.toggle('active', p.id === state.phase);
     item.classList.toggle('done', i < curIdx && state.reached[p.id]);
-    item.classList.toggle('locked', !state.reached[p.id] && !(p.id === 'flowgraph' && state.puzzleSolved));
+    item.classList.toggle('locked', !canGo(p.id));
   });
 }
 
 const BANNER = {
   mission:   { cls: 'nominal', text: 'MISSION BRIEFING: know the goal' },
   target:    { cls: 'info',    text: 'TARGET LOCKED: ENIGMA-1 specs confirmed' },
-  track:     { cls: 'info',    text: 'TRACK & SYNC: antenna tracking · RF sync' },
+  track:     { cls: 'info',    text: 'TRACK & SYNC: antenna tracking / RF sync' },
+  analyze:   { cls: 'info',    text: 'CAPTURE & ANALYZE: spectrum / waterfall on the captured IQ' },
   puzzle:    { cls: 'warn',    text: 'DEMOD PIPELINE: assembling the flowgraph' },
   flowgraph: { cls: 'info',    text: 'FLOWGRAPH READY: run the demod chain' },
   result:    { cls: 'nominal', text: 'DECODE COMPLETE: image recovered' },
@@ -91,10 +94,10 @@ function show(id) {
   refreshStepper(); refreshBanner();
   window.scrollTo({ top: 0, behavior: 'smooth' });
   if (id === 'track') mountEmbeds();
+  if (id === 'analyze') mountAnalyze();
   if (id === 'flowgraph') { mountFlowgraph(); startDecode(); }   // start live reassembly automatically on entry (no manual button needed)
-  if (id === 'puzzle') {
-    syncPuzzleGate();
-    if (state.recUploaded) requestAnimationFrame(() => { drawWires(); startSignalFlow(); });
+  if (id === 'puzzle') {   // upload + analysis already happened in PHASE 4; refresh labels and start the preview
+    requestAnimationFrame(() => { renderSlots(); renderTray(); drawWires(); updatePuzzleState(); startSignalFlow(); });
   }
 }
 
@@ -102,22 +105,34 @@ function wireNav() {
   $('#ackChk').addEventListener('change', (e) => { $('#toTarget').disabled = !e.target.checked; });
   $('#toTarget').addEventListener('click', () => show('target'));
   $('#toTrack').addEventListener('click', () => show('track'));
-  $('#toPuzzle').addEventListener('click', () => show('puzzle'));
+  $('#toAnalyze').addEventListener('click', () => show('analyze'));
+  $('#toPuzzle').addEventListener('click', () => { if (state.recUploaded) show('puzzle'); });
   $('#toFlowgraph').addEventListener('click', () => { if (state.puzzleSolved) show('flowgraph'); });
   $('#toResult').addEventListener('click', () => show('result'));
+  const th = $('#trackHint');
+  if (th) th.addEventListener('click', () => {
+    const box = $('#trackHintBox');
+    const show = box ? box.classList.contains('hidden') : true;   // reveal if currently hidden
+    if (box) box.classList.toggle('hidden', !show);
+    document.querySelectorAll('.si-cell[data-si]').forEach((cell) => cell.classList.toggle('hl', show));
+    if (show && box) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
   $('#restart').addEventListener('click', () => {
     $('#ackChk').checked = false; $('#toTarget').disabled = true;
-    state.recUploaded = false; state.recFile = null;
+    state.recUploaded = false; state.recFile = null; state.recFileObj = null;
+    AN.ran = false; AN.highlight = false; AN.psd = null; AN.spec = null; AN.m = null;
+    ['pFc', 'pMod', 'pBw'].forEach((id) => { const e = $('#' + id); if (e) { e.value = ''; e.classList.remove('ok', 'err'); } });
+    const hb = $('#anHintBox'); if (hb) { hb.classList.add('hidden'); hb.innerHTML = ''; }
     const ui = $('#ugInfo'); if (ui) { ui.classList.add('hidden'); ui.classList.remove('ug-ok', 'ug-err'); ui.innerHTML = ''; }
     const uf = $('#ugFile'); if (uf) uf.value = '';
-    syncPuzzleGate();
+    syncAnalyzeGate();
     show('mission');
   });
   document.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => show(b.dataset.goto)));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PHASE 2 - full dossier · PHASE 3 - SAT info strip
+// PHASE 2 - full dossier / PHASE 3 - SAT info strip
 // ─────────────────────────────────────────────────────────────────────────────
 const SECT = [['identity', 'IDENTITY'], ['rf', 'RF / DOWNLINK'], ['sdr', 'SDR / RECEIVER'], ['passes', 'PASS / DOPPLER']];
 function renderDossierFull(sat) {
@@ -138,7 +153,7 @@ function renderSatInfoStrip(sat) {
   const root = $('#satInfoStrip'); if (!root) return; root.innerHTML = '';
   const cells = [
     ['NORAD ID', sat.identity?.['NORAD Catalog ID']],
-    ['Downlink', sat.rf?.['Downlink freq']],
+    ['Center freq', sat.rf?.['Downlink freq']],
     ['Modulation', sat.rf?.['Modulation']],
     ['Symbol rate', sat.rf?.['Symbol rate']],
     ['Sample rate', sat.sdr?.['Sample rate']],
@@ -146,7 +161,7 @@ function renderSatInfoStrip(sat) {
     ['Doppler', sat.passes?.['Doppler shift @433.5 MHz']],
     ['Framing', sat.rf?.['Framing']],
   ];
-  cells.forEach(([k, v]) => { if (!v) return; const c = el('div', 'si-cell'); c.innerHTML = `<div class="k">${k}</div><div class="v">${v}</div>`; root.append(c); });
+  cells.forEach(([k, v]) => { if (!v) return; const c = el('div', 'si-cell'); if (k === 'Center freq') c.dataset.si = 'center'; else if (k === 'Polarization') c.dataset.si = 'pol'; c.innerHTML = `<div class="k">${k}</div><div class="v">${v}</div>`; root.append(c); });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -195,8 +210,8 @@ function wireResetPass() {
       const r = await fetch('/api/reset-pass'); const j = await r.json();
       if (!j.ok) throw new Error(j.error || 'failed');
       stat.className = 'passstat ok';
-      const alt = j.maxAltDeg != null ? `max elevation ${j.maxAltDeg}° · ` : '';
-      const lead = j.leadSec != null ? ` · signal in ${j.leadSec}s` : ' (signal imminent)';
+      const alt = j.maxAltDeg != null ? `max elevation ${j.maxAltDeg}° / ` : '';
+      const lead = j.leadSec != null ? ` / signal in ${j.leadSec}s` : ' (signal imminent)';
       stat.textContent = `${alt}AOS ${j.aosUtc}${lead}`;
       // The libfaketime clock jumps in real time without a restart (no iframe reload). The countdown snaps immediately too.
       if (typeof j.aosUnix === 'number') state.serverAos = { aosMs: j.aosUnix * 1000 };
@@ -284,7 +299,7 @@ function remainTick() {
   if (rr.boundaryMs == null) { val.textContent = '--:--'; val.className = 'remain-val los'; st.textContent = rr.inPass ? 'IN PASS' : 'no pass'; return; }
   const left = rr.boundaryMs - now;
   val.textContent = fmtDur(left);
-  if (rr.inPass) { val.className = 'remain-val' + (left < 60000 ? ' warn' : ''); st.textContent = '● IN PASS · LOS'; }
+  if (rr.inPass) { val.className = 'remain-val' + (left < 60000 ? ' warn' : ''); st.textContent = '● IN PASS / LOS'; }
   else { val.className = 'remain-val los'; st.textContent = '- NEXT AOS'; }
 }
 // faketime offset from gpredict-web control (:6079 → /api/offset). 0 when no Docker.
@@ -315,14 +330,14 @@ function makeGpredictView(container) {
     <div class="gpv">
       <div class="gpv-plot"><canvas class="gpv-canvas"></canvas></div>
       <div class="gpv-side">
-        <div class="gpv-title">GPREDICT · TRACKING</div>
+        <div class="gpv-title">GPREDICT / TRACKING</div>
         <div class="gpv-sat">🛰 ENIGMA-1</div>
         <div class="gpv-badge" data-k="state">- ACQUIRING -</div>
-        <div class="gpv-row"><span>Azimuth</span><b data-k="az">–</b></div>
-        <div class="gpv-row"><span>Elevation</span><b data-k="el">–</b></div>
-        <div class="gpv-row"><span>Range</span><b data-k="rng">–</b></div>
-        <div class="gpv-row"><span>Doppler</span><b data-k="dop">–</b></div>
-        <div class="gpv-row"><span>RX freq</span><b data-k="rx">–</b></div>
+        <div class="gpv-row"><span>Azimuth</span><b data-k="az">-</b></div>
+        <div class="gpv-row"><span>Elevation</span><b data-k="el">-</b></div>
+        <div class="gpv-row"><span>Range</span><b data-k="rng">-</b></div>
+        <div class="gpv-row"><span>Doppler</span><b data-k="dop">-</b></div>
+        <div class="gpv-row"><span>RX freq</span><b data-k="rx">-</b></div>
         <div class="gpv-note">⚠ polar preview (real GPredict not connected)<br>real: run <code>gpredict-web/run.sh</code> → set <code>GPREDICT_URL</code></div>
       </div>
     </div>`;
@@ -362,7 +377,7 @@ function makeGpredictView(container) {
       setv('az', `${az.toFixed(1)}°`); setv('el', `${elv.toFixed(1)}°`); setv('rng', `${rng.toFixed(0)} km`);
       setv('dop', `${dop >= 0 ? '+' : ''}${dop.toFixed(2)} kHz`); setv('rx', `${(433.5 + dop / 1000).toFixed(4)} MHz`);
     } else {
-      setv('state', '- LOS · WAITING -'); container.querySelector('.gpv-badge').className = 'gpv-badge';
+      setv('state', '- LOS / WAITING -'); container.querySelector('.gpv-badge').className = 'gpv-badge';
       setv('az', '-'); setv('el', 'below horizon'); setv('rng', '-'); setv('dop', '-'); setv('rx', '433.5000 MHz');
     }
     requestAnimationFrame(frame);
@@ -371,12 +386,12 @@ function makeGpredictView(container) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PHASE 4 - flowgraph puzzle (blocks/slots/wires match enigma1_decoder.grc)
+// PHASE 5 - flowgraph puzzle (blocks/slots/wires match enigma1_decoder.grc)
 // ─────────────────────────────────────────────────────────────────────────────
 const BLOCKS = {
   file_source: { cat: 'src',  phase: 'SOURCE',   title: 'File Source',                sub: 'enigma34_downlink.cf32' },
   throttle:    { cat: 'flow', phase: 'FLOW',     title: 'Throttle',                   sub: 'Sample Rate: 96k' },
-  fir:         { cat: 'dsp',  phase: 'FILTER',   title: 'Freq Xlating FIR Filter',    sub: 'Decim 1 · low_pass' },
+  fir:         { cat: 'dsp',  phase: 'FILTER',   title: 'Freq Xlating FIR Filter',    sub: 'Decim 1 / low_pass' },
   fsk:         { cat: 'dsp',  phase: 'DEMOD',    title: 'FSK Demodulator',            sub: '9.6k baud' },
   waterfall:   { cat: 'sink', phase: 'SINK',     title: 'QT GUI Waterfall Sink',      sub: '433.5 MHz', disabled: true },
   deframer:    { cat: 'dsp',  phase: 'DEFRAME',  title: 'AX.25 Deframer',             sub: 'G3RUH: True' },
@@ -404,7 +419,7 @@ function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = (i * 26
 function blockCardHTML(id) {
   const b = BLOCKS[id];
   return `<div class="blockcard cat-${b.cat}${b.disabled ? ' disabled' : ''}">
-    <div class="bp">${b.phase}${b.disabled ? ' · disabled' : ''}</div>
+    <div class="bp">${b.phase}${b.disabled ? ' / disabled' : ''}</div>
     <div class="bt">${b.title}</div><div class="bs">${b.sub}</div></div>`;
 }
 function initPuzzle() {
@@ -438,7 +453,7 @@ function renderTray() {
   puzzle.tray.forEach((id) => {
     const b = BLOCKS[id];
     const chip = el('div', `traychip cat-${b.cat}${puzzle.selected === id ? ' selected' : ''}`);
-    chip.innerHTML = `<div class="bp">${b.phase}${b.disabled ? ' · disabled' : ''}</div><div class="bt">${b.title}</div><div class="bs">${b.sub}</div>`;
+    chip.innerHTML = `<div class="bp">${b.phase}${b.disabled ? ' / disabled' : ''}</div><div class="bt">${b.title}</div><div class="bs">${b.sub}</div>`;
     chip.addEventListener('click', () => { puzzle.selected = puzzle.selected === id ? null : id; renderTray(); renderSlots(); });
     tray.append(chip);
   });
@@ -494,8 +509,8 @@ function wirePuzzle() {
     const order = ['file_source', 'throttle', 'fir', 'fsk', 'deframer', 'reassembler'];
     const chain = order.map((id) => BLOCKS[id].title).join(' → ');
     hb.innerHTML = `<b>Signal chain order</b><br>${chain}<br>
-      <span style="color:var(--dim)">· File Source is bottom-left, Reassembler/Message Debug are top/bottom-right.
-      · Waterfall Sink branches off FIR (optional). Select a block in the tray to briefly highlight its correct slot.</span>`;
+      <span style="color:var(--dim)">/ File Source is bottom-left, Reassembler/Message Debug are top/bottom-right.
+      / Waterfall Sink branches off FIR (optional). Select a block in the tray to briefly highlight its correct slot.</span>`;
     hb.classList.remove('hidden');
     if (puzzle.selected) {
       const s = $(`.slot[data-slot="${puzzle.selected}"]`);
@@ -511,7 +526,7 @@ function wirePuzzle() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PHASE 4 - STEP 0 recording upload gate (reveals the puzzle once upload completes)
+// PHASE 4 - STEP 0 recording upload gate (reveals the analysis once upload completes)
 // ─────────────────────────────────────────────────────────────────────────────
 function fmtBytes(n) {
   if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
@@ -525,7 +540,7 @@ function ugError(msg) {
   info.classList.remove('hidden', 'ug-ok'); info.classList.add('ug-err');
   info.innerHTML = '⚠ ' + msg;
 }
-// After validating .cf32 (complex float32 IQ), send it to the server so PHASE 5's real GNU Radio uses it as the File Source.
+// After validating .cf32 (complex float32 IQ), send it to the server so PHASE 6's real GNU Radio uses it as the File Source.
 async function handleRecFile(file) {
   const info = $('#ugInfo'); if (!info) return;
   info.classList.remove('hidden', 'ug-err', 'ug-ok');
@@ -544,22 +559,22 @@ async function handleRecFile(file) {
   } catch (e) { ok = false; }
   if (!ok) return ugError('Cannot be read as IQ data. Check that it is a .cf32 (complex float32) file recorded in the VSA.');
   const samples = size / 8, durAt50k = samples / 50000;
-  state.recUploaded = true; state.recFile = { name, size, samples };
-  BLOCKS.file_source.sub = name.length > 26 ? name.slice(0, 25) + '…' : name;   // puzzle's first block + PHASE 5 File Source label
+  state.recUploaded = true; state.recFile = { name, size, samples }; state.recFileObj = file;   // keep the File for in-browser analysis
+  BLOCKS.file_source.sub = name.length > 26 ? name.slice(0, 25) + '…' : name;   // puzzle's first block + PHASE 6 File Source label
   info.classList.remove('ug-err'); info.classList.add('ug-ok');
   info.innerHTML =
     `✅ <b>${escHtml(name)}</b> uploaded` +
-    `<br>size ${fmtBytes(size)} · ${samples.toLocaleString()} IQ samples (complex float32)` +
-    (okExt ? '' : ' · <span class="ug-warn">non-standard extension</span>') +
-    `<br><span class="ug-sub">≈ ${durAt50k.toFixed(1)}s @ 50 kSps · activating the demod flowgraph puzzle…</span>` +
-    `<br><span id="ugServerLine" class="ug-sub">⏳ uploading to the server for PHASE 5 GNU Radio…</span>`;
-  uploadToServer(file, name, 50000).then((r) => {          // stage the File Source for PHASE 5's real GNU Radio
+    `<br>size ${fmtBytes(size)} / ${samples.toLocaleString()} IQ samples (complex float32)` +
+    (okExt ? '' : ' / <span class="ug-warn">non-standard extension</span>') +
+    `<br><span class="ug-sub">≈ ${durAt50k.toFixed(1)}s @ 50 kSps / opening the spectrum + waterfall analysis…</span>` +
+    `<br><span id="ugServerLine" class="ug-sub">⏳ uploading to the server for PHASE 6 GNU Radio…</span>`;
+  uploadToServer(file, name, 50000).then((r) => {          // stage the File Source for PHASE 6's real GNU Radio
     const el = $('#ugServerLine'); if (!el) return;
     el.textContent = (r && r.ok)
-      ? '⬆ registered on the server: used as the File Source in PHASE 5 real GNU Radio'
-      : '⚠ server upload failed: the puzzle continues but the PHASE 5 file source is not updated';
+      ? '⬆ registered on the server: used as the File Source in PHASE 6 real GNU Radio'
+      : '⚠ server upload failed: analysis continues but the PHASE 6 file source is not updated';
   });
-  setTimeout(revealPuzzleBody, 900);                   // show the result briefly, then reveal the puzzle
+  setTimeout(revealAnalyzeBody, 900);                  // show the summary briefly, then open the analysis
 }
 async function uploadToServer(file, name, sampleRate) {
   try {
@@ -568,19 +583,335 @@ async function uploadToServer(file, name, sampleRate) {
     return await r.json();
   } catch (e) { return { ok: false, error: String(e) }; }
 }
-function revealPuzzleBody() {
-  const up = $('#puzzleUpload'), body = $('#puzzleBody');
-  if (up) up.classList.add('hidden');
+function revealAnalyzeBody() {
+  const gate = $('#captureGate'), body = $('#analyzeBody');
+  if (gate) gate.classList.add('hidden');
   if (body) body.classList.remove('hidden');
-  // Once revealed and the layout settles, redraw the puzzle (first block fixed + uploaded filename applied).
-  requestAnimationFrame(() => { initPuzzle(); startSignalFlow(); });
+  const btn = $('#toPuzzle'); if (btn) { btn.disabled = false; btn.textContent = 'Build the demod flowgraph →'; }
+  requestAnimationFrame(runAnalysis);   // spectrum + waterfall on the uploaded IQ
 }
-function syncPuzzleGate() {
-  const up = $('#puzzleUpload'), body = $('#puzzleBody');
-  if (!up || !body) return;
-  up.classList.toggle('hidden', state.recUploaded);
+function syncAnalyzeGate() {
+  const gate = $('#captureGate'), body = $('#analyzeBody');
+  if (!gate || !body) return;
+  gate.classList.toggle('hidden', state.recUploaded);
   body.classList.toggle('hidden', !state.recUploaded);
+  const btn = $('#toPuzzle');
+  if (btn) { btn.disabled = !state.recUploaded; btn.textContent = (state.recUploaded ? '' : '🔒 ') + 'Build the demod flowgraph →'; }
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 4 - signal analysis: spectrum (PSD) + waterfall (spectrogram) on the uploaded IQ.
+// Pure client-side: read a leading slice of the .cf32 (complex float32 interleaved I,Q),
+// run a small radix-2 FFT, render on canvases. Fs comes from the upload metadata.
+// ─────────────────────────────────────────────────────────────────────────────
+const AN = { fs: 50000, ran: false, highlight: false, psd: null, spec: null, m: null, fcMHz: 433.5, devK: 2.4 };
+// The 3 signal parameters the visitor reads off the plots (all answerable from the image).
+const CORRECT = {
+  pFc: { type: 'num', v: 433.5, tol: 0.05 },   // carrier peak on the absolute MHz axis
+  pMod: { type: 'text', re: /^g?fsk$/i },       // two separate tones -> FSK / GFSK
+  pBw: { type: 'num', v: null, tol: 3 },        // v is set from the measured bandwidth at analysis time
+};
+
+// In-place iterative radix-2 FFT (Cooley-Tukey). re/im length must be a power of two.
+function fftRadix2(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) { const tr = re[i]; re[i] = re[j]; re[j] = tr; const ti = im[i]; im[i] = im[j]; im[j] = ti; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < (len >> 1); k++) {
+        const a = i + k, b = a + (len >> 1);
+        const xr = re[b] * cr - im[b] * ci, xi = re[b] * ci + im[b] * cr;
+        re[b] = re[a] - xr; im[b] = im[a] - xi;
+        re[a] += xr; im[a] += xi;
+        const ncr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = ncr;
+      }
+    }
+  }
+}
+function hann(N) { const w = new Float32Array(N); for (let k = 0; k < N; k++) w[k] = 0.5 - 0.5 * Math.cos(2 * Math.PI * k / (N - 1)); return w; }
+function fftShift(idx, N) { return (idx + (N >> 1)) % N; }   // output index -> source bin, so DC sits at center
+
+// Read up to ~8 MB of the uploaded IQ. Prefer the in-memory File; fall back to the server
+// (Range request) after a page reload where the File object is gone.
+async function readIQBytes() {
+  const MAXB = 8 * 1024 * 1024;
+  if (state.recFileObj) {
+    const n = Math.min(state.recFileObj.size, MAXB) & ~7;   // whole complex samples (8 bytes each)
+    const buf = await state.recFileObj.slice(0, n).arrayBuffer();
+    return new Float32Array(buf);
+  }
+  try {
+    const r = await fetch('/api/uploaded-iq', { headers: { Range: 'bytes=0-' + (MAXB - 1) }, cache: 'no-store' });
+    if (!r.ok && r.status !== 206) return null;
+    const buf = await r.arrayBuffer();
+    return new Float32Array(buf.slice(0, buf.byteLength & ~7));
+  } catch (e) { return null; }
+}
+// Averaged periodogram (non-overlapping Hann windows), fftshifted, in dB.
+function computePSD(iq, N) {
+  const win = hann(N), re = new Float32Array(N), im = new Float32Array(N), acc = new Float64Array(N);
+  const total = iq.length >> 1, hops = Math.max(1, Math.min(64, Math.floor(total / N)));
+  for (let h = 0; h < hops; h++) {
+    const base = h * N * 2;
+    for (let k = 0; k < N; k++) { const w = win[k]; re[k] = (iq[base + 2 * k] || 0) * w; im[k] = (iq[base + 2 * k + 1] || 0) * w; }
+    fftRadix2(re, im);
+    for (let k = 0; k < N; k++) acc[k] += re[k] * re[k] + im[k] * im[k];
+  }
+  const out = new Float32Array(N);
+  for (let k = 0; k < N; k++) out[k] = 10 * Math.log10(acc[fftShift(k, N)] / hops + 1e-12);
+  return out;
+}
+// Spectrogram: successive Hann-windowed FFT rows spread across the read window.
+function computeSpectrogram(iq, N, rows) {
+  const win = hann(N), re = new Float32Array(N), im = new Float32Array(N);
+  const total = iq.length >> 1, hop = Math.max(1, Math.floor((total - N) / rows)), spec = [];
+  for (let r = 0; r < rows; r++) {
+    const base = r * hop * 2;
+    for (let k = 0; k < N; k++) { const w = win[k]; re[k] = (iq[base + 2 * k] || 0) * w; im[k] = (iq[base + 2 * k + 1] || 0) * w; }
+    fftRadix2(re, im);
+    const row = new Float32Array(N);
+    for (let k = 0; k < N; k++) { const s = fftShift(k, N); row[k] = 10 * Math.log10(re[s] * re[s] + im[s] * im[s] + 1e-12); }
+    spec.push(row);
+  }
+  return spec;
+}
+function measurePSD(psd, fs) {
+  const N = psd.length, binHz = fs / N;
+  let peak = -Infinity, peakIdx = N >> 1;
+  for (let k = 0; k < N; k++) { if (Math.abs(k - (N >> 1)) < 2) continue; if (psd[k] > peak) { peak = psd[k]; peakIdx = k; } }
+  const noise = Float32Array.from(psd).sort()[N >> 1];   // median as the noise floor
+  const thr = noise + (peak - noise) * 0.30;             // occupied-band edge threshold
+  let lo = peakIdx, hi = peakIdx;
+  while (lo > 0 && psd[lo] > thr) lo--;
+  while (hi < N - 1 && psd[hi] > thr) hi++;
+  return { centerHz: (peakIdx - (N >> 1)) * binHz, bwHz: (hi - lo) * binHz, peakDb: peak, noiseDb: noise, loIdx: lo, hiIdx: hi, peakIdx };
+}
+function setupCanvas(cv, hFallback) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth || 600, h = cv.clientHeight || hFallback;
+  if (cv.width !== w * dpr || cv.height !== h * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w, h };
+}
+// Draw a label with a dark backing box so text never blends into the plot or other labels.
+function anTextBg(ctx, txt, x, y, color, font, align) {
+  ctx.font = font; ctx.textAlign = align || 'center'; ctx.textBaseline = 'alphabetic';
+  const wpx = ctx.measureText(txt).width, p = 5;
+  let bx = x - wpx / 2 - p;
+  if (align === 'left') bx = x - p; else if (align === 'right') bx = x - wpx - p;
+  ctx.fillStyle = 'rgba(7,13,21,.72)'; ctx.fillRect(bx, y - 13, wpx + p * 2, 18);
+  ctx.fillStyle = color; ctx.fillText(txt, x, y);
+}
+function drawSpectrum(cv, psd, fs, m) {
+  if (!cv) return;
+  const hi = AN.highlight;
+  const { ctx, w, h } = setupCanvas(cv, 300);
+  ctx.clearRect(0, 0, w, h); ctx.fillStyle = '#070d15'; ctx.fillRect(0, 0, w, h);
+  const N = psd.length, padL = 12, padR = 12, padTop = 42, padBot = 34;
+  let mn = Infinity, mx = -Infinity;
+  for (let k = 0; k < N; k++) { if (psd[k] < mn) mn = psd[k]; if (psd[k] > mx) mx = psd[k]; }
+  const range = Math.max(1, mx - mn);
+  const X = (k) => padL + (k / (N - 1)) * (w - padL - padR);
+  const Y = (db) => (h - padBot) - ((db - mn) / range) * (h - padBot - padTop);
+  const fcMHz = AN.fcMHz || 433.5, devK = AN.devK || 0, half = fs / 2e6, axisY = h - padBot, TICKS = 5;
+  ctx.textBaseline = 'alphabetic';
+  // ── reference gridlines (center stronger) + frequency scale: ticks + MHz labels (always shown) ──
+  for (let i = 0; i < TICKS; i++) {
+    const gx = padL + (w - padL - padR) * i / (TICKS - 1), mid = i === (TICKS - 1) / 2;
+    ctx.strokeStyle = mid ? 'rgba(255,176,32,.5)' : '#1b2836'; ctx.lineWidth = 1; ctx.setLineDash(mid ? [4, 4] : []);
+    ctx.beginPath(); ctx.moveTo(gx, padTop); ctx.lineTo(gx, axisY); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = '#2a3a4d'; ctx.beginPath(); ctx.moveTo(gx, axisY); ctx.lineTo(gx, axisY + 5); ctx.stroke();
+    const mhz = fcMHz - half + 2 * half * i / (TICKS - 1);
+    anTextBg(ctx, mhz.toFixed(3), Math.min(w - 26, Math.max(26, gx)), axisY + 18, '#8194a8', '12px ui-monospace,monospace');
+  }
+  anTextBg(ctx, 'MHz', w - padR, axisY + 18, '#5b6b7d', '11px ui-monospace,monospace', 'right');
+  ctx.strokeStyle = '#2a3a4d'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(padL, axisY); ctx.lineTo(w - padR, axisY); ctx.stroke();
+  // PSD fill + trace
+  ctx.beginPath(); ctx.moveTo(X(0), axisY);
+  for (let k = 0; k < N; k++) ctx.lineTo(X(k), Y(psd[k]));
+  ctx.lineTo(X(N - 1), axisY); ctx.closePath();
+  const grd = ctx.createLinearGradient(0, 0, 0, h); grd.addColorStop(0, 'rgba(57,197,255,.35)'); grd.addColorStop(1, 'rgba(57,197,255,.02)');
+  ctx.fillStyle = grd; ctx.fill();
+  ctx.strokeStyle = '#39c5ff'; ctx.lineWidth = 1.6; ctx.beginPath();
+  for (let k = 0; k < N; k++) { const x = X(k), y = Y(psd[k]); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke();
+  // ── reference lines: ALWAYS shown (neutral) so an expert reads the values off the MHz scale without the hint ──
+  const px = X(m.peakIdx), py = Y(psd[m.peakIdx]), bwK = m.bwHz / 1000, bx0 = X(m.loIdx), bx1 = X(m.hiIdx);
+  ctx.strokeStyle = hi ? 'rgba(92,242,154,.95)' : 'rgba(120,150,180,.6)'; ctx.lineWidth = hi ? 1.8 : 1.2; ctx.setLineDash([5, 4]);
+  [bx0, bx1].forEach((x) => { ctx.beginPath(); ctx.moveTo(x, padTop); ctx.lineTo(x, axisY); ctx.stroke(); });   // band edges -> bandwidth
+  ctx.setLineDash([]);
+  // edge-frequency readout on the scale (so the bandwidth is readable off the axis even without the hint)
+  const loF = fcMHz + (m.loIdx - (N >> 1)) * (fs / N) / 1e6, hiF = fcMHz + (m.hiIdx - (N >> 1)) * (fs / N) / 1e6, ec = hi ? '#8affc0' : '#a7d8bd';
+  ctx.strokeStyle = ec; ctx.lineWidth = 1.8;
+  [bx0, bx1].forEach((x) => { ctx.beginPath(); ctx.moveTo(x, axisY); ctx.lineTo(x, axisY + 7); ctx.stroke(); });
+  anTextBg(ctx, loF.toFixed(3), Math.max(26, Math.min(w - 26, bx0)), axisY - 7, ec, 'bold 12px ui-monospace,monospace');
+  anTextBg(ctx, hiF.toFixed(3), Math.max(26, Math.min(w - 26, bx1)), axisY - 7, ec, 'bold 12px ui-monospace,monospace');
+  if (devK > 0) {
+    const devBins = (devK * 1000) / (fs / N), lx = X(m.peakIdx - devBins), rx = X(m.peakIdx + devBins);
+    ctx.strokeStyle = hi ? 'rgba(160,148,255,1)' : 'rgba(150,140,210,.5)'; ctx.lineWidth = hi ? 2.2 : 1.1; ctx.setLineDash([3, 3]);
+    [lx, rx].forEach((x) => { if (x > padL && x < w - padR) { ctx.beginPath(); ctx.moveTo(x, padTop); ctx.lineTo(x, axisY); ctx.stroke(); } });   // two tones -> modulation
+    ctx.setLineDash([]);
+  }
+  // ── labels, arrow span, emphasis: ONLY when Hint is pressed ──
+  if (hi) {
+    const byL = 34;
+    ctx.fillStyle = 'rgba(51,209,122,.12)'; ctx.fillRect(bx0, padTop, Math.max(1, bx1 - bx0), axisY - padTop);
+    ctx.strokeStyle = '#5cf29a'; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.moveTo(bx0, byL); ctx.lineTo(bx1, byL); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx0 + 6, byL - 4); ctx.lineTo(bx0, byL); ctx.lineTo(bx0 + 6, byL + 4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx1 - 6, byL - 4); ctx.lineTo(bx1, byL); ctx.lineTo(bx1 - 6, byL + 4); ctx.stroke();
+    anTextBg(ctx, 'bandwidth ~' + bwK.toFixed(0) + ' kHz', (bx0 + bx1) / 2, 20, '#8affc0', 'bold 15px ui-monospace,monospace');
+    ctx.fillStyle = '#33d17a'; ctx.beginPath(); ctx.arc(px, py, 5.5, 0, 6.3); ctx.fill();
+    ctx.strokeStyle = '#33d17a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(px, py, 10, 0, 6.3); ctx.stroke();
+    anTextBg(ctx, 'carrier ~' + fcMHz.toFixed(3) + ' MHz', px, Math.max(py - 12, padTop + 16), '#eaf2fb', 'bold 14px ui-monospace,monospace');
+    if (devK > 0) anTextBg(ctx, '2 tones = FSK', px, (padTop + axisY) / 2, '#c9c2ff', 'bold 14px ui-monospace,monospace');
+  }
+}
+function anColor(t) {   // dark navy -> cyan -> white intensity ramp (matches the UI accent)
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  if (t < 0.5) { const u = t * 2; return [0, Math.round(u * 190), Math.round(50 + u * 190)]; }
+  const u = (t - 0.5) * 2; return [Math.round(u * 255), Math.round(190 + u * 65), 240];
+}
+function drawWaterfall(cv, spec, m, fs) {
+  if (!cv || !spec.length) return;
+  const hi = AN.highlight;
+  const { ctx, w, h } = setupCanvas(cv, 320);
+  const rows = spec.length, N = spec[0].length;
+  let mn = Infinity, mx = -Infinity;
+  for (let r = 0; r < rows; r++) { const row = spec[r]; for (let k = 0; k < N; k++) { const v = row[k]; if (v < mn) mn = v; if (v > mx) mx = v; } }
+  const range = Math.max(1, mx - mn), iw = Math.min(N, 512);
+  const img = ctx.createImageData(iw, rows);
+  for (let r = 0; r < rows; r++) {
+    const row = spec[r];
+    for (let x = 0; x < iw; x++) {
+      const k = (x * N / iw) | 0, c = anColor((row[k] - mn) / range), o = (r * iw + x) * 4;
+      img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
+    }
+  }
+  const tmp = document.createElement('canvas'); tmp.width = iw; tmp.height = rows;
+  tmp.getContext('2d').putImageData(img, 0, 0);
+  const padBot = 34, imgH = h - padBot;
+  ctx.clearRect(0, 0, w, h); ctx.fillStyle = '#070d15'; ctx.fillRect(0, 0, w, h);
+  ctx.imageSmoothingEnabled = true; ctx.drawImage(tmp, 0, 0, w, imgH);
+  const fcMHz = AN.fcMHz || 433.5, devK = AN.devK || 0, half = fs / 2e6, axisY = imgH, TICKS = 5, toX = (b) => (b / N) * w;
+  ctx.textBaseline = 'alphabetic';
+  // ── reference gridlines over the image + frequency scale (ticks + MHz) below (always shown) ──
+  for (let i = 0; i < TICKS; i++) {
+    const gx = (w - 1) * i / (TICKS - 1), mid = i === (TICKS - 1) / 2;
+    ctx.strokeStyle = mid ? 'rgba(255,176,32,.5)' : 'rgba(150,170,200,.22)'; ctx.lineWidth = 1; ctx.setLineDash(mid ? [4, 4] : []);
+    ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, axisY); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = '#2a3a4d'; ctx.beginPath(); ctx.moveTo(gx, axisY); ctx.lineTo(gx, axisY + 5); ctx.stroke();
+    const mhz = fcMHz - half + 2 * half * i / (TICKS - 1);
+    anTextBg(ctx, mhz.toFixed(3), Math.min(w - 26, Math.max(26, gx)), axisY + 18, '#8194a8', '12px ui-monospace,monospace');
+  }
+  anTextBg(ctx, 'MHz', w - 4, axisY + 18, '#5b6b7d', '11px ui-monospace,monospace', 'right');
+  anTextBg(ctx, 'time (top to bottom)', 12, 18, '#a9bacd', '13px ui-monospace,monospace', 'left');
+  // ── reference lines: ALWAYS shown (neutral) so an expert reads the values off the MHz scale without the hint ──
+  if (m) {
+    const bx0 = toX(m.loIdx), bx1 = toX(m.hiIdx);
+    ctx.strokeStyle = hi ? 'rgba(92,242,154,.95)' : 'rgba(150,180,210,.55)'; ctx.lineWidth = hi ? 1.8 : 1.2; ctx.setLineDash([5, 4]);
+    [bx0, bx1].forEach((x) => { ctx.beginPath(); ctx.moveTo(x, 40); ctx.lineTo(x, axisY); ctx.stroke(); });   // band edges -> bandwidth
+    ctx.setLineDash([]);
+    // edge-frequency readout on the scale (bandwidth readable off the axis even without the hint)
+    const loF = fcMHz + (m.loIdx - (N >> 1)) * (fs / N) / 1e6, hiF = fcMHz + (m.hiIdx - (N >> 1)) * (fs / N) / 1e6, ec = hi ? '#8affc0' : '#a7d8bd';
+    ctx.strokeStyle = ec; ctx.lineWidth = 1.8;
+    [bx0, bx1].forEach((x) => { ctx.beginPath(); ctx.moveTo(x, axisY); ctx.lineTo(x, axisY + 7); ctx.stroke(); });
+    anTextBg(ctx, loF.toFixed(3), Math.max(26, Math.min(w - 26, bx0)), axisY - 7, ec, 'bold 12px ui-monospace,monospace');
+    anTextBg(ctx, hiF.toFixed(3), Math.max(26, Math.min(w - 26, bx1)), axisY - 7, ec, 'bold 12px ui-monospace,monospace');
+    if (devK > 0) {
+      const devBins = (devK * 1000) / (fs / N), lx = toX(m.peakIdx - devBins), rx = toX(m.peakIdx + devBins);
+      ctx.strokeStyle = hi ? 'rgba(160,148,255,1)' : 'rgba(170,160,220,.5)'; ctx.lineWidth = hi ? 2.2 : 1.1; ctx.setLineDash([4, 3]);
+      [lx, rx].forEach((x) => { if (x > 0 && x < w) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, axisY); ctx.stroke(); } });   // two tones -> modulation
+      ctx.setLineDash([]);
+    }
+  }
+  // ── labels, arrow span, emphasis: ONLY when Hint is pressed ──
+  if (hi && m) {
+    const cxp = toX(m.peakIdx), bx0 = toX(m.loIdx), bx1 = toX(m.hiIdx);
+    ctx.strokeStyle = '#5cf29a'; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.moveTo(bx0, 40); ctx.lineTo(bx1, 40); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx0 + 6, 36); ctx.lineTo(bx0, 40); ctx.lineTo(bx0 + 6, 44); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx1 - 6, 36); ctx.lineTo(bx1, 40); ctx.lineTo(bx1 - 6, 44); ctx.stroke();
+    anTextBg(ctx, 'bandwidth ~' + (m.bwHz / 1000).toFixed(0) + ' kHz', (bx0 + bx1) / 2, 32, '#8affc0', 'bold 14px ui-monospace,monospace');
+    if (devK > 0) anTextBg(ctx, 'two frequencies = FSK', cxp, axisY - 8, '#c9c2ff', 'bold 14px ui-monospace,monospace');
+    anTextBg(ctx, 'carrier ~' + fcMHz.toFixed(3) + ' MHz', cxp, imgH * 0.5, '#eaf2fb', 'bold 13px ui-monospace,monospace');
+  }
+}
+function mountAnalyze() {
+  syncAnalyzeGate();
+  if (state.recUploaded && !AN.ran) runAnalysis();
+}
+async function runAnalysis() {
+  const meas = $('#anMeas');
+  if (meas) meas.textContent = 'analyzing…';
+  try { const u = await (await fetch('/api/upload')).json(); if (u && u.sampleRate) AN.fs = u.sampleRate; } catch (e) {}
+  const N = 1024;
+  const iq = await readIQBytes();
+  if (!iq || iq.length < N * 2) { if (meas) meas.textContent = 'no IQ to analyze (re-upload the .cf32)'; return; }
+  AN.psd = computePSD(iq, N);
+  AN.spec = computeSpectrogram(iq, N, 180);
+  AN.m = measurePSD(AN.psd, AN.fs);
+  const ex = getExpected();
+  AN.fcMHz = ex.fcMHz; AN.devK = ex.devK;          // absolute center frequency + tone spacing for the plot labels
+  CORRECT.pBw.v = Math.round(AN.m.bwHz / 1000);     // bandwidth answer = the width the plot actually shows
+  redrawAnalysis();
+  if (meas) meas.textContent = 'read off the MHz scale + reference lines: peak, band edges, two tones (Hint labels them)';
+  AN.ran = true;
+}
+function redrawAnalysis() {
+  if (!AN.psd) return;
+  drawSpectrum($('#anSpectrum'), AN.psd, AN.fs, AN.m);
+  drawWaterfall($('#anWaterfall'), AN.spec, AN.m, AN.fs);
+}
+// Expected ENIGMA-1 parameters, pulled from the satellite dossier (with fallbacks).
+function getExpected() {
+  const rf = (state.sat && state.sat.rf) || {};
+  const num = (s, re, d) => { const mm = String(s == null ? '' : s).match(re); return mm ? parseFloat(mm[1]) : d; };
+  return {
+    fsK: (AN.fs / 1000) || 96,
+    fcMHz: num(rf['Downlink freq'], /([\d.]+)/, 433.5),
+    baud: num(rf['Symbol rate'], /([\d.]+)/, 9600),
+    devK: num(rf['Deviation'], /([\d.]+)\s*kHz/, 2.4),
+    mod: (String(rf['Modulation'] || 'GFSK').split(/[ ,]/)[0]) || 'GFSK',
+  };
+}
+function validateOne(id) {
+  const e = $('#' + id); if (!e) return;
+  e.classList.remove('ok', 'err');
+  const t = e.value.trim(); if (t === '') return;
+  const c = CORRECT[id]; if (!c) return;
+  let ok = false;
+  if (c.type === 'text') ok = c.re.test(t);
+  else { const v = parseFloat(t); ok = (c.v != null) && Number.isFinite(v) && Math.abs(v - c.v) <= c.tol; }
+  e.classList.add(ok ? 'ok' : 'err');
+}
+function validateAllParams() { ['pFc', 'pMod', 'pBw'].forEach(validateOne); }
+// Hint: highlight the plots and explain HOW to read each value. It does NOT fill the answer boxes.
+function showAnalyzeHint() {
+  const hb = $('#anHintBox');
+  if (hb) {
+    hb.classList.remove('hidden');
+    hb.innerHTML = `<b>How to read each value off the plots</b>` +
+      `<br>- <b>Center frequency</b>: where the green carrier peak sits on the spectrum's MHz axis.` +
+      `<br>- <b>Bandwidth</b>: the width of the green shaded band, measured against the same axis.` +
+      `<br>- <b>Modulation</b>: the signal is two separate frequencies (the purple tones) = frequency-shift keying, FSK.` +
+      `<br><span style="color:var(--dim)">Type your readings into the 3 boxes: green = correct, red = wrong.</span>`;
+  }
+  AN.highlight = true; redrawAnalysis();   // emphasize + reveal the callouts on the plots; the answer boxes stay for the user
+}
+function wireAnalyzeControls() {
+  const hint = $('#anHint'); if (hint) hint.addEventListener('click', showAnalyzeHint);
+  ['pFc', 'pMod', 'pBw'].forEach((id) => {
+    const e = $('#' + id); if (!e) return;
+    ['input', 'change'].forEach((ev) => e.addEventListener(ev, () => validateOne(id)));   // number inputs fire 'input', the select fires 'change'
+  });
+}
+
 function wireUploadGate() {
   const input = $('#ugFile'), drop = $('#ugDrop');
   if (!input || !drop) return;
@@ -596,13 +927,13 @@ function wireUploadGate() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PHASE 4 - signal-flow preview (each stage's signal comes alive as you place blocks)
+// PHASE 5 - signal-flow preview (each stage's signal comes alive as you place blocks)
 // A stage only activates and animates once the chain up to that point is filled in correctly.
 // ─────────────────────────────────────────────────────────────────────────────
 const SIGFLOW = [
   { key: 'iq',     label: 'RAW IQ',    sub: 'IQ + noise',        need: ['file_source'] },
-  { key: 'filter', label: 'FILTER',    sub: 'narrowband · Doppler', need: ['file_source', 'throttle', 'fir'] },
-  { key: 'demod',  label: 'FSK DEMOD', sub: 'mark · space',      need: ['file_source', 'throttle', 'fir', 'fsk'] },
+  { key: 'filter', label: 'FILTER',    sub: 'narrowband / Doppler', need: ['file_source', 'throttle', 'fir'] },
+  { key: 'demod',  label: 'FSK DEMOD', sub: 'mark / space',      need: ['file_source', 'throttle', 'fir', 'fsk'] },
   { key: 'frame',  label: 'AX.25',     sub: 'frame (HDLC)',      need: ['file_source', 'throttle', 'fir', 'fsk', 'deframer'] },
   { key: 'image',  label: 'IMAGE',     sub: 'reassembly',        need: ['file_source', 'throttle', 'fir', 'fsk', 'deframer', 'reassembler'] },
 ];
@@ -662,7 +993,7 @@ function drawSig(cv, key, active, t) {
         const y = h / 2 + n * (h * 0.30); x ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
       } ctx.stroke(); };
     line('#39c5ff', 0); line('#8a7dff', 1.7);
-  } else if (key === 'filter') {                        // before filter (wideband · noisy · offset) ▸ after (narrowband · aligned · low-noise)
+  } else if (key === 'filter') {                        // before filter (wideband / noisy / offset) ▸ after (narrowband / aligned / low-noise)
     const gap = 16, pad = 5, midX = w / 2, baseY = h - 6, topY = 13;
     const lx0 = pad, lx1 = midX - gap / 2, rx0 = midX + gap / 2, rx1 = w - pad;
     const spectrum = (x0, x1, peakFrac, sigma, peakH, noiseAmp, col) => {
@@ -749,17 +1080,17 @@ function drawSig(cv, key, active, t) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PHASE 5 - GNU Radio (real noVNC embed) or rendered solution
+// PHASE 6 - GNU Radio (real noVNC embed) or rendered solution
 // ─────────────────────────────────────────────────────────────────────────────
 const VARS = [['samp_rate', '96k'], ['baud_rate', '9.6k'], ['deviation', '2.4k'], ['freq_offset', '0']];
 let flowgraphMounted = false;
-// If a file was uploaded in PHASE 4, refresh the PHASE 5 display (samp_rate chip · File Source hint · restart notice).
+// If a file was uploaded in PHASE 4, refresh the PHASE 6 display (samp_rate chip / File Source hint / restart notice).
 function applyUploadedToFlowgraph() {
   fetch('/api/upload').then((r) => r.json()).then((u) => {
     if (!u || !u.exists) return;
     const rateK = (u.sampleRate / 1000);
     const b = $('#varsRow .varchip[data-key="samp_rate"] b'); if (b) b.textContent = rateK + 'k';   // samp_rate chip
-    const hint = $('#gnuFileHint'); if (hint) hint.textContent = `File Source: ${u.name} (uploaded) · samp_rate ${rateK}k → ▶ Run`;
+    const hint = $('#gnuFileHint'); if (hint) hint.textContent = `File Source: ${u.name} (uploaded) / samp_rate ${rateK}k → ▶ Run`;
     const note = $('#gnuUploadNote');
     if (note) {
       note.classList.remove('hidden');
@@ -779,10 +1110,10 @@ function mountFlowgraph() {
   if (state.cfg.gnuradioUrl) {
     const card = el('div', 'fgcard');
     const f = el('iframe', 'gnuframe'); f.title = 'GNU Radio'; f.src = novncEmbedUrl(state.cfg.gnuradioUrl);
-    card.append(el('h3', null, 'GNU RADIO COMPANION · ▶ Run to recover the image'), f);
+    card.append(el('h3', null, 'GNU RADIO COMPANION / ▶ Run to recover the image'), f);
     slot.append(card);
   } else {
-    const card = el('div', 'fgcard'); card.innerHTML = '<h3>ENIGMA-1 DECODER · SOLVED FLOWGRAPH</h3>';
+    const card = el('div', 'fgcard'); card.innerHTML = '<h3>ENIGMA-1 DECODER / SOLVED FLOWGRAPH</h3>';
     const cv = el('div', 'fgcanvas'); cv.innerHTML = `<svg class="wirelayer" viewBox="0 0 1180 440" preserveAspectRatio="none"></svg><div class="slotlayer"></div>`;
     card.append(cv);
     card.append(el('div', 'fgnote', '⚠ static render (real GNU Radio not connected) - real: run <code>gnuradio-web/run.sh</code> → set <code>GNURADIO_URL</code>'));
@@ -811,7 +1142,7 @@ function renderStaticFlowgraph(cv) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PHASE 5 - live image reassembly (▶ run decode → recover the image frame by frame)
+// PHASE 6 - live image reassembly (▶ run decode → recover the image frame by frame)
 // If real GNU Radio output (gnuradio-out/*.png) exists, use it; otherwise demo with the reference image.
 // ─────────────────────────────────────────────────────────────────────────────
 const reasImg = new Image();
@@ -862,16 +1193,16 @@ async function startDecode() {
     }
     drawReassemble();
     const fill = $('#reasFill'); if (fill) fill.style.width = Math.round(reas.frac * 100) + '%';
-    const fr = $('#reasFrame'); if (fr) fr.textContent = reas.real ? `recovered ${Math.round(reas.frac * 100)}% · pass ${(reas.reps || 0) + 1}` : `recovered ${Math.round(reas.frac * 100)}%`;
+    const fr = $('#reasFrame'); if (fr) fr.textContent = reas.real ? `recovered ${Math.round(reas.frac * 100)}% / pass ${(reas.reps || 0) + 1}` : `recovered ${Math.round(reas.frac * 100)}%`;
     const badge = $('#reasBadge');
     const failing = reas.real && !reas.everDone && reas.liveStart && (performance.now() - reas.liveStart > 30000);   // demodulating for over 30s without ever completing = recovery failure (center-frequency offset, etc.)
     if (badge) {
       badge.classList.toggle('reas-fail', failing);
       if (failing) { badge.classList.remove('hidden'); badge.textContent = `⚠ recovery failed: center-frequency offset (after ${(reas.reps || 0) + 1} repeated passes, stuck at max ${Math.round(reas.maxFrac * 100)}%)`; }
-      else if (reas.done) { badge.classList.remove('hidden'); badge.textContent = reas.real ? `✅ recovered · pass ${(reas.reps || 0) + 1} (still receiving)` : '✅ recovered'; }
+      else if (reas.done) { badge.classList.remove('hidden'); badge.textContent = reas.real ? `✅ recovered / pass ${(reas.reps || 0) + 1} (still receiving)` : '✅ recovered'; }
       else badge.classList.add('hidden');
     }
-    // Continuous display: keep polling while on PHASE 5 to refresh live (shows repeated demodulation passes in sequence).
+    // Continuous display: keep polling while on PHASE 6 to refresh live (shows repeated demodulation passes in sequence).
     // Only stops when leaving the phase (the state.phase check at the top). The fallback demo also switches automatically once real data arrives.
   }, 350);
 }
@@ -899,7 +1230,7 @@ function drawReassemble() {
 
 // ── boot ──
 async function boot() {
-  buildStepper(); wireNav(); wirePuzzle(); initPuzzle(); wireUploadGate();
+  buildStepper(); wireNav(); wirePuzzle(); initPuzzle(); wireUploadGate(); wireAnalyzeControls();
   try {
     const [cfg, sat, qth] = await Promise.all([
       fetch('/api/config').then((r) => r.json()),

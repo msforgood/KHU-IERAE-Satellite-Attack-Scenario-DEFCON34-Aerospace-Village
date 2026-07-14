@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ENIGMA-1 · Downlink Decoder</title>
+  <title>ENIGMA-1 / Downlink Decoder</title>
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/vendor/satellite.min.js"></script>
 </head>
@@ -14,10 +14,10 @@
       <span class="sat-ico">📡</span>
       <div>
         <div class="title">GROUND STATION&nbsp;//&nbsp;ENIGMA-1 DOWNLINK DECODER</div>
-        <div class="sub">passive intercept · downlink 433.500 MHz · <span id="clock">--:--:--</span></div>
+        <div class="sub">passive intercept / downlink 433.500 MHz / <span id="clock">--:--:--</span></div>
       </div>
     </div>
-    <div class="linkinfo"><span>SCENARIO 1 · EAVESDROP</span><span class="dot"></span><span>RX ONLY</span></div>
+    <div class="linkinfo"><span>SCENARIO 1 / EAVESDROP</span><span class="dot"></span><span>RX ONLY</span></div>
   </header>
 
   <!-- ═══════════ STEP INDICATOR ═══════════ -->
@@ -27,13 +27,13 @@
   <div id="pipeBanner" class="banner nominal">
     <span class="bl">RX PIPELINE</span>
     <span id="pipeText">MISSION BRIEFING: know the goal</span>
-    <span class="conn"><span id="pipeDot" class="dot"></span><span id="pipeStage">STAGE 1 / 6</span></span>
+    <span class="conn"><span id="pipeDot" class="dot"></span><span id="pipeStage">STAGE 1 / 7</span></span>
   </div>
 
-  <!-- ═══════════ PHASE 1 · MISSION ═══════════ -->
+  <!-- ═══════════ PHASE 1 / MISSION ═══════════ -->
   <section id="p-mission" class="phase">
     <div class="wrap">
-      <div class="phasetag" data-tag="MISSION">PHASE 1 · MISSION</div>
+      <div class="phasetag" data-tag="MISSION">PHASE 1 / MISSION</div>
       <h1 class="ptitle">Know the goal before you receive</h1>
 
       <div class="briefgrid">
@@ -93,7 +93,7 @@
 
       <label class="understand"><input type="checkbox" id="ackChk">
         <span>I understand the goal is <b>reception</b>, carried out in order:
-        <b>antenna tracking · RF sync · demodulation</b>.</span></label>
+        <b>antenna tracking / RF sync / demodulation</b>.</span></label>
       <div class="navrow">
         <span></span>
         <button id="toTarget" class="bigbtn" disabled>Confirm target satellite →</button>
@@ -101,10 +101,10 @@
     </div>
   </section>
 
-  <!-- ═══════════ PHASE 2 · TARGET ═══════════ -->
+  <!-- ═══════════ PHASE 2 / TARGET ═══════════ -->
   <section id="p-target" class="phase hidden">
     <div class="wrap">
-      <div class="phasetag" data-tag="TARGET">PHASE 2 · TARGET</div>
+      <div class="phasetag" data-tag="TARGET">PHASE 2 / TARGET</div>
       <h1 class="ptitle">Target satellite: <span class="accent">ENIGMA-1</span></h1>
       <div class="objbar"><span class="phasetag sm">INTEL</span>
         <span>These specs were confirmed inside the <b>VSA</b>. Later steps tune the receiver to them.</span></div>
@@ -116,22 +116,38 @@
     </div>
   </section>
 
-  <!-- ═══════════ PHASE 3 · TRACK (SAT info + GPredict + VSA) ═══════════ -->
+  <!-- ═══════════ PHASE 3 / TRACK (SAT info + GPredict + VSA) ═══════════ -->
   <section id="p-track" class="phase hidden">
     <div class="wrap wide">
-      <div class="phasetag" data-tag="TRACK &amp; SYNC">PHASE 3 · TRACK &amp; SYNC</div>
-      <h1 class="ptitle">Antenna tracking · RF sync</h1>
+      <div class="phasetag" data-tag="TRACK &amp; SYNC">PHASE 3 / TRACK &amp; SYNC</div>
+      <h1 class="ptitle">Antenna tracking / RF sync</h1>
+      <div class="objbar"><span class="phasetag sm">GOAL</span>
+        <span><b>1.</b> Track ENIGMA-1 and enter the correct RF parameters to receive the downlink signal.<br>
+        <b>2.</b> Record the received signal and save it to a file.</span></div>
 
       <!-- SAT info: full width -->
       <section class="satinfo">
-        <div class="satinfo-head"><span class="etitle">🛰 SAT INFO · ENIGMA-1</span>
-          <span class="ehint">Specs confirmed in the VSA: the tracking / sync target</span></div>
+        <div class="satinfo-head">
+          <div class="sih-left"><span class="etitle">🛰 SAT INFO / ENIGMA-1</span>
+            <span class="ehint">Specs confirmed in the VSA: the tracking / sync target</span></div>
+          <button id="trackHint" class="ghostbtn sm">💡 Hint: how to track &amp; sync</button>
+        </div>
         <div id="satInfoStrip" class="satinfo-strip"></div>
+        <div id="trackHintBox" class="trackhint hidden">
+          <div class="th-title">How to track &amp; sync in the GPredict window (below)</div>
+          <ol class="th-steps">
+            <li>In <b>Antenna Control</b>, press <b>Track</b>, then <b>Engage</b> so the antenna follows the satellite (azimuth / elevation).</li>
+            <li>In <b>Radio Control</b>, press <b>Track</b>, then <b>Engage</b> so the receiver Doppler-corrects the frequency in real time.</li>
+            <li>In <b>Radio Control</b>, set the <b>Downlink</b> center frequency to match ENIGMA-1 (<b>433.500 MHz</b>).</li>
+            <li>In the <b>VSA</b>, select the <b>antenna</b> whose polarization matches the satellite (RHCP).</li>
+            <li>In the <b>VSA</b>, adjust the <b>Sample rate</b> so the signal shows clearly in the waterfall / spectrum.</li>
+          </ol>
+        </div>
       </section>
 
       <!-- Reset + Remaining time (above GPredict) -->
       <div class="trackctl">
-        <button id="resetPass" class="passbtn" title="Reset gpredict time to just before ENIGMA-1 rises over the ground station (AOS · start of reception)">⟳ RESET (to just before signal)</button>
+        <button id="resetPass" class="passbtn" title="Reset gpredict time to just before ENIGMA-1 rises over the ground station (AOS / start of reception)">⟳ RESET (to just before signal)</button>
         <span id="passStatus" class="passstat"></span>
         <div class="remain">
           <span class="remain-label">Time remaining for satellite link</span>
@@ -143,13 +159,13 @@
       <!-- GPredict (left) / VSA (right) -->
       <div class="twopane">
         <div class="embedcard">
-          <div class="embedhead"><span class="etitle">🛰 GPREDICT · Orbit tracking</span>
-            <span class="ehint">Docker + noVNC · ENIGMA-1 only</span></div>
+          <div class="embedhead"><span class="etitle">🛰 GPREDICT / Orbit tracking</span>
+            <span class="ehint">Docker + noVNC / ENIGMA-1 only</span></div>
           <div id="gpredictSlot" class="embedbody"></div>
         </div>
         <div class="embedcard">
-          <div class="embedhead"><span class="etitle">📡 VSA · Antenna / RF</span>
-            <span class="ehint">scenario1 VSA · ENIGMA-1 auto-load</span></div>
+          <div class="embedhead"><span class="etitle">📡 VSA / Antenna / RF</span>
+            <span class="ehint">scenario1 VSA / ENIGMA-1 auto-load</span></div>
           <div class="embedbody">
             <iframe id="vsaFrame" class="embedframe" title="VSA" loading="lazy"></iframe>
           </div>
@@ -158,30 +174,29 @@
 
       <div class="navrow">
         <button class="ghostbtn" data-goto="target">← Target</button>
-        <button id="toPuzzle" class="bigbtn">Assemble the demod flowgraph →</button>
+        <button id="toAnalyze" class="bigbtn">Capture &amp; analyze the signal →</button>
       </div>
     </div>
   </section>
 
-  <!-- ═══════════ PHASE 4 · PUZZLE ═══════════ -->
-  <section id="p-puzzle" class="phase hidden">
+  <!-- ═══════════ PHASE 4 / CAPTURE AND ANALYZE═══════════ -->
+  <section id="p-analyze" class="phase hidden">
     <div class="wrap wide">
-      <div class="phasetag" data-tag="DEMOD PUZZLE">PHASE 4 · DEMOD PUZZLE</div>
-      <h1 class="ptitle">Assemble the demod flowgraph</h1>
-      <div class="objbar"><span class="phasetag sm">ASSEMBLE</span>
-        <span>First upload your own recorded signal (<code>.cf32</code>) to open the puzzle. Then take the
-        scattered blocks of <code>enigma1_decoder.grc</code> from the <b>tray</b> and drop each into the
-        correct <b>slot</b>. <span class="okc">Green</span> means right, <span class="badc">red</span> means
-        wrong. When every block is placed, the wires light up.</span></div>
+      <div class="phasetag" data-tag="CAPTURE &amp; ANALYZE">PHASE 4 / CAPTURE &amp; ANALYZE</div>
+      <h1 class="ptitle">Capture and analyze the downlink</h1>
+      <div class="objbar"><span class="phasetag sm">ANALYZE</span>
+        <span>Upload the <code>.cf32</code> (complex float32 IQ) you recorded in the PHASE 3 VSA. The browser
+        runs a <b>spectrum</b> and a <b>waterfall</b> on it so you can read the carrier, the occupied bandwidth,
+        and the packet bursts before you build the demod chain.</span></div>
 
-      <!-- ── STEP 0 · upload gate (puzzle revealed after upload) ── -->
-      <div id="puzzleUpload" class="uploadgate">
+      <!-- STEP 0 / upload gate (analysis revealed after upload) -->
+      <div id="captureGate" class="uploadgate">
         <div class="ug-panel">
-          <div class="ug-badge">STEP 0 · UPLOAD</div>
+          <div class="ug-badge">STEP 0 / UPLOAD</div>
           <div class="ug-icon">📡⬇</div>
           <div class="ug-title">Upload your recorded downlink signal</div>
           <div class="ug-desc">Upload the <code>.cf32</code> (complex float32 IQ) you received and recorded
-            in the PHASE 3 VSA. When the upload finishes, the <b>demod flowgraph puzzle</b> below activates.</div>
+            in the PHASE 3 VSA. When the upload finishes, the <b>spectrum and waterfall analysis</b> below opens.</div>
           <label id="ugDrop" class="ug-drop" for="ugFile">
             <input id="ugFile" type="file" accept=".cf32,.iq,.raw,.c64,.dat,application/octet-stream" hidden>
             <div class="ug-drop-ico">⬆</div>
@@ -189,12 +204,72 @@
             <div class="ug-drop-sub">e.g. <code>ENIGMA-1_433_508MHz_…&#8203;.cf32</code></div>
           </label>
           <div id="ugInfo" class="ug-info hidden"></div>
-          <div class="ug-note">🔎 Validated in the browser, then sent to the server as the File Source for the real GNU Radio in PHASE 5.</div>
+          <div class="ug-note">🔎 Validated and analyzed in the browser, then sent to the server as the File Source for the real GNU Radio in PHASE 6.</div>
         </div>
       </div>
 
-      <!-- puzzle body: hidden until upload completes -->
-      <div id="puzzleBody" class="hidden">
+      <!-- analysis body: hidden until upload completes -->
+      <div id="analyzeBody" class="hidden">
+        <div class="analyzewrap">
+          <div class="anpanel">
+            <div class="anhead"><span class="etitle">📈 SPECTRUM / power spectral density</span>
+              <span id="anMeas" class="anmeas">measuring…</span></div>
+            <canvas id="anSpectrum" class="an-canvas an-spectrum"></canvas>
+            <div class="an-axis">frequency offset from center (kHz)</div>
+          </div>
+          <div class="anpanel">
+            <div class="anhead"><span class="etitle">🌊 WATERFALL / spectrogram over time</span>
+              <span class="ehint">two FSK tones + packet bursts</span></div>
+            <canvas id="anWaterfall" class="an-canvas an-waterfall"></canvas>
+            <div class="an-axis">time (down) / frequency (across)</div>
+          </div>
+        </div>
+        <div class="anparams">
+          <div class="anparams-head">
+            <span class="etitle">🎛 IDENTIFY THE SIGNAL</span>
+            <span class="ehint">read these 3 values off the plots above. Green = correct, red = wrong. Stuck? press Hint.</span>
+          </div>
+          <div class="anparams-grid">
+            <label class="anfield">Center frequency (MHz)
+              <input id="pFc" class="aninput" type="number" step="0.001" placeholder="peak on the MHz axis"></label>
+            <label class="anfield">Modulation
+              <select id="pMod" class="aninput">
+                <option value="">select…</option>
+                <option value="OOK">OOK / ASK (on-off)</option>
+                <option value="FSK">FSK (frequency shift)</option>
+                <option value="GFSK">GFSK</option>
+                <option value="PSK">PSK (phase shift)</option>
+                <option value="QAM">QAM</option>
+              </select></label>
+            <label class="anfield">Bandwidth (kHz)
+              <input id="pBw" class="aninput" type="number" step="1" placeholder="width of the signal"></label>
+          </div>
+          <div class="anparams-btns">
+            <button id="anHint" class="ghostbtn sm">💡 Hint</button>
+          </div>
+          <div id="anHintBox" class="hintbox hidden"></div>
+        </div>
+      </div>
+
+      <div class="navrow">
+        <button class="ghostbtn" data-goto="track">← Tracking / VSA</button>
+        <button id="toPuzzle" class="bigbtn" disabled>🔒 Build the demod flowgraph →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- PHASE 5 / DEMOD PUZZLE -->
+  <section id="p-puzzle" class="phase hidden">
+    <div class="wrap wide">
+      <div class="phasetag" data-tag="DEMOD PUZZLE">PHASE 5 / DEMOD PUZZLE</div>
+      <h1 class="ptitle">Assemble the demod flowgraph</h1>
+      <div class="objbar"><span class="phasetag sm">ASSEMBLE</span>
+        <span>Take the scattered blocks of <code>enigma1_decoder.grc</code> from the <b>tray</b> and drop each into the
+        correct <b>slot</b>. <span class="okc">Green</span> means right, <span class="badc">red</span> means
+        wrong. When every block is placed, the wires light up.</span></div>
+
+      <!-- puzzle body: upload + analysis already done in PHASE 4 -->
+      <div id="puzzleBody">
       <div class="puzzlewrap">
         <div class="canvaswrap">
           <div class="canvashead"><span>SIGNAL CHAIN</span>
@@ -227,16 +302,16 @@
       </div><!-- /#puzzleBody -->
 
       <div class="navrow">
-        <button class="ghostbtn" data-goto="track">← Tracking / VSA</button>
+        <button class="ghostbtn" data-goto="analyze">← Capture &amp; analyze</button>
         <button id="toFlowgraph" class="bigbtn" disabled>🔒 Show the correct flowgraph →</button>
       </div>
     </div>
   </section>
 
-  <!-- ═══════════ PHASE 5 · FLOWGRAPH (GNU Radio) ═══════════ -->
+  <!-- ═══════════ PHASE 6 / FLOWGRAPH (GNU Radio)═══════════ -->
   <section id="p-flowgraph" class="phase hidden">
     <div class="wrap wide">
-      <div class="phasetag" data-tag="GNU RADIO">PHASE 5 · GNU RADIO</div>
+      <div class="phasetag" data-tag="GNU RADIO">PHASE 6 / GNU RADIO</div>
       <h1 class="ptitle">Run the flowgraph: <code>enigma1_decoder.grc</code></h1>
       <div class="objbar"><span class="phasetag sm">RUN</span>
         <span>The GNU Radio on the left is already running your uploaded file: the <b>waterfall</b> shows the
@@ -280,17 +355,17 @@
     </div>
   </section>
 
-  <!-- ═══════════ PHASE 6 · RESULT ═══════════ -->
+  <!-- ═══════════ PHASE 7 / RESULT═══════════ -->
   <section id="p-result" class="phase hidden">
-    <div class="wrap">
-      <div class="phasetag" data-tag="RESULT">PHASE 6 · RESULT</div>
+    <div class="wrap wide">
+      <div class="phasetag" data-tag="RESULT">PHASE 7 / RESULT</div>
       <h1 class="ptitle">Recovered: ENIGMA-1 downlink image</h1>
       <div class="objbar"><span class="phasetag sm">DECODE</span>
         <span>FSK demod → AX.25 deframe → sequence reassembly → DEFLATE. A satellite image recovered by passive reception alone.</span></div>
 
       <div class="resultwrap">
         <div class="resultcard">
-          <div class="rcaption">enigma1_image_org.png · recovered</div>
+          <div class="rcaption">enigma1_image_org.png / recovered</div>
           <div class="imgframe"><img id="resultImg" src="/assets/result.png" alt="recovered ENIGMA-1 image"></div>
           <div class="donebadge">✅ DECODE COMPLETE</div>
         </div>
@@ -298,7 +373,7 @@
           <h2>Reception chain summary</h2>
           <ol class="recaplist">
             <li><b>TRACK</b>: GPredict tracked ENIGMA-1 from the TLE and drove antenna az/el</li>
-            <li><b>SYNC</b>: VSA confirmed 433.5 MHz · 9600 baud GFSK, Doppler corrected</li>
+            <li><b>SYNC</b>: VSA confirmed 433.5 MHz / 9600 baud GFSK, Doppler corrected</li>
             <li><b>DEMOD</b>: Frequency Xlating FIR → FSK Demodulator → AX.25 Deframer (G3RUH)</li>
             <li><b>REASSEMBLE</b>: Concatenated the Info fields in sequence, DEFLATE → image</li>
           </ol>
