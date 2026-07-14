@@ -218,7 +218,8 @@
       // (narrower) gpredict column, so it never overflows the allotted width.
       var gpUrl = 'http://localhost:' + GPORT + '/vnc.html?autoconnect=1&resize=scale';
       var CONSOLE_URL = '/targeting?gs=' + encodeURIComponent(GS)
-        + '&gp=' + encodeURIComponent(gpUrl) + '&vsa=' + encodeURIComponent('/vsa/');
+        + '&gp=' + encodeURIComponent(gpUrl) + '&vsa=' + encodeURIComponent('/vsa/')
+        + '&ctrl=' + encodeURIComponent('http://localhost:' + CTRLPORT);
       var result = document.getElementById('result');
       var builder = document.getElementById('builder');
       var phase3 = document.getElementById('phase3');

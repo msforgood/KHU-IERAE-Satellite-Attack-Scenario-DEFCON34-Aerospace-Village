@@ -37,6 +37,25 @@
   .empty{flex:1;display:grid;place-items:center;padding:24px;color:var(--dim);text-align:center}
   .empty code{font-family:var(--mono);color:var(--ink);background:var(--panel);padding:2px 6px;border-radius:4px}
   @media(max-width:820px){main{grid-template-columns:1fr;grid-template-rows:1fr 1fr}}
+  /* participant guide overlay (pinned over the gpredict panel) */
+  #guide{position:fixed;left:14px;bottom:14px;width:min(340px,42vw);z-index:20;
+         background:rgba(15,21,29,.95);border:1px solid var(--line);border-radius:12px;
+         padding:14px 16px;backdrop-filter:blur(6px);box-shadow:0 10px 34px rgba(0,0,0,.55);display:none}
+  #guide.show{display:block}
+  #guide h3{margin:0 0 10px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+            color:var(--cyan);font-family:var(--mono)}
+  #guide .row{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);
+              font-size:12px;color:var(--dim);margin:3px 0}
+  #guide .row b{color:var(--ink)}
+  #guide .bar{height:6px;border-radius:4px;background:var(--panel);overflow:hidden;margin:8px 0}
+  #guide .bar>i{display:block;height:100%;width:0;background:var(--cyan);transition:width .5s}
+  #guide .state{margin:8px 0;font-weight:640}
+  #guide .state.wait{color:var(--dim)} #guide .state.ready{color:var(--good)}
+  #guide .state.busy{color:var(--cyan)} #guide .state.done{color:var(--cyan)} #guide .state.err{color:var(--crit)}
+  #guide button.go{width:100%;border-color:var(--good);color:var(--good);font-size:13px;padding:10px;margin-top:2px}
+  #guide button.go:disabled{opacity:.4;cursor:not-allowed;border-color:var(--line);color:var(--dim)}
+  #guide ol{margin:10px 0 0;padding-left:18px;font-size:12px;line-height:1.8;color:var(--dim)}
+  #guide ol li.active{color:var(--ink)} #guide ol li.ok{color:var(--good)} #guide ol li.ok::marker{content:"✓ "}
 </style>
 
 <main>
@@ -55,11 +74,27 @@
   </section>
 </main>
 
+<!-- participant guide: wait for the pass, then one button auto-operates gpredict -->
+<div id="guide">
+  <h3>🛰 SATELLITE TARGETING</h3>
+  <div class="row"><span>거리 (Vegas 기준)</span><b id="gDist">—</b></div>
+  <div class="row"><span>고도 (elevation)</span><b id="gElev">—</b></div>
+  <div class="bar"><i id="gBar"></i></div>
+  <div class="state wait" id="gState">위성이 범위에 들어오기를 기다리는 중…</div>
+  <button class="go" id="gGo" disabled>▶ 조준 시작 (TRACK + ENGAGE)</button>
+  <ol id="gSteps">
+    <li data-k="menu">Antenna Control 열기</li>
+    <li data-k="track">Target ▸ Track</li>
+    <li data-k="engage">Settings ▸ Engage</li>
+  </ol>
+</div>
+
 <script>
   const q = new URLSearchParams(location.search);
   const GS  = (q.get("gs")  || "http://localhost:4540").replace(/\/$/, "");
   const GP  = q.get("gp")  || "";   // gpredict noVNC url
   const VSA = q.get("vsa") || "";   // OpenVSA UI url
+  const CTRL = (q.get("ctrl") || "http://localhost:6079").replace(/\/$/, ""); // gpredict time-control
 
   function embed(slot, src, hint) {
     const el = document.getElementById(slot);
@@ -91,5 +126,67 @@
       await post("/api/inject", ATTACK);
       setStatus("⚡ UPLINK TRANSMITTED · adcs_torque 999 mNm", "var(--crit)");
     } catch (e) { setStatus("GS 연결 실패 (" + e.message + ")", "var(--crit)"); }
+  };
+
+  // ── participant guide: poll gpredict's time-control server, gate the ENGAGE
+  //    button on "satellite in range", then auto-operate gpredict on click. ────
+  const guide = document.getElementById("guide");
+  const gDist = document.getElementById("gDist"), gElev = document.getElementById("gElev");
+  const gBar = document.getElementById("gBar"), gState = document.getElementById("gState");
+  const gGo = document.getElementById("gGo"), gSteps = document.getElementById("gSteps");
+  const stepEls = {};
+  gSteps.querySelectorAll("li").forEach((li) => (stepEls[li.dataset.k] = li));
+  let engaging = false, engaged = false;
+
+  function setState(txt, cls) { gState.textContent = txt; gState.className = "state " + cls; }
+
+  async function pollStatus() {
+    let s;
+    try { s = await (await fetch(CTRL + "/status")).json(); }
+    catch (e) { guide.classList.remove("show"); return; }   // gpredict/Docker down → hide
+    guide.classList.add("show");
+    if (engaging || engaged) return;                          // don't fight the engage flow
+
+    gDist.textContent = s.rangeKm != null ? s.rangeKm.toLocaleString() + " km" : "—";
+    gElev.textContent = s.elevDeg != null ? s.elevDeg.toFixed(1) + "°" : "—";
+
+    if (s.inRange) {
+      gBar.style.width = "100%";
+      setState("✅ 범위 진입 — 지금 조준하세요", "ready");
+      gGo.disabled = false;
+    } else {
+      gGo.disabled = true;
+      const lead = s.leadSec || 20;
+      if (s.secToAos != null && s.secToAos > 0) {
+        gBar.style.width = Math.max(0, Math.min(100, (1 - s.secToAos / lead) * 100)) + "%";
+        setState("🛰 위성 접근 중 — 약 " + Math.ceil(s.secToAos) + "초 후 범위 진입", "wait");
+      } else {
+        gBar.style.width = "0%";
+        setState("🛰 위성이 범위에 들어오기를 기다리는 중…", "wait");
+      }
+    }
+  }
+  setInterval(pollStatus, 1000);
+  pollStatus();
+
+  function markStep(k, cls) { if (stepEls[k]) stepEls[k].className = cls; }
+  gGo.onclick = async () => {
+    if (engaging || engaged) return;
+    engaging = true; gGo.disabled = true;
+    setState("⏳ gpredict 자동 조작 중…", "busy");
+    markStep("menu", "active");
+    setTimeout(() => markStep("track", "active"), 700);
+    setTimeout(() => markStep("engage", "active"), 1400);
+    try {
+      const r = await (await fetch(CTRL + "/engage")).json();
+      if (!r.ok) throw new Error(r.detail || "engage failed");
+      ["menu", "track", "engage"].forEach((k) => markStep(k, "ok"));
+      setState("🎯 안테나 교전 — 조준 완료. 이제 ⚡ TRANSMIT", "done");
+      engaged = true;
+    } catch (e) {
+      engaging = false; gGo.disabled = false;
+      ["menu", "track", "engage"].forEach((k) => markStep(k, ""));
+      setState("자동 조작 실패 — 재시도하세요 (" + e.message + ")", "err");
+    }
   };
 </script>
