@@ -61,6 +61,7 @@
   #guide .bar{height:6px;border-radius:4px;background:var(--panel);overflow:hidden;margin:8px 0}
   #guide .bar>i{display:block;height:100%;width:0;background:var(--cyan);transition:width .5s}
   #guide .state{margin:8px 0;font-weight:640}
+  #guide .state .cd{font-family:var(--mono);font-size:22px;font-weight:720;color:var(--cyan);vertical-align:-2px}
   #guide .state.wait{color:var(--dim)} #guide .state.ready{color:var(--good)}
   #guide .state.busy{color:var(--cyan)} #guide .state.done{color:var(--cyan)} #guide .state.err{color:var(--crit)}
   #guide button.go{width:100%;border-color:var(--good);color:var(--good);font-size:13px;padding:10px;margin-top:2px}
@@ -169,37 +170,45 @@
   gSteps.querySelectorAll("li").forEach((li) => (stepEls[li.dataset.k] = li));
   let engaging = false, engaged = false;
 
-  function setState(txt, cls) { gState.textContent = txt; gState.className = "state " + cls; }
+  // Countdown runs client-side from the moment phase 3 opens (this console loads),
+  // so "wait N seconds then in range" is deterministic regardless of the gpredict
+  // clock. We also flip early if the live elevation already reports in-range, and
+  // LATCH once reached so a later re-arm never sends it back to "waiting".
+  const T0 = Date.now();
+  let leadSec = 20, reached = false;
+
+  function setStateHTML(html, cls) { gState.innerHTML = html; gState.className = "state " + cls; }
+  function render(s) {
+    if (s) {
+      if (s.leadSec) leadSec = s.leadSec;
+      gDist.textContent = s.rangeKm != null ? s.rangeKm.toLocaleString() + " km" : "—";
+      gElev.textContent = s.elevDeg != null ? s.elevDeg.toFixed(1) + "°" : "—";
+    }
+    const remaining = Math.max(0, leadSec - (Date.now() - T0) / 1000);
+    const inNow = reached || remaining <= 0 || (s && s.inRange === true);
+    if (inNow) {
+      reached = true;
+      gBar.style.width = "100%";
+      setStateHTML("✅ 범위 진입 — 지금 조준하세요", "ready");
+      gGo.disabled = false;
+    } else {
+      gGo.disabled = true;
+      gBar.style.width = Math.max(0, Math.min(100, (1 - remaining / leadSec) * 100)) + "%";
+      setStateHTML("🛰 위성 접근 중 · 범위 진입까지 <b class=\"cd\">" + Math.ceil(remaining) + "</b> 초", "wait");
+    }
+  }
 
   async function pollStatus() {
-    let s;
+    let s = null;
     try { s = await (await fetch(CTRL + "/status")).json(); }
     catch (e) { guide.classList.remove("show"); return; }   // gpredict/Docker down → hide
     guide.classList.add("show");
     if (engaging || engaged) return;                          // don't fight the engage flow
-
-    gDist.textContent = s.rangeKm != null ? s.rangeKm.toLocaleString() + " km" : "—";
-    gElev.textContent = s.elevDeg != null ? s.elevDeg.toFixed(1) + "°" : "—";
-
-    // Gate purely on the precomputed countdown: once the armed lead-time elapses
-    // (secToAos ≤ 0) we ASSUME the satellite is in range — the real elevation can't
-    // be confirmed from here, but the AOS time is already computed at arm.
-    const lead = s.leadSec || 20;
-    if (s.secToAos != null && s.secToAos > 0) {
-      gGo.disabled = true;
-      gBar.style.width = Math.max(0, Math.min(100, (1 - s.secToAos / lead) * 100)) + "%";
-      setState("🛰 위성 접근 중 — 약 " + Math.ceil(s.secToAos) + "초 후 범위 진입", "wait");
-    } else if (s.secToAos != null) {
-      gBar.style.width = "100%";
-      setState("✅ 범위 진입 — 지금 조준하세요", "ready");
-      gGo.disabled = false;
-    } else {
-      gGo.disabled = true;
-      gBar.style.width = "0%";
-      setState("🛰 위성이 범위에 들어오기를 기다리는 중…", "wait");
-    }
+    render(s);
   }
-  setInterval(pollStatus, 1000);
+  setInterval(pollStatus, 1000);   // refresh distance/elev + in-range signal
+  // tick the countdown every second even between polls, so the number never stalls
+  setInterval(() => { if (guide.classList.contains("show") && !engaging && !engaged) render(null); }, 1000);
   pollStatus();
 
   function markStep(k, cls) { if (stepEls[k]) stepEls[k].className = cls; }
