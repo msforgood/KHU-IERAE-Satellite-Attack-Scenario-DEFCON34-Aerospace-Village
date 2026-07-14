@@ -641,4 +641,12 @@ export function createControls({ container, store, antennaTypes }) {
     lblSpeed.textContent = `${state.rotationSpeed}°/s`;
 
   });
+
+  // Start on the UPLINK tab (the attacker's primary workflow) instead of DOWNLINK.
+  // Firing the tab's own click runs every side effect (panel swap, active class,
+  // slider sync, uplink-mode event). Deferred one microtask so the scene's
+  // uplink-mode listener — registered by createRotatorScene, mounted right after
+  // this component — is in place before the activation event fires. Microtasks run
+  // before the first paint, so there's no DOWNLINK→UPLINK flash.
+  queueMicrotask(() => tabUplink.click());
 }
