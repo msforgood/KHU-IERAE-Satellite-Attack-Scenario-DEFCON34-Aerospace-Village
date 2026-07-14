@@ -18,11 +18,14 @@
 ./solar_panel.sh ping      # 지금 도는 중인지 확인
 ```
 
+> 여러 보드를 꽂아도 됩니다. 스크립트가 매번 각 포트에 신호를 보내
+> **"SOLAR PANEL"이라 응답하는 포트(=솔라 패널 보드)를 알아서 찾습니다.**
+
 ## ❓ 안 될 때
 
-- **"보드 포트를 못 찾음"** → 보드 USB를 꽂았는지 확인. 포트를 직접 지정하려면:
+- **"SOLAR PANEL 펌웨어가 응답하는 포트를 못 찾음"** → 보드 USB·전원 확인. 포트를 직접 지정하려면:
   ```bash
-  PORT=/dev/cu.usbserial-140 ./solar_panel.sh spin
+  PORT=/dev/cu.usbserial-1140 ./solar_panel.sh spin
   ```
 - **명령 후 2초쯤 돌다가 적용됨** → 정상입니다(보드가 연결 때 한 번 리셋됨).
 - **모터가 부들거리거나 시끄러움** → `./solar_panel.sh speed 1` 로 가장 느리게.
