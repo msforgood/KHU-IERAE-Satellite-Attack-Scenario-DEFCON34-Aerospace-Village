@@ -29,8 +29,8 @@ trap cleanup EXIT INT
 sleep 0.5
 printf 'PING\n' >&3
 cat <<'EOF'
-── 안테나 스텝모터 수동 조작 (포트: 아래) ──
-  spin / stop   |  spin1 spin2 / stop1 stop2  |  step step1 step2  |  rev  |  speed N  |  ping
+── 안테나 스텝모터 수동 조작 (명령 1회 = 90° 회전) ──
+  right / left  |  right1 left1 / right2 left2  |  move N  |  stop  |  speed N  |  ping
   종료: q 또는 빈 줄
 EOF
 echo "  포트: $PORT"
