@@ -16,6 +16,7 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-wei
   padding:16px 22px;border-bottom:1px solid var(--line);background:var(--panel)}
 .brand{display:flex;gap:14px;align-items:center}
 .sat{font-size:34px}
+.sat-ico{width:34px;height:34px;display:block}
 .title{font-weight:700;letter-spacing:.06em;color:#eaf2fb;font-size:22px}
 .sub{font-size:15px;color:var(--dim)}
 .linkinfo{display:flex;gap:12px;align-items:center;font-size:16px;color:var(--dim)}

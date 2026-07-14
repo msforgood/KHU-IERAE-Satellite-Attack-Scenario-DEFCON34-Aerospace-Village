@@ -1,3 +1,0 @@
-[GLOBAL]
-QTHFILE=defcon.qth
-SATELLITES=70003

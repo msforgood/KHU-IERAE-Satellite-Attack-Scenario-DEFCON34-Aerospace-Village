@@ -21,9 +21,9 @@ docker build -t "$IMG" .
 URL="http://localhost:$PORT/vnc.html?autoconnect=1&resize=remote"
 echo "───────────────────────────────────────────────"
 echo " gpredict (web) → $URL"
-echo " console        → attacker/console/index.html?gp=$URL"
+echo " time-control   → http://localhost:${CTRL_PORT:-6079}/status  (phase3 → /arm)"
 echo "───────────────────────────────────────────────"
-exec docker run --rm -p "$PORT:6080" \
+exec docker run --rm -p "$PORT:6080" -p "${CTRL_PORT:-6079}:6079" \
   --add-host=host.docker.internal:host-gateway \
   -e ROTCTLD_HOST="${ROTCTLD_HOST:-host.docker.internal}" \
   -v "$(cd .. && pwd)/gpredict-config:/config:ro" \

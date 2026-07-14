@@ -1,35 +1,36 @@
 # gpredict config — DEMOSAT / OpenVSA rotator
 
-Prewired config so gpredict auto-opens the **DEMOSAT** module tracking from the
-**Las Vegas** ground station and drives the **OpenVSA rotator (rotctld :4533)**
-out of the box — no manual module/QTH setup. Copy into gpredict's config dir:
+Prewired config for the isolated gpredict container (`../gpredict-web`). On launch
+`start.sh` registers **DEMOSAT** from `demosat.tle` (generates `satdata/<cat>.sat`
++ a module), pins the **Las Vegas** ground station (`defcon.qth`), and points the
+rotator at the host's **OpenVSA rotctld (:4533)**. gpredict runs under
+`libfaketime`; the in-container control server (`control.py`, :6079) drives time.
 
-```bash
-# Linux
-mkdir -p ~/.config/Gpredict/{satdata,hwconf,modules}
-cp demosat.tle 70003.sat ~/.config/Gpredict/satdata/
-cp OpenVSA.rot            ~/.config/Gpredict/hwconf/
-cp DEMOSAT.mod            ~/.config/Gpredict/modules/
-cp defcon.qth gpredict.cfg ~/.config/Gpredict/
-# macOS: same paths under ~/.config/Gpredict (or ~/Library/Application Support/Gpredict)
-```
+| File | Role |
+|---|---|
+| `demosat.tle`  | DEMOSAT TLE (i 51.6°, ~15.5 rev/day LEO). Registered into gpredict's DB + module at boot. |
+| `defcon.qth`   | ground station @ Las Vegas (36.13°N, -115.15°W, 620 m) |
+| `OpenVSA.rot`  | hamlib rotator → `Host`/`Port` rewritten to host `:4533` (group `[Rotator]`) |
+| `OpenVSA.rig`  | hamlib radio → host `:4532` (group `[Radio]`); only used if radio control is added |
 
-On launch gpredict reads `gpredict.cfg` (`OPEN_MODULES=DEMOSAT`) and opens
-`modules/DEMOSAT.mod`, which pins QTH → `defcon.qth` (Las Vegas) and satellite →
-`70003` (`satdata/70003.sat`). For the rotator: **Antenna Control → Rotator
-`OpenVSA` → Engage**. gpredict streams az/el to OpenVSA's rotctld on `:4533`;
-OpenVSA slews and (via the GS `/api/acquire` trigger) the physical antenna
-sweeps. See `../README.md`.
+> The `.sat`, `.mod`, and `gpredict.cfg` files are **generated** by `start.sh` at
+> container start (from `demosat.tle`), so they are not checked in here.
 
-> Without `gpredict.cfg` + `DEMOSAT.mod`, gpredict first-run creates its bundled
-> `Amateur.mod` and opens that instead — the map then shows amateur sats and a
-> QTH labelled **"Error"** (no valid ground station). These files replace that.
+## Time control — "wait for the pass" (scenario-2)
 
-| File | Goes to | What |
-|---|---|---|
-| `demosat.tle`  | `satdata/`  | virtual DEMOSAT TLE (i 51.6°, ~15.5 rev/day LEO) |
-| `70003.sat`    | `satdata/`  | DEMOSAT as a gpredict `.sat` (catnum 70003) so the module loads it |
-| `DEMOSAT.mod`  | `modules/`  | module pinning QTH=`defcon.qth`, SATELLITES=`70003` |
-| `gpredict.cfg` | `~/.config/Gpredict/` | `OPEN_MODULES=DEMOSAT` → auto-open our module, not Amateur |
-| `OpenVSA.rot`  | `hwconf/`   | hamlib rotator → `localhost:4533` |
-| `defcon.qth`   | `~/.config/Gpredict/` | ground station @ Las Vegas (36.17°N, -115.14°W) |
+Real LEO orbits can't repeat sub-minute (min period ~84 min), so the pass is faked:
+
+- On **phase-3 entry** the console calls `GET :6079/arm`. control.py sets the
+  libfaketime offset so DEMOSAT sits **`PASS_LEAD` (20 s) before** a fixed grazing
+  pass AOS over Las Vegas, then time runs at **real rate** → the participant waits
+  ~20 s, the satellite enters range, they TRANSMIT during the natural pass.
+- It **re-arms every `RESET_INTERVAL` (300 s)** as a safety net for a missed pass.
+- control.py only rewrites the offset file; gpredict reads it live
+  (`FAKETIME_NO_CACHE=1`) and is **never restarted**, so the rotctld link to
+  OpenVSA stays engaged across re-arms.
+
+The pass is chosen once from the `[MIN_PASS_ALT, MAX_PASS_ALT]` (15–45°) grazing
+band so DEMOSAT crosses *near* the station, not straight overhead. Logic lives in
+`../gpredict-web/passloop.py` (reusable); `control.py` is the thin HTTP server.
+
+Endpoints: `/arm`, `/realtime` (drop to real time, pause re-arm), `/status`, `/offset`.

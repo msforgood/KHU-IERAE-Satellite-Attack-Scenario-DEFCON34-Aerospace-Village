@@ -324,6 +324,12 @@ function confirmStep1() {
   rfAutoReset(); // guarantees the magic-writing (re)plays each time 완료 is pressed
   renderSteps();
   rebuild();
+  // Scroll Step 2 into view so the "SDR" auto-typing is visible the moment it starts,
+  // instead of playing off-screen below the fold. rAF waits for the fresh DOM to lay out.
+  requestAnimationFrame(function () {
+    const s2 = document.querySelector('.step[data-step="2"]');
+    if (s2) s2.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
 }
 
 function placeBlock(sub) {
@@ -656,6 +662,11 @@ function modLegend() {
 }
 // ── frame preview (server build) ────────────────────────────────────────────
 let timer = null;
+// The uplink signal is not drawn live: it stays blank until GENERATE is pressed,
+// then sweeps in left→right. lastWave keeps the most recent server waveform so the
+// generate handler can animate it without another round-trip.
+let lastWave = [];
+let iqRevealed = false;
 function rebuild() {
   clearTimeout(timer);
   timer = setTimeout(build, 100);
@@ -684,12 +695,17 @@ async function build() {
   // won't decode). Only the "not yet configured" case hides it.
   const rfSet = S.rf.modulation != null && S.rf.baud != null && S.rf.sampleRate != null;
   const hint = $("#waveHint");
+  lastWave = rfSet && wf.length ? wf : [];
   if (rfSet && wf.length) {
-    drawWave(wf);
-    if (st[2] === "ok") {
+    // Hold the canvas blank until GENERATE reveals it (then keep it drawn).
+    if (iqRevealed) {
+      drawWave(wf);
       hint.classList.add("hidden");
     } else {
-      hint.textContent = "⚠ Signal shown — but RF mismatch: the satellite receiver won't decode it.";
+      drawWave([]);
+      hint.textContent = st[2] === "ok"
+        ? "▶ Press GENERATE to render the uplink signal."
+        : "⚠ RF mismatch: the satellite receiver won't decode this command.";
       hint.classList.remove("hidden");
     }
     $("#frameMeta").textContent = bd
@@ -785,6 +801,41 @@ function drawWave(w) {
   ctx.lineTo(0, H - pad);
   ctx.fill();
 }
+// Draw only the first `k` samples, but keep each sample's x mapped over the FULL
+// width — so the trace grows in from the left, giving the left→right sweep.
+function drawWaveUpTo(w, k) {
+  const cv = $("#wave"), ctx = cv.getContext("2d"), W = cv.width, H = cv.height;
+  ctx.clearRect(0, 0, W, H);
+  if (!w || w.length < 2 || k < 1) return;
+  const n = Math.min(k, w.length), pad = 10, h = H - 2 * pad;
+  ctx.strokeStyle = "#39c5ff";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const x = (i / (w.length - 1)) * W, y = H - pad - w[i] * h;
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  }
+  ctx.stroke();
+  ctx.fillStyle = "rgba(57,197,255,.08)";
+  ctx.lineTo(((n - 1) / (w.length - 1)) * W, H - pad);
+  ctx.lineTo(0, H - pad);
+  ctx.fill();
+}
+let waveAnim = null;
+function animateWave(w, done) {
+  cancelAnimationFrame(waveAnim);
+  if (!w || w.length < 2) { drawWave(w || []); done && done(); return; }
+  const DUR = 900;
+  let start = null;
+  function frame(t) {
+    if (start == null) start = t;
+    const p = Math.min(1, (t - start) / DUR);
+    drawWaveUpTo(w, Math.max(1, Math.floor(p * w.length)));
+    if (p < 1) { waveAnim = requestAnimationFrame(frame); }
+    else { drawWave(w); done && done(); }
+  }
+  waveAnim = requestAnimationFrame(frame);
+}
 
 // ── generate (server re-validates all steps) ────────────────────────────────
 $("#genBtn").onclick = async () => {
@@ -795,13 +846,23 @@ $("#genBtn").onclick = async () => {
   const r = await postJSON("/api/generate", payload());
   refreshPills();
   const res = $("#result");
+  res.classList.add("hidden");
   if (r.ok && r.saved) {
-    // No per-visitor file download (that hammers each machine). The cf32 is a
-    // click-through: selecting it advances to the embedded targeting console (phase 3),
-    // and the server has already fired the attack at the ground station.
-    res.innerHTML = `✓ <b>${r.saved.filename}</b> generated — open it in the targeting console to uplink.<br>
-      <a href="#" class="cf32go">⬇ ${r.saved.filename} → open targeting console</a>`;
-    res.classList.remove("hidden");
+    // Reveal the signal first: sweep the uplink waveform in left→right, and only
+    // once it finishes surface the cf32 "download" (which is really the phase-3
+    // click-through — the server has already fired the attack at the ground station).
+    iqRevealed = true;
+    // refreshPills() re-armed the button; keep it locked while the signal renders.
+    btn.disabled = true;
+    btn.className = "genbtn locked";
+    btn.textContent = "… RENDERING SIGNAL";
+    $("#waveHint").classList.add("hidden");
+    animateWave(lastWave, () => {
+      res.innerHTML = `✓ <b>${r.saved.filename}</b> generated — open it in the targeting console to uplink.<br>
+        <a href="#" class="cf32go">⬇ ${r.saved.filename} → open targeting console</a>`;
+      res.classList.remove("hidden");
+      btn.textContent = "✓ UPLINK IQ GENERATED";
+    });
   } else {
     res.textContent = "generate blocked: " + (r.error || "?");
     res.classList.remove("hidden");

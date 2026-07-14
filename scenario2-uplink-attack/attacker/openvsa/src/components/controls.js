@@ -179,17 +179,11 @@ export function createControls({ container, store, antennaTypes }) {
       </div>
 
       <div class="control-row control-row--inline">
-        <label for="ctrl-uplink-purpose">Channel</label>
-        <input type="text" id="ctrl-uplink-purpose" disabled value="—" />
-      </div>
-
-      <div class="control-row">
         <label>Command IQ file</label>
-        <div class="rec-dir-group">
-          <span id="uplink-file-label" class="rec-dir-label">No file loaded</span>
-          <button id="btn-load-uplink" class="btn-step" title="Load .cf32 uplink IQ file">…</button>
-        </div>
+        <span id="uplink-file-label" class="rec-dir-label">No file loaded</span>
       </div>
+      <button id="btn-load-uplink" class="btn-step" style="width:100%;padding:8px;margin-top:6px"
+              title="Load the IQ file you generated earlier">📎 Load generated IQ file</button>
 
       <button id="btn-transmit" class="btn-transmit" disabled title="Transmit command to satellite">TRANSMIT</button>
       <p id="tx-status" class="tx-status"></p>
@@ -261,7 +255,6 @@ export function createControls({ container, store, antennaTypes }) {
   // ── uplink panel refs ────────────────────────────────────────────────────
   const uplinkSatEl     = container.querySelector("#ctrl-sat-uplink");
   const uplinkFreqEl     = container.querySelector("#ctrl-uplink-freq");
-  const uplinkPurposeEl  = container.querySelector("#ctrl-uplink-purpose");
   const uplinkTypeEl     = container.querySelector("#ctrl-type-uplink");
   const uplinkAmpEl      = container.querySelector("#ctrl-amplifier");
   const uplinkTxPowerEl  = container.querySelector("#ctrl-tx-power");
@@ -296,11 +289,9 @@ export function createControls({ container, store, antennaTypes }) {
     uplinkTxPowerEl.value = amp ? `${amp.powerDbm} dBm (${amp.label})` : "—";
 
     if (sat && sat.uplink) {
-      uplinkPurposeEl.value = sat.uplink.purpose;
       btnTransmit.disabled = !uplinkFilePath;
     } else {
       uplinkFreqEl.value = "";
-      uplinkPurposeEl.value = satName ? "No uplink available" : "—";
       btnTransmit.disabled = true;
     }
   }
@@ -325,7 +316,16 @@ export function createControls({ container, store, antennaTypes }) {
   });
 
   btnLoadUplink.addEventListener("click", async () => {
-    if (!window.electronAPI) return;
+    // Embedded in the attacker console (browser, no Electron): "load" the IQ file
+    // built back in phase 2. No real bytes needed — the actual uplink is fired by
+    // the console → GS /api/inject; this just arms the panel's TRANSMIT button.
+    if (!window.electronAPI) {
+      uplinkFilePath = "attack.cf32";
+      uplinkFileLabel.textContent = "attack.cf32";
+      uplinkFileLabel.title = "attack.cf32";
+      updateUplinkPanel();
+      return;
+    }
     const filePath = await window.electronAPI.chooseUplinkFile();
     if (filePath) {
       uplinkFilePath = filePath;
@@ -336,6 +336,15 @@ export function createControls({ container, store, antennaTypes }) {
   });
 
   btnTransmit.addEventListener("click", async () => {
+    // Embedded in the attacker console (browser, no Electron): the console owns the
+    // victim-GS URL and fires the uplink. Notify it and skip the Electron physics flow.
+    if (!window.electronAPI) {
+      window.parent.postMessage({ type: "vsa-transmit" }, "*");
+      txStatus.textContent = "Tx attempted";
+      txStatus.style.color = "#44994a";
+      setTimeout(() => { txStatus.textContent = ""; }, 3000);
+      return;
+    }
     const state = store.getState();
     const satName = uplinkSatEl.value;
     const sat = SATELLITES[satName];
@@ -641,4 +650,12 @@ export function createControls({ container, store, antennaTypes }) {
     lblSpeed.textContent = `${state.rotationSpeed}°/s`;
 
   });
+
+  // Start on the UPLINK tab (the attacker's primary workflow) instead of DOWNLINK.
+  // Firing the tab's own click runs every side effect (panel swap, active class,
+  // slider sync, uplink-mode event). Deferred one microtask so the scene's
+  // uplink-mode listener — registered by createRotatorScene, mounted right after
+  // this component — is in place before the activation event fires. Microtasks run
+  // before the first paint, so there's no DOWNLINK→UPLINK flash.
+  queueMicrotask(() => tabUplink.click());
 }

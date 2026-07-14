@@ -8,8 +8,8 @@ import { connectRotctld }      from "./rotctld-client.js";
 
 const store = createStore({
   antennaType:       "yagi",
-  azimuth:           131,
-  elevation:         47,
+  azimuth:           206,   // initial antenna pose — a "nice looking" angle so the
+  elevation:         31,    // dish sits pretty before ENGAGE sets it (206°/30°)
   autoRotate:        false,
   rotationSpeed:     12,
   bridgeConnected:   false,
@@ -43,6 +43,34 @@ createRotatorScene({
 
 // Connect to the rotctld bridge server (falls back gracefully if not running)
 connectRotctld(store);
+
+// External preset from the attacker console's ENGAGE button (same-origin iframe):
+// aim the antenna + select the uplink target + set the uplink frequency in one shot.
+window.addEventListener("message", (e) => {
+  const m = e.data;
+  if (!m || m.type !== "vsa-preset") return;
+  store.setState((s) => ({
+    ...s,
+    ...(Number.isFinite(m.azimuth)   ? { azimuth: m.azimuth }         : {}),
+    ...(Number.isFinite(m.elevation) ? { elevation: m.elevation }     : {}),
+    ...(m.targetSat                  ? { targetSat: m.targetSat }      : {}),
+    ...(m.antennaType                ? { antennaType: m.antennaType }  : {}),
+  }));
+  // uplink target/freq/antenna are plain inputs (not store-bound): set the target
+  // first (enables the panel), then the rest.
+  if (m.targetSat) {
+    const sel = document.querySelector("#ctrl-sat-uplink");
+    if (sel) { sel.value = m.targetSat; sel.dispatchEvent(new Event("change")); }
+  }
+  if (m.antennaType) {
+    const ut = document.querySelector("#ctrl-type-uplink");
+    if (ut) { ut.value = m.antennaType; ut.dispatchEvent(new Event("change")); }
+  }
+  if (Number.isFinite(m.uplinkFreq)) {
+    const f = document.querySelector("#ctrl-uplink-freq");
+    if (f) { f.value = m.uplinkFreq; f.dispatchEvent(new Event("change")); }
+  }
+});
 
 // Load ground station location from GPredict's .qth files on startup
 if (window.electronAPI) {

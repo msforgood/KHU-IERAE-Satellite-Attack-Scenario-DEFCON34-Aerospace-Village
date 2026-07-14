@@ -41,20 +41,6 @@ export function createRotatorScene({ container, store, antennaTypes }) {
         <div id="sat-panel-body"></div>
         <p id="sat-panel-msg" class="sat-panel-msg"></p>
       </div>
-      <div class="gpredict-overlay">
-        <div class="status-row">
-          <div class="status-dot" id="dot-bridge"></div>
-          <span id="lbl-bridge">Internal Bridge: disconnected</span>
-        </div>
-        <div class="status-row">
-          <div class="status-dot" id="dot-gpredict"></div>
-          <span id="lbl-gpredict">GPredict Tracker: disconnected</span>
-        </div>
-        <div class="status-row">
-          <div class="status-dot" id="dot-radio"></div>
-          <span id="lbl-radio">GPredict Radio: disconnected</span>
-        </div>
-      </div>
       <div class="scene-info-overlay">
         <div class="scene-time-row">
           <span id="scene-lbl-time">--:--:-- UTC</span>
@@ -129,12 +115,6 @@ export function createRotatorScene({ container, store, antennaTypes }) {
   const specBeamwidth = container.querySelector("#spec-beamwidth");
   const specGain      = container.querySelector("#spec-gain");
   const specPol       = container.querySelector("#spec-polarization");
-  const dotBridge     = container.querySelector("#dot-bridge");
-  const dotGpredict   = container.querySelector("#dot-gpredict");
-  const dotRadio      = container.querySelector("#dot-radio");
-  const lblBridge     = container.querySelector("#lbl-bridge");
-  const lblGpredict   = container.querySelector("#lbl-gpredict");
-  const lblRadio      = container.querySelector("#lbl-radio");
 
   // ── spectrum (FFT power plot) ──────────────────────────────────────────────
   const spCanvas = container.querySelector("#spectrum-canvas");
@@ -1139,19 +1119,6 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     if (document.activeElement !== sceneLonEl) sceneLonEl.value = state.lon.toFixed(4);
     lblLatDir.textContent = state.lat >= 0 ? "N" : "S";
     lblLonDir.textContent = state.lon >= 0 ? "E" : "W";
-
-    const bc = !!state.bridgeConnected;
-    const gc = !!state.gpredictConnected;
-    const rc = !!state.radioConnected;
-
-    dotBridge.className     = `status-dot${bc ? " connected" : ""}`;
-    lblBridge.textContent   = bc ? "Internal Bridge: connected" : "Internal Bridge: disconnected";
-
-    dotGpredict.className   = `status-dot${gc ? " gpredict" : ""}`;
-    lblGpredict.textContent = gc ? "GPredict Tracker: tracking" : "GPredict Tracker: disconnected";
-
-    dotRadio.className      = `status-dot${rc ? " gpredict" : ""}`;
-    lblRadio.textContent    = rc ? "GPredict Radio: connected" : "GPredict Radio: disconnected";
   }
 
   function tick(time) {
