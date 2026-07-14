@@ -1,0 +1,50 @@
+{
+  "name": "vsa4lv",
+  "version": "2.0.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "SunHyuk Hwang <hwang@sunhyuk.dev>",
+  "description": "VSA — DEF CON Las Vegas 2026 Edition. Virtual Satellite Antenna ground-station simulator, designed and developed by SunHyuk Hwang.",
+  "type": "commonjs",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "node server.js",
+    "electron": "electron ."
+  },
+  "dependencies": {
+    "satellite.js": "^6.0.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^29.4.6",
+    "electron-builder": "^24.13.0"
+  },
+  "build": {
+    "appId": "com.vsa4lv.app",
+    "productName": "VSA4LV",
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "satellites/**/*",
+      "styles.css",
+      "index.html",
+      "server.js",
+      "tle.txt",
+      "defcon-sky.png"
+    ],
+    "asarUnpack": [
+      "satellites/**/*"
+    ],
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    }
+  }
+}

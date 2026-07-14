@@ -1,0 +1,323 @@
+options:
+  parameters:
+    author: sunhyuk
+    catch_exceptions: 'True'
+    category: Custom
+    cmake_opt: ''
+    comment: ''
+    copyright: ''
+    description: ENIGMA-1 AX.25/G3RUH 9600 decoder (Scenario 1)
+    gen_cmake: 'On'
+    gen_linking: dynamic
+    generate_options: qt_gui
+    hier_block_src_path: '.:'
+    id: enigma1_decoder
+    max_nouts: '0'
+    output_language: python
+    placement: (0,0)
+    qt_qss_theme: ''
+    realtime_scheduling: ''
+    run: 'True'
+    run_command: '{python} -u {filename}'
+    run_options: run
+    sizing_mode: fixed
+    thread_safe_setters: ''
+    title: ENIGMA-1 Decoder
+    window_size: 1280, 1024
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [8, 8]
+    rotation: 0
+    state: enabled
+
+blocks:
+- name: baud_rate
+  id: variable
+  parameters:
+    comment: ''
+    value: '9600'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [320, 12]
+    rotation: 0
+    state: enabled
+- name: deviation
+  id: variable
+  parameters:
+    comment: ''
+    value: '2400'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [440, 12]
+    rotation: 0
+    state: enabled
+- name: freq_offset
+  id: variable
+  parameters:
+    comment: ''
+    value: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [560, 12]
+    rotation: 0
+    state: enabled
+- name: samp_rate
+  id: variable
+  parameters:
+    comment: ''
+    value: 0.05e6
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [200, 12]
+    rotation: 0
+    state: enabled
+- name: blocks_file_source_0
+  id: blocks_file_source
+  parameters:
+    affinity: ''
+    alias: ''
+    begin_tag: pmt.PMT_NIL
+    comment: ''
+    file: /home/sunhyuk/projects/vsa4lv-defcon/vsa4lv-challenges/scenario-1/signal/ENIGMA-1_433_506MHz_2026-07-08T02-25-04.cf32
+    length: '0'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    offset: '0'
+    repeat: 'False'
+    type: complex
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [16, 156]
+    rotation: 0
+    state: enabled
+- name: blocks_message_debug_0
+  id: blocks_message_debug
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    en_uvec: 'True'
+    log_level: info
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [960, 312.0]
+    rotation: 0
+    state: enabled
+- name: blocks_throttle2_0
+  id: blocks_throttle2
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    ignoretag: 'True'
+    limit: auto
+    maximum: '0.1'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    samples_per_second: samp_rate
+    type: complex
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [248, 276.0]
+    rotation: 0
+    state: enabled
+- name: epy_block_0
+  id: epy_block
+  parameters:
+    _source_code: "\"\"\"\nEmbedded Python Block: ENIGMA-1 image reassembler.\n\n\
+      Receives decoded AX.25 UI frames (PDUs) from the gr-satellites ax25_deframer,\n\
+      takes each Info field = [2-byte big-endian sequence][payload chunk], orders\
+      \ the\nchunks by sequence, strips the 4-byte length prefix, DEFLATE-inflates\
+      \ the result\nand writes the recovered grayscale image.\n\"\"\"\nimport struct\n\
+      import zlib\nimport pmt\nimport numpy as np\nfrom gnuradio import gr\n\n\nclass\
+      \ blk(gr.sync_block):\n    def __init__(self, img_w=192, img_h=128, out_path='/home/sunhyuk/projects/vsa4lv-defcon/vsa4lv-challenges/scenario-1/solution/enigma1_recovered.png'):\n\
+      \        gr.sync_block.__init__(self, name='ENIGMA-1 Image Reassembler',\n \
+      \                              in_sig=[], out_sig=[])\n        self.w, self.h\
+      \ = int(img_w), int(img_h)\n        self.out_path = out_path\n        self.chunks\
+      \ = {}\n        self.done = False\n        self.message_port_register_in(pmt.intern('frame'))\n\
+      \        self.set_msg_handler(pmt.intern('frame'), self.handle)\n\n    def handle(self,\
+      \ msg):\n        if self.done:\n            return\n        try:\n         \
+      \   ba = bytes(pmt.u8vector_elements(pmt.cdr(msg)))\n        except Exception:\n\
+      \            return\n        if len(ba) <= 16:            # 7+7 addr + ctrl\
+      \ + pid = 16-byte header\n            return\n        info = ba[16:]       \
+      \        # ax25_deframer already strips the FCS\n        if len(info) < 2:\n\
+      \            return\n        seq = struct.unpack('>H', info[:2])[0]\n      \
+      \  self.chunks.setdefault(seq, info[2:])\n        ordered, k = b'', 0\n    \
+      \    while k in self.chunks:\n            ordered += self.chunks[k]; k += 1\n\
+      \        if len(ordered) < 4:\n            return\n        clen = struct.unpack('>I',\
+      \ ordered[:4])[0]\n        if len(ordered) < 4 + clen:\n            return\n\
+      \        try:\n            data = zlib.decompress(ordered[4:4 + clen])\n   \
+      \     except zlib.error:\n            return\n        if len(data) != self.w\
+      \ * self.h:\n            return\n        try:\n            from PIL import Image\n\
+      \            Image.frombytes('L', (self.w, self.h), data).save(self.out_path)\n\
+      \        except Exception:\n            with open(self.out_path + '.raw', 'wb')\
+      \ as fh:\n                fh.write(data)\n        self.done = True\n       \
+      \ print('[ENIGMA-1] IMAGE DECODED -> ' + self.out_path)\n\n    def work(self,\
+      \ input_items, output_items):\n        return 0\n"
+    affinity: ''
+    alias: ''
+    comment: ''
+    img_h: '128'
+    img_w: '192'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    out_path: '''/home/sunhyuk/projects/vsa4lv-defcon/vsa4lv-challenges/scenario-1/solution/enigma1_recovered0708.png'''
+  states:
+    _io_cache: ('ENIGMA-1 Image Reassembler', 'blk', [('img_w', '192'), ('img_h',
+      '128'), ('out_path', "'/home/sunhyuk/projects/vsa4lv-defcon/vsa4lv-challenges/scenario-1/solution/enigma1_recovered.png'")],
+      [('frame', 'message', 1)], [], '', ['out_path'])
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [960, 220.0]
+    rotation: 0
+    state: enabled
+- name: freq_xlating_fir_filter_xxx_0
+  id: freq_xlating_fir_filter_xxx
+  parameters:
+    affinity: ''
+    alias: ''
+    center_freq: freq_offset
+    comment: ''
+    decim: '1'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    samp_rate: samp_rate
+    taps: firdes.low_pass(1, samp_rate, 12000, 2000)
+    type: ccc
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [400, 156.0]
+    rotation: 0
+    state: enabled
+- name: qtgui_waterfall_sink_x_0
+  id: qtgui_waterfall_sink_x
+  parameters:
+    affinity: ''
+    alias: ''
+    alpha1: '1.0'
+    alpha10: '1.0'
+    alpha2: '1.0'
+    alpha3: '1.0'
+    alpha4: '1.0'
+    alpha5: '1.0'
+    alpha6: '1.0'
+    alpha7: '1.0'
+    alpha8: '1.0'
+    alpha9: '1.0'
+    axislabels: 'True'
+    bw: samp_rate
+    color1: '0'
+    color10: '0'
+    color2: '0'
+    color3: '0'
+    color4: '0'
+    color5: '0'
+    color6: '0'
+    color7: '0'
+    color8: '0'
+    color9: '0'
+    comment: ''
+    fc: '0'
+    fftsize: '1024'
+    freqhalf: 'True'
+    grid: 'False'
+    gui_hint: ''
+    int_max: '10'
+    int_min: '-140'
+    label1: '""'
+    label10: '""'
+    label2: '""'
+    label3: '""'
+    label4: '""'
+    label5: '""'
+    label6: '""'
+    label7: '""'
+    label8: '""'
+    label9: '""'
+    legend: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    name: '"ENIGMA-1 433.5 MHz"'
+    nconnections: '1'
+    showports: 'False'
+    type: complex
+    update_time: '0.10'
+    wintype: window.WIN_BLACKMAN_hARRIS
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [632, 316.0]
+    rotation: 0
+    state: disabled
+- name: satellites_ax25_deframer_0
+  id: satellites_ax25_deframer
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    g3ruh_scrambler: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    options: '""'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [696, 236.0]
+    rotation: 0
+    state: enabled
+- name: satellites_fsk_demodulator_0
+  id: satellites_fsk_demodulator
+  parameters:
+    affinity: ''
+    alias: ''
+    baudrate: baud_rate
+    comment: ''
+    iq: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    options: '"--deviation " + str(deviation)'
+    samp_rate: samp_rate
+    subaudio: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [680, 140.0]
+    rotation: 0
+    state: enabled
+
+connections:
+- [blocks_file_source_0, '0', blocks_throttle2_0, '0']
+- [blocks_throttle2_0, '0', freq_xlating_fir_filter_xxx_0, '0']
+- [freq_xlating_fir_filter_xxx_0, '0', qtgui_waterfall_sink_x_0, '0']
+- [freq_xlating_fir_filter_xxx_0, '0', satellites_fsk_demodulator_0, '0']
+- [satellites_ax25_deframer_0, out, blocks_message_debug_0, log]
+- [satellites_ax25_deframer_0, out, epy_block_0, frame]
+- [satellites_fsk_demodulator_0, '0', satellites_ax25_deframer_0, '0']
+
+metadata:
+  file_format: 1
+  grc_version: 3.10.7.0
