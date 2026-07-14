@@ -213,6 +213,7 @@
       // gpredict noVNC는 Docker(:6080)를 직접 iframe(프록시 없음). 전부 이 앱 안에서 뜬다.
       var GS = p.get('gs') || 'http://localhost:4540';
       var GPORT = p.get('gpport') || '6080';
+      var CTRLPORT = p.get('ctrlport') || '6079';   // gpredict time-control server
       var gpUrl = 'http://localhost:' + GPORT + '/vnc.html?autoconnect=1&resize=remote';
       var CONSOLE_URL = '/targeting?gs=' + encodeURIComponent(GS)
         + '&gp=' + encodeURIComponent(gpUrl) + '&vsa=' + encodeURIComponent('/vsa/');
@@ -221,11 +222,21 @@
       var phase3 = document.getElementById('phase3');
       var frame = document.getElementById('phase3frame');
       if (!result || !phase3 || !frame) return;
+      var armed = false;
+      function armPass() {
+        // Tell gpredict's time-control server to place DEMOSAT ~20s before its
+        // pass, starting the "wait for the satellite" countdown from THIS moment.
+        // Best-effort: silently ignored if gpredict/Docker isn't running.
+        if (armed) return;
+        armed = true;
+        fetch('http://localhost:' + CTRLPORT + '/arm').catch(function () { armed = false; });
+      }
       function goPhase3() {
         if (!frame.getAttribute('src')) frame.setAttribute('src', CONSOLE_URL);
         builder.classList.add('hidden');
         phase3.classList.remove('hidden');
         window.scrollTo(0, 0);
+        armPass();
       }
       // 생성된 cf32를 클릭하면 ③ 조준 콘솔로 진행(파일 다운로드 없음).
       new MutationObserver(function () {
