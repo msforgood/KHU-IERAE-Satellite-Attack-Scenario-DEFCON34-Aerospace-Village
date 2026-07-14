@@ -513,25 +513,23 @@
       },
       {
         load: "안테나 타입 설정 중…",
-        done: "Antenna Type: " + white("Helix (RHCP)"),
-        apply: () => sendVSA({ antennaType: "helix" }),
+        done: "Antenna Type: " + white("Dish"),
+        apply: () => sendVSA({ antennaType: "dish" }),
       },
       {
         load: "방위각(Azimuth) 설정 중…",
         done: "Azimuth: " + white(fmt(azC) + "°"),
         // applying the antenna angle → tell the GS the target is acquired so the
         // physical antenna motor moves (exact angle not needed; it just rotates).
-        apply: () => { sendVSA({ azimuth: azC }); post("/api/acquire", {}).catch(() => {}); },
+        apply: () => {
+          sendVSA({ azimuth: azC });
+          post("/api/acquire", {}).catch(() => {});
+        },
       },
       {
         load: "고도각(Elevation) 설정 중…",
         done: "Elevation: " + white(fmt(elC) + "°"),
         apply: () => sendVSA({ elevation: elC }),
-      },
-      {
-        load: "IQ 파일 로드 중…",
-        done: "Command IQ: " + white("attack.cf32"),
-        apply: () => sendVSA({ uplinkFile: "attack.cf32" }),
       },
     ];
     let acc = "🎯 DEMOSAT 조준 중<br>";
@@ -543,7 +541,10 @@
       setStateHTML(acc, "busy");
       await sleep(400);
     }
-    setStateHTML(acc + "<br>🎯 조준 완료 — 이제 Step 2를 완료하고 TRANSMIT 하세요", "done");
+    setStateHTML(
+      acc + '<br>🎯 조준 완료 — STEP 2에서 <b style="color:var(--ink)">IQ 파일 후</b> TRANSMIT 하세요',
+      "done",
+    );
     unlockStep2(); // STEP 2 (OpenVSA) is now clickable
   };
 </script>

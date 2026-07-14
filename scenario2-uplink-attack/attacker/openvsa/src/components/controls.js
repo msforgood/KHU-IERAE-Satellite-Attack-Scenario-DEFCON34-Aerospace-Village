@@ -178,13 +178,12 @@ export function createControls({ container, store, antennaTypes }) {
         <input type="number" id="ctrl-uplink-freq" step="0.001" />
       </div>
 
-      <div class="control-row">
+      <div class="control-row control-row--inline">
         <label>Command IQ file</label>
-        <div class="rec-dir-group">
-          <span id="uplink-file-label" class="rec-dir-label">No file loaded</span>
-          <button id="btn-load-uplink" class="btn-step" title="Load .cf32 uplink IQ file">…</button>
-        </div>
+        <span id="uplink-file-label" class="rec-dir-label">No file loaded</span>
       </div>
+      <button id="btn-load-uplink" class="btn-step" style="width:100%;padding:8px;margin-top:6px"
+              title="아까 만든 IQ 파일을 적재">📎 아까 만든 IQ 파일 적재</button>
 
       <button id="btn-transmit" class="btn-transmit" disabled title="Transmit command to satellite">TRANSMIT</button>
       <p id="tx-status" class="tx-status"></p>
@@ -317,7 +316,16 @@ export function createControls({ container, store, antennaTypes }) {
   });
 
   btnLoadUplink.addEventListener("click", async () => {
-    if (!window.electronAPI) return;
+    // Embedded in the attacker console (browser, no Electron): "load" the IQ file
+    // built back in phase 2. No real bytes needed — the actual uplink is fired by
+    // the console → GS /api/inject; this just arms the panel's TRANSMIT button.
+    if (!window.electronAPI) {
+      uplinkFilePath = "attack.cf32";
+      uplinkFileLabel.textContent = "attack.cf32";
+      uplinkFileLabel.title = "attack.cf32";
+      updateUplinkPanel();
+      return;
+    }
     const filePath = await window.electronAPI.chooseUplinkFile();
     if (filePath) {
       uplinkFilePath = filePath;
@@ -325,18 +333,6 @@ export function createControls({ container, store, antennaTypes }) {
       uplinkFileLabel.title = filePath;
       updateUplinkPanel();
     }
-  });
-
-  // External preset from the attacker console (ENGAGE): mark the IQ file built in
-  // phase 2 as loaded so the panel shows it and TRANSMIT arms. No real bytes are
-  // needed here — the actual uplink is fired by the console → GS /api/inject.
-  window.addEventListener("message", (e) => {
-    const m = e.data;
-    if (!m || m.type !== "vsa-preset" || !m.uplinkFile) return;
-    uplinkFilePath = m.uplinkFile;
-    uplinkFileLabel.textContent = m.uplinkFile;
-    uplinkFileLabel.title = m.uplinkFile;
-    updateUplinkPanel();
   });
 
   btnTransmit.addEventListener("click", async () => {
