@@ -11,10 +11,12 @@
 #include <AccelStepper.h>
 
 // ── 방위각(Azimuth) 스테퍼 핀 (ULN2003 IN1..IN4) ──
-#define AZmotorPin1 9
-#define AZmotorPin2 10
-#define AZmotorPin3 11
-#define AZmotorPin4 12
+// 주의: 기존 9~12 는 스테퍼 구동이 안 돼(핀/헤더 불량 추정) A0~A3(별도 포트)로 이설.
+//   → AZ 드라이버 IN1→A0, IN2→A1, IN3→A2, IN4→A3 로 재배선할 것.
+#define AZmotorPin1 A0
+#define AZmotorPin2 A1
+#define AZmotorPin3 A2
+#define AZmotorPin4 A3
 // ── 고각(Elevation) 스테퍼 핀 ──
 #define ELmotorPin1 2
 #define ELmotorPin2 3
@@ -46,6 +48,25 @@ void deenergize() {   // 코일 끄기 (정지 시 발열 방지)
   digitalWrite(ELmotorPin3, LOW); digitalWrite(ELmotorPin4, LOW);
 }
 
+// ── 진단: 각 IN 핀을 하나씩 HIGH 로 켜서 어느 드라이버 LED(IN1..IN4)가 반응하는지 확인 ──
+// (시리얼 모니터에서 'T' 전송. AZ 4개가 차례로 안 켜지면 그 핀↔드라이버 배선/핀이 문제)
+const uint8_t AZ_PINS[4] = {AZmotorPin1, AZmotorPin2, AZmotorPin3, AZmotorPin4};   // A0,A1,A2,A3
+const uint8_t EL_PINS[4] = {ELmotorPin1, ELmotorPin2, ELmotorPin3, ELmotorPin4};   // 2,3,4,5
+void pulsePins(const char* name, const uint8_t* pins) {
+  for (int i = 0; i < 4; i++) {
+    Serial.print(name); Serial.print(" IN"); Serial.print(i + 1);
+    Serial.print(" (pin "); Serial.print(pins[i]); Serial.println(") HIGH");
+    digitalWrite(pins[i], HIGH); delay(600); digitalWrite(pins[i], LOW); delay(200);
+  }
+}
+void pinTest() {
+  Serial.println("== PIN TEST: AZ IN1..4 -> EL IN1..4 (각 드라이버 LED 가 차례로 켜지는지 확인) ==");
+  pulsePins("AZ", AZ_PINS);
+  pulsePins("EL", EL_PINS);
+  deenergize();
+  Serial.println("== PIN TEST DONE ==");
+}
+
 void setup() {
   Serial.begin(115200);
   stepperAZ.setMaxSpeed(100); stepperAZ.setAcceleration(50);
@@ -63,6 +84,7 @@ void loop() {
     char c = Serial.read();
     if (c == 'L' || c == 'l')      { gotoPose(LOCK_AZ,   LOCK_EL);   Serial.println("LOCK"); }
     else if (c == 'U' || c == 'u') { gotoPose(UNLOCK_AZ, UNLOCK_EL); Serial.println("UNLOCK"); }
+    else if (c == 'T' || c == 't') { pinTest(); }   // 진단: 핀/배선 확인
   }
 
   // 논블로킹 회전
