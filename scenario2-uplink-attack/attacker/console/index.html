@@ -258,6 +258,22 @@
   #guide .state.err {
     color: var(--crit);
   }
+  #guide .spin {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border: 2px solid var(--line);
+    border-top-color: var(--cyan);
+    border-radius: 50%;
+    animation: gspin 0.7s linear infinite;
+    vertical-align: -1px;
+    margin-right: 6px;
+  }
+  @keyframes gspin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
   #guide button.go {
     width: 100%;
     border-color: var(--good);
@@ -456,7 +472,8 @@
   gGo.onclick = async () => {
     if (engaged) return;
     engaged = true;
-    gGo.disabled = true;
+    gGo.style.display = "none"; // hide the button entirely once clicked
+    // capture DEMOSAT's actual az/el at the moment of the click
     let az = 283, el = 11;
     try {
       const s = await (await fetch(CTRL + "/status")).json();
@@ -466,15 +483,30 @@
     const azC = Math.max(0, Math.min(360, az));
     const elC = Math.max(0, Math.min(90, el));
     const fmt = (v) => String(parseFloat(v.toFixed(6))); // up to 6 decimals, no trailing zeros
-    const preset = { type: "vsa-preset", targetSat: "DEMOSAT", uplinkFreq: 433.5, azimuth: azC, elevation: elC };
-    const f = document.getElementById("vsaSlot");
-    try { if (f && f.contentWindow) f.contentWindow.postMessage(preset, "*"); } catch (e) { /* ignore */ }
-    setStateHTML(
-      '🎯 조준 완료 — DEMOSAT<br><span style="color:var(--ink)">Uplink Freq (MHz): 433.5 MHz<br>Azimuth ' +
-        fmt(azC) + "°<br>Elevation " + fmt(elC) +
-        '°</span><br>이제 Step 2를 완료하고 ⚡ TRANSMIT 하세요',
-      "done",
-    );
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const white = (t) => '<b style="color:var(--ink)">' + t + "</b>";
+    const sendVSA = (obj) => {
+      const f = document.getElementById("vsaSlot");
+      try { if (f && f.contentWindow) f.contentWindow.postMessage({ type: "vsa-preset", ...obj }, "*"); } catch (e) { /* ignore */ }
+    };
+    // Apply one field at a time with a loading beat, so users actually SEE each
+    // VSA field change (target → freq → az → el) instead of it happening at once.
+    const steps = [
+      { load: "타겟 위성 설정 중…",         done: "Target Satellite: " + white("DEMOSAT"),    apply: () => sendVSA({ targetSat: "DEMOSAT" }) },
+      { load: "업링크 주파수 설정 중…",      done: "Uplink Freq (MHz): " + white("433.5 MHz"), apply: () => sendVSA({ uplinkFreq: 433.5 }) },
+      { load: "방위각(Azimuth) 설정 중…",    done: "Azimuth: " + white(fmt(azC) + "°"),        apply: () => sendVSA({ azimuth: azC }) },
+      { load: "고도각(Elevation) 설정 중…",  done: "Elevation: " + white(fmt(elC) + "°"),      apply: () => sendVSA({ elevation: elC }) },
+    ];
+    let acc = "🎯 DEMOSAT 조준 중<br>";
+    for (const st of steps) {
+      setStateHTML(acc + '<span class="spin"></span>' + st.load, "busy");
+      await sleep(1000);
+      st.apply();
+      acc += st.done + "<br>";
+      setStateHTML(acc, "busy");
+      await sleep(400);
+    }
+    setStateHTML(acc + "<br>🎯 조준 완료 — 이제 Step 2를 완료하고 ⚡ TRANSMIT 하세요", "done");
     unlockStep2(); // STEP 2 (OpenVSA) is now clickable
   };
 </script>
