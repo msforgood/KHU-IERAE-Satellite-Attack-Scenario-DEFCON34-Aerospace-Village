@@ -33,6 +33,17 @@
   section .cap--row{display:flex;align-items:center;gap:12px}
   section .cap--row .spacer{flex:1}
   section .cap--row button{letter-spacing:normal;text-transform:none}
+  section .cap .stepno{display:inline-block;background:var(--cyan);color:#04222a;font-weight:700;
+                       padding:1px 7px;border-radius:5px;margin-right:8px;letter-spacing:.08em}
+  /* STEP 2 gate: a transparent box over OpenVSA that swallows clicks until the
+     gpredict aiming (STEP 1) is engaged. Removed once STEP 1 reports "engaged". */
+  .lockbox{position:absolute;inset:0;z-index:15;cursor:not-allowed;background:transparent}
+  .lockbox.hidden{display:none}
+  #lockTip{position:fixed;z-index:60;pointer-events:none;display:none;white-space:nowrap;
+           background:rgba(20,26,34,.97);border:1px solid var(--crit);color:var(--ink);
+           font-family:var(--mono);font-size:12px;padding:8px 12px;border-radius:8px;
+           box-shadow:0 8px 24px rgba(0,0,0,.5)}
+  #lockTip.show{display:block}
   iframe{flex:1;width:100%;border:0;background:#000}
   .empty{flex:1;display:grid;place-items:center;padding:24px;color:var(--dim);text-align:center}
   .empty code{font-family:var(--mono);color:var(--ink);background:var(--panel);padding:2px 6px;border-radius:4px}
@@ -60,7 +71,7 @@
 
 <main>
   <section>
-    <div class="cap">🛰️ gpredict — <b>SATELLITE TRACKING</b> (virtual TLE)</div>
+    <div class="cap"><span class="stepno">STEP 1</span>🛰️ gpredict — <b>SATELLITE TRACKING</b> (virtual TLE)</div>
     <!-- participant guide: wait for the pass, then one button auto-operates gpredict -->
     <div id="guide">
       <h3>🛰 SATELLITE TARGETING</h3>
@@ -79,14 +90,17 @@
   </section>
   <section>
     <div class="cap cap--row">
-      <span>📡 OpenVSA — <b>VSA UPLINK / ROTATOR</b></span>
+      <span><span class="stepno">STEP 2</span>📡 OpenVSA — <b>VSA UPLINK / ROTATOR</b></span>
       <span class="spacer"></span>
       <span id="status"></span>
       <button class="fire" id="transmit">⚡ TRANSMIT</button>
     </div>
     <div id="vsaSlot" class="empty"></div>
+    <!-- swallows all clicks on OpenVSA (incl. TRANSMIT) until STEP 1 is engaged -->
+    <div id="vsaLock" class="lockbox"></div>
   </section>
 </main>
+<div id="lockTip">❗ Step 1을 먼저 완료하세요</div>
 
 <script>
   const q = new URLSearchParams(location.search);
@@ -107,6 +121,24 @@
     `OpenVSA UI 주소를 <code>?vsa=…</code>로 지정하세요.<br>기본은 별도 창(Electron)으로 실행됩니다.`);
 
   const statusEl = document.getElementById("status");
+
+  // ── STEP 2 lock: transparent overlay blocks OpenVSA until STEP 1 (gpredict
+  //    aiming) is engaged. Hover/click surfaces the "finish Step 1 first" tip. ──
+  const vsaLock = document.getElementById("vsaLock");
+  const lockTip = document.getElementById("lockTip");
+  function showTip(e) {
+    if (vsaLock.classList.contains("hidden")) return;
+    lockTip.classList.add("show");
+    const x = Math.min(e.clientX + 14, innerWidth - lockTip.offsetWidth - 8);
+    lockTip.style.left = Math.max(8, x) + "px";
+    lockTip.style.top  = (e.clientY + 16) + "px";
+  }
+  function hideTip() { lockTip.classList.remove("show"); }
+  vsaLock.addEventListener("mouseenter", showTip);
+  vsaLock.addEventListener("mousemove", showTip);
+  vsaLock.addEventListener("mouseleave", hideTip);
+  vsaLock.addEventListener("click", showTip);
+  function unlockStep2() { vsaLock.classList.add("hidden"); hideTip(); }
 
   async function post(path, body) {
     const r = await fetch(GS + path, { method: "POST",
@@ -184,6 +216,7 @@
       ["menu", "track", "engage"].forEach((k) => markStep(k, "ok"));
       setState("🎯 안테나 교전 — 조준 완료. 이제 ⚡ TRANSMIT", "done");
       engaged = true;
+      unlockStep2();   // STEP 1 done → OpenVSA (STEP 2) is now clickable
     } catch (e) {
       engaging = false; gGo.disabled = false;
       ["menu", "track", "engage"].forEach((k) => markStep(k, ""));
