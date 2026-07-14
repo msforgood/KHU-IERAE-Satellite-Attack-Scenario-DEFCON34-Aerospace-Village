@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# antenna.sh — 안테나 스핀 보드에 시리얼 명령 전송 (손쉬운 시작/정지)
+# solar_panel.sh — 솔라 패널 스핀 보드에 시리얼 명령 전송 (손쉬운 시작/정지)
 #
 # 사용법:
-#   ./antenna.sh spin        # 무한 회전 시작
-#   ./antenna.sh stop        # 정지
-#   ./antenna.sh speed 1     # 속도 1~30 (작을수록 느리고 잔떨림↓)
-#   ./antenna.sh ping        # 상태 확인
+#   ./solar_panel.sh spin        # 무한 회전 시작
+#   ./solar_panel.sh stop        # 정지
+#   ./solar_panel.sh speed 1     # 속도 1~30 (작을수록 느리고 잔떨림↓)
+#   ./solar_panel.sh ping        # 상태 확인
 #
 # 포트는 자동 탐지(/dev/cu.usbserial-*, usbmodem*). 다른 포트면:
-#   PORT=/dev/cu.usbserial-140 ./antenna.sh spin
+#   PORT=/dev/cu.usbserial-140 ./solar_panel.sh spin
 #
 # 참고: Uno 클론(CH340)은 포트를 열 때마다 DTR로 보드가 한 번 리셋됩니다.
 #       그래서 명령을 보내기 전 부트로더(~2s)가 끝나길 기다립니다.

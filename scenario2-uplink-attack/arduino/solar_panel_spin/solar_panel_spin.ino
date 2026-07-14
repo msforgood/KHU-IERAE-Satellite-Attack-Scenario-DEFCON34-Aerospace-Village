@@ -1,10 +1,10 @@
-// antenna_spin.ino — 안테나 무한 회전 (vendor 솔라 트래커 키트 배선 기준)
+// solar_panel_spin.ino — 솔라 패널 무한 회전 (vendor 솔라 트래커 키트 배선 기준)
 //
 //   Board : Arduino Uno / Nano (CH340 클론 포함)
 //   기반  : sample-from-vendor/2-5.SPACE_Solar_thermal 의 배선을 그대로 사용.
 //
 // ── 배선 (vendor 샘플과 동일) ────────────────────────────────────────────────
-//   ServoB(하/베이스축, 방위) 신호 → D11   ← 이 서보가 "안테나"를 무한 회전시킴
+//   ServoB(하/베이스축, 방위) 신호 → D11   ← 이 서보가 "솔라 패널"을 무한 회전시킴
 //   ServoH(상/고도축)         신호 → D12   ← 중앙(90°)에 고정
 //   서보 V+  → 외부 5V (부하 시 Uno의 5V 핀 대신 별도 5V 공급)
 //   서보 GND → 공통 GND (Uno GND + 외부 5V GND 함께 묶기)
@@ -67,10 +67,10 @@ void setup() {
   tilt.write(90);                      // 고도축은 중앙 고정
 #endif
 #if CONTINUOUS_SERVO
-  Serial.println(F("ANTENNA SPIN READY mode=SPIN360"));
+  Serial.println(F("SOLAR PANEL SPIN READY mode=SPIN360"));
 #else
   base.write(sweepAngle);
-  Serial.println(F("ANTENNA SPIN READY mode=SWEEP"));
+  Serial.println(F("SOLAR PANEL SPIN READY mode=SWEEP"));
 #endif
 }
 
@@ -128,7 +128,7 @@ void applyLine(char *line) {
     sweepStep = constrain(arg, 1, 30);
 #endif
   } else if (strncmp(line, "PING", 4) == 0) {
-    Serial.print(F("ANTENNA "));
+    Serial.print(F("SOLAR PANEL "));
     Serial.println(spinning ? F("SPINNING") : F("STOPPED"));
   }
 }
