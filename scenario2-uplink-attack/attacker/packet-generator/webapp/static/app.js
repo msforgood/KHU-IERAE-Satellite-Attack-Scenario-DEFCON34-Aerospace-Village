@@ -324,6 +324,12 @@ function confirmStep1() {
   rfAutoReset(); // guarantees the magic-writing (re)plays each time 완료 is pressed
   renderSteps();
   rebuild();
+  // Scroll Step 2 into view so the "SDR" auto-typing is visible the moment it starts,
+  // instead of playing off-screen below the fold. rAF waits for the fresh DOM to lay out.
+  requestAnimationFrame(function () {
+    const s2 = document.querySelector('.step[data-step="2"]');
+    if (s2) s2.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
 }
 
 function placeBlock(sub) {
