@@ -127,6 +127,8 @@ void applyLine(char *line) {
 #else
     sweepStep = constrain(arg, 1, 30);
 #endif
+  } else if (strncmp(line, "WHOAMI", 6) == 0) {
+    Serial.println(F("ID=SOLAR_PANEL"));      // role identity for host auto-routing
   } else if (strncmp(line, "PING", 4) == 0) {
     Serial.print(F("SOLAR PANEL "));
     Serial.println(spinning ? F("SPINNING") : F("STOPPED"));
