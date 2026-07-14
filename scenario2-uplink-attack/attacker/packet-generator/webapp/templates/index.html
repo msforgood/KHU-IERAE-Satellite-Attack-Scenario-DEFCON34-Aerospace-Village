@@ -214,7 +214,9 @@
       var GS = p.get('gs') || 'http://localhost:4540';
       var GPORT = p.get('gpport') || '6080';
       var CTRLPORT = p.get('ctrlport') || '6079';   // gpredict time-control server
-      var gpUrl = 'http://localhost:' + GPORT + '/vnc.html?autoconnect=1&resize=remote';
+      // resize=scale: noVNC scales the fixed 1280x900 framebuffer down to fit the
+      // (narrower) gpredict column, so it never overflows the allotted width.
+      var gpUrl = 'http://localhost:' + GPORT + '/vnc.html?autoconnect=1&resize=scale';
       var CONSOLE_URL = '/targeting?gs=' + encodeURIComponent(GS)
         + '&gp=' + encodeURIComponent(gpUrl) + '&vsa=' + encodeURIComponent('/vsa/');
       var result = document.getElementById('result');
