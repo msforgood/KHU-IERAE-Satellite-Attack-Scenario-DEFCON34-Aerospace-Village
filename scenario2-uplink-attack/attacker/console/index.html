@@ -1,6 +1,6 @@
 <!doctype html>
 <meta charset="utf-8" />
-<title>ATTACKER // Targeting Console — ③ 위성 조준</title>
+<title>ATTACKER // Targeting Console — ③ Satellite Targeting</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <!--
   Attacker 3rd screen. Two real tools embedded side by side. NO reimplementation
@@ -312,7 +312,7 @@
     <!-- participant guide: wait for the pass, then one button auto-operates gpredict -->
     <div id="guide">
       <h3>SATELLITE TARGETING</h3>
-      <div class="state wait" id="gState">위성이 범위에 들어오기를 기다리는 중…</div>
+      <div class="state wait" id="gState">Waiting for the satellite to enter range…</div>
       <button class="go" id="gGo" disabled>⚡ ENGAGE</button>
     </div>
     <div id="gpSlot" class="empty"></div>
@@ -328,7 +328,7 @@
     <div id="vsaLock" class="lockbox"></div>
   </section>
 </main>
-<div id="lockTip">❗ Step 1을 먼저 완료하세요</div>
+<div id="lockTip">❗ Complete Step 1 first</div>
 
 <script>
   const q = new URLSearchParams(location.search);
@@ -348,13 +348,13 @@
   embed(
     "gpSlot",
     GP,
-    `실제 gpredict 화면을 여기 임베드하려면 <code>run-gpredict-web.sh</code>로 noVNC를 띄운 뒤<br>
-     <code>?gp=http://localhost:6080/vnc.html?autoconnect=1&amp;resize=scale</code> 로 여세요.`,
+    `To embed the real gpredict screen here, start noVNC with <code>run-gpredict-web.sh</code>, then open<br>
+     <code>?gp=http://localhost:6080/vnc.html?autoconnect=1&amp;resize=scale</code>.`,
   );
   embed(
     "vsaSlot",
     VSA,
-    `OpenVSA UI 주소를 <code>?vsa=…</code>로 지정하세요.<br>기본은 별도 창(Electron)으로 실행됩니다.`,
+    `Set the OpenVSA UI address with <code>?vsa=…</code>.<br>By default it runs in a separate window (Electron).`,
   );
 
   const statusEl = document.getElementById("status");
@@ -405,7 +405,7 @@
       await post("/api/inject", ATTACK);
       setStatus("⚡ UPLINK TRANSMITTED · adcs_torque 999 mNm", "var(--crit)");
     } catch (e) {
-      setStatus("GS 연결 실패 (" + e.message + ")", "var(--crit)");
+      setStatus("GS connection failed (" + e.message + ")", "var(--crit)");
     }
   }
   window.addEventListener("message", (e) => {
@@ -437,12 +437,12 @@
     const inNow = reached || remaining <= 0 || (s && s.inRange === true);
     if (inNow) {
       reached = true;
-      setStateHTML("✅ 범위 진입 — 지금 조준하세요", "ready");
+      setStateHTML("✅ In range — aim now", "ready");
       gGo.disabled = false;
     } else {
       gGo.disabled = true;
       setStateHTML(
-        '<b class="cd">' + Math.ceil(remaining) + "</b> 초 뒤 위성이 범위에 들어오기를 기다리는 중…",
+        '<b class="cd">' + Math.ceil(remaining) + "</b>s until the satellite enters range…",
         "wait",
       );
     }
@@ -492,22 +492,22 @@
     // VSA field change (target → freq → az → el) instead of it happening at once.
     const steps = [
       {
-        load: "타겟 위성 설정 중…",
+        load: "Setting target satellite…",
         done: "Target Satellite: " + white("DEMOSAT"),
         apply: () => sendVSA({ targetSat: "DEMOSAT" }),
       },
       {
-        load: "업링크 주파수 설정 중…",
+        load: "Setting uplink frequency…",
         done: "Uplink Freq (MHz): " + white("433.5 MHz"),
         apply: () => sendVSA({ uplinkFreq: 433.5 }),
       },
       {
-        load: "안테나 타입 설정 중…",
+        load: "Setting antenna type…",
         done: "Antenna Type: " + white("Dish"),
         apply: () => sendVSA({ antennaType: "dish" }),
       },
       {
-        load: "방위각(Azimuth) 설정 중…",
+        load: "Setting azimuth…",
         done: "Azimuth: " + white(fmt(azC) + "°"),
         // applying the antenna angle → tell the GS the target is acquired so the
         // physical antenna motor moves (exact angle not needed; it just rotates).
@@ -517,12 +517,12 @@
         },
       },
       {
-        load: "고도각(Elevation) 설정 중…",
+        load: "Setting elevation…",
         done: "Elevation: " + white(fmt(elC) + "°"),
         apply: () => sendVSA({ elevation: elC }),
       },
     ];
-    let acc = "🎯 DEMOSAT 조준 중<br>";
+    let acc = "🎯 Aiming at DEMOSAT<br>";
     for (const st of steps) {
       setStateHTML(acc + '<span class="spin"></span>' + st.load, "busy");
       await sleep(1000);
@@ -532,7 +532,7 @@
       await sleep(400);
     }
     setStateHTML(
-      acc + '<br>🎯 조준 완료 — STEP 2에서 <b style="color:var(--ink)">IQ 파일 후</b> TRANSMIT 하세요',
+      acc + '<br>🎯 Aim complete — in STEP 2, <b style="color:var(--ink)">load the IQ file</b> then TRANSMIT',
       "done",
     );
     unlockStep2(); // STEP 2 (OpenVSA) is now clickable
