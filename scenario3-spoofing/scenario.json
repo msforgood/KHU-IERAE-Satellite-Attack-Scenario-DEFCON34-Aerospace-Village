@@ -1,0 +1,13 @@
+{
+  "id": "scn3",
+  "name": "Telemetry Spoofing",
+  "phaseCount": 4,
+  "extras": [
+    {
+      "id": "phase4",
+      "label": "④ DRONE SPOOF → HIDE THE ALARM",
+      "path": "/extra/drone/index.html",
+      "enterFrom": "phase3"
+    }
+  ]
+}

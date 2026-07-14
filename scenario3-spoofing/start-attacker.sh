@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # start-attacker.sh — attacker 쪽 원샷 부트스트랩: 최초 설치 → 설치 확인 → 화면 실행.
-# scn2 루트에 두지만, 실제 자원은 전부 attacker/ 아래에 있어 스스로 그리로 진입한다.
+# 시나리오 폴더에 두지만 phase 1-3 자원은 전부 공용 ../common/attacker 아래에 있어
+# 스스로 그리로 진입한다. 시나리오별 차이는 이 폴더의 scenario.json + extras/ 로만 표현.
 #
 # 단일 포트(:8000) 하나로 ①②③ 전부. 별도 창/프록시 포트 없음.
 #   http://localhost:8000  Command Builder (Python)
@@ -10,7 +11,7 @@
 # ※ OpenVSA는 Electron 앱이지만 렌더러는 정적 웹(+WS :4534)이라 :8000이 /vsa 로 서빙한다.
 #   gpredict noVNC는 Docker :6080 을 그대로 iframe(프록시 불필요). TRANSMIT은 피해 GS API(/api/inject).
 #
-# 사용법 (scn2 루트에서):
+# 사용법 (시나리오 폴더에서):
 #   ./start-attacker.sh            # 설치 + 확인 + 실행 (전체)
 #   ./start-attacker.sh install    # 설치만 (최초 1회)
 #   ./start-attacker.sh check      # 설치 확인만
@@ -26,12 +27,14 @@
 #   NO_OPEN      1이면 브라우저 자동 열기 끄기 (기본: 실행 후 ①③ 화면 자동 오픈)
 #
 # ⚠️ 이 스크립트는 '공격자 쪽'만 띄웁니다. 피해 지상국(⑤)은 별도로 실행하세요:
-#     cd victim/backend && node server.js
+#     ./start-victim.sh   (또는 cd ../common/victim/backend && node server.js)
 
 set -uo pipefail
-# 스크립트는 scn2 루트에 있지만 모든 자원은 attacker/ 아래 → 그리로 진입해
-# 이하 상대경로(packet-generator·openvsa·gpredict-web·console)를 그대로 쓴다.
-cd "$(dirname "$0")/attacker"
+# phase 1-3 자원(packet-generator·openvsa·gpredict-web·console)은 공용 ../common/attacker
+# 아래에 있다. 시나리오 폴더(scenario.json·extras/ 위치)를 먼저 절대경로로 잡은 뒤
+# 공용 트리로 진입해 이하 상대경로를 그대로 쓴다. scn2·scn3·scn4가 이 스크립트를 공유한다.
+SCN_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCN_DIR/../common/attacker"
 
 MODE="${1:-all}"
 GS_URL="${GS_URL:-http://localhost:4540}"
@@ -41,6 +44,10 @@ GP_PORT="${GP_PORT:-6080}"
 GP_IMG="${GP_IMG:-demosat-gpredict}"
 UPLINK_DEST="${UPLINK_DEST:-ws://localhost:4536}"
 UPLINK_OUT_DIR="${UPLINK_OUT_DIR:-$HOME/uplink}"
+# 시나리오 델타: 이 폴더의 scenario.json(페이즈 구성) + extras/(④+ 전용 화면)를 Command
+# Builder에 전달. extras/ 가 없으면(scn2) EXTRA_DIR 미설정 → 순수 3-phase 공격.
+SCENARIO_CONFIG="${SCENARIO_CONFIG:-$SCN_DIR/scenario.json}"
+EXTRA_DIR_ARG=""; [ -d "$SCN_DIR/extras" ] && EXTRA_DIR_ARG="$SCN_DIR/extras"
 
 BUILDER_DIR="packet-generator/webapp"
 VENV="$BUILDER_DIR/.venv"
@@ -172,9 +179,10 @@ up() {
   # ── preflight: 이전 실행이 남긴 좀비가 포트를 물고 있으면 정리(bind 실패 사고 예방) ──
   free_port "$BUILDER_PORT" "Command Builder"
 
-  # ① Command Builder (:BUILDER_PORT)
+  # ① Command Builder (:BUILDER_PORT) — 시나리오 config/extras 를 함께 전달(④+ 페이즈)
   mkdir -p "$UPLINK_OUT_DIR"
-  ( cd "$BUILDER_DIR" && UPLINK_OUT_DIR="$UPLINK_OUT_DIR" PORT="$BUILDER_PORT" "$PY_ABS" app.py ) \
+  ( cd "$BUILDER_DIR" && UPLINK_OUT_DIR="$UPLINK_OUT_DIR" PORT="$BUILDER_PORT" \
+      EXTRA_DIR="$EXTRA_DIR_ARG" SCENARIO_CONFIG="$SCENARIO_CONFIG" "$PY_ABS" app.py ) \
     >/tmp/demosat-builder.log 2>&1 &
   pids+=($!)
 
@@ -206,7 +214,7 @@ up() {
   echo "     ① 명령 조립 → ② IQ 생성 → ③ 위성 조준(gpredict+OpenVSA 임베드)"
   echo "     ③ 소스: OpenVSA UI=:$BUILDER_PORT/vsa · gpredict=Docker :$GP_PORT(직접 iframe) · OpenVSA WS=:4534"
   [ -z "$GP" ] && c_warn "gpredict 미실행(docker 없음) → ③ gpredict 창 비활성, 나머지는 정상"
-  echo "   ⑤ 피해 지상국은 별도 실행:  ./start-victim.sh  (또는 cd victim/backend && node server.js)"
+  echo "   ⑤ 피해 지상국은 별도 실행:  ./start-victim.sh  (또는 cd ../common/victim/backend && node server.js)"
   echo "   ℹ️ ③ TRANSMIT은 피해 GS API(/api/inject)로 공격 명령을 발사합니다."
   echo "───────────────────────────────────────────────"
 

@@ -8,8 +8,10 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-BACKEND="$DIR/victim/backend"
-FRONTEND="$DIR/victim/frontend"
+# 지상국(phase 1-3 공통 자원)은 공용 ../common/victim 아래. 시나리오 폴더에서 실행해도
+# 같은 공용 백엔드를 띄운다(scn2·scn3·scn4 공유). 시나리오 차이는 런타임 훅으로만 발현.
+BACKEND="$DIR/../common/victim/backend"
+FRONTEND="$DIR/../common/victim/frontend"
 PORT="${GS_HTTP_PORT:-4540}"
 URL="http://localhost:$PORT"
 
