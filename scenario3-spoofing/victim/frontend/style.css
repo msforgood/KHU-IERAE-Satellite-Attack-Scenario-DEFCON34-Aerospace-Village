@@ -1,0 +1,112 @@
+:root{
+  --bg:#080b11; --panel:#0e141d; --panel2:#131c28; --line:#1d2937;
+  --ink:#cfdae7; --dim:#7c8da0; --accent:#39c5ff;
+  --ok:#33d17a; --warn:#ffb020; --danger:#ff3b4e;
+  --mono:'SFMono-Regular',ui-monospace,'Cascadia Code','Consolas',monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:20px}
+h2{font-size:16px;letter-spacing:.16em;color:var(--dim);margin:0 0 14px;font-weight:700}
+.hidden{display:none!important}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;
+  padding:16px 24px;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{display:flex;gap:14px;align-items:center}
+.sat{font-size:38px}
+.title{font-weight:700;letter-spacing:.05em;color:#eaf2fb;font-size:25px}
+.sub{font-size:16px;color:var(--dim)}
+.conn{display:flex;gap:10px;align-items:center;font-size:17px;color:var(--dim)}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.dot.off{background:var(--danger);box-shadow:0 0 8px var(--danger)}
+
+/* status banner */
+.banner{display:flex;gap:18px;align-items:center;padding:18px 24px;font-weight:700;font-size:21px;
+  letter-spacing:.03em;border-bottom:1px solid var(--line);transition:.3s}
+.banner .bl{font-size:14px;letter-spacing:.18em;opacity:.7;font-weight:700}
+.banner.nominal{background:rgba(51,209,122,.08);color:var(--ok)}
+.banner.warn{background:rgba(255,176,32,.1);color:var(--warn)}
+.banner.danger{background:rgba(255,59,78,.14);color:#ff8f9a;animation:bpulse 1s infinite}
+@keyframes bpulse{50%{background:rgba(255,59,78,.28)}}
+
+/* mission-control layout: top half = energy/battery (left) + big tracking map
+   (right); bottom = the four subsystem telemetry cards in a single row. */
+.ground{display:flex;flex-direction:column;gap:18px;padding:18px}
+.toprow{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+.leftcol{display:flex;flex-direction:column;gap:18px;min-width:0}
+.panels{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;align-content:start}
+.card,.section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
+/* map fills the right half; equirectangular Blue Marble locked at 2:1 so it never distorts */
+.mapcard{min-width:0}
+.mapcard #orbit{width:100%;height:auto;aspect-ratio:2/1}
+.section.attacked{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger),0 0 24px rgba(255,59,78,.15)}
+.section .stitle{font-size:16px;letter-spacing:.14em;color:var(--accent);margin-bottom:16px;font-weight:700}
+
+.field{display:flex;justify-content:space-between;align-items:center;padding:11px 0;
+  border-bottom:1px solid rgba(29,41,55,.5)}
+.field:last-child{border-bottom:none}
+.field .fl{color:var(--dim);font-size:17px}
+.field .fr{display:flex;gap:10px;align-items:center;text-align:right}
+.field .val{font-weight:700;color:#eaf2fb;font-size:24px}
+.val.nominal{color:#eaf2fb}.val.warn{color:var(--warn)}.val.danger{color:var(--danger)}
+.tag{font-size:14px;padding:3px 9px;border-radius:5px;letter-spacing:.05em;font-weight:700}
+.tag.nominal{background:rgba(51,209,122,.15);color:var(--ok)}
+.tag.warn{background:rgba(255,176,32,.15);color:var(--warn)}
+.tag.danger{background:rgba(255,59,78,.18);color:var(--danger)}
+.tag.blink{animation:tblink .7s steps(1) infinite}
+@keyframes tblink{50%{opacity:.35}}
+
+.bar{width:150px;height:12px;border-radius:6px;background:#0a121c;overflow:hidden;border:1px solid var(--line)}
+.bar > i{display:block;height:100%;background:var(--ok);transition:.4s,background .4s}
+.bar.warn > i{background:var(--warn)} .bar.danger > i{background:var(--danger)}
+
+/* side */
+.metric{display:flex;justify-content:space-between;font-size:17px;color:var(--dim);margin:10px 0 6px}
+.metric .mv{color:#eaf2fb;font-weight:700;font-size:19px}
+.metric .mv.danger{color:var(--danger)}
+#powGraph,#batGraph{width:100%;height:120px;background:#070c12;border:1px solid var(--line);border-radius:6px;margin-bottom:14px;display:block}
+.log{display:flex;flex-direction:column;gap:8px;max-height:300px;overflow:auto;font-size:16px}
+.logitem{padding:10px 12px;border-left:4px solid var(--danger);background:var(--panel2);border-radius:0 6px 6px 0}
+.logitem .lt{color:var(--dim);font-size:14px}
+.logitem .lc{color:#ff9aa5;font-weight:700}
+
+/* ═══════════ SPACECRAFT VITALS · ECG life-sign monitor ═══════════ */
+.vitals{margin:0 18px 0;padding:14px 20px 10px;background:linear-gradient(180deg,#0a0f16,#070b11);
+  border:1px solid var(--line);border-top:none;border-radius:0 0 12px 12px}
+.vhead{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px}
+.vtitle{font-size:18px;font-weight:800;letter-spacing:.14em;color:#cfe8ff}
+.vtitle .vsub{color:var(--dim);font-weight:600;letter-spacing:.08em;font-size:14px}
+.vmeta{display:flex;gap:22px;align-items:center}
+.vbox{display:flex;align-items:baseline;gap:7px}
+.vbpm{font-size:38px;font-weight:800;color:#eaf2fb;font-variant-numeric:tabular-nums;line-height:1}
+.vunit{font-size:14px;color:var(--dim);letter-spacing:.14em;font-weight:700}
+.vstate{font-size:16px;font-weight:800;letter-spacing:.08em;padding:6px 14px;border-radius:7px}
+.vstate.ok{color:var(--ok);background:rgba(51,209,122,.12)}
+.vstate.warn{color:var(--warn);background:rgba(255,176,32,.14)}
+.vstate.danger{color:#ff6a78;background:rgba(255,59,78,.16);animation:tblink .7s steps(1) infinite}
+.vstate.dead{color:#8b97a6;background:rgba(139,151,166,.14)}
+#ecg{display:block;width:100%;height:150px;background:#05090e;border:1px solid var(--line);border-radius:8px;
+  box-shadow:inset 0 0 40px rgba(0,0,0,.6)}
+
+/* ═══════════ ORBITAL TRACKING MAP ═══════════ */
+.maphead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+.maphead h2{margin:0}
+.mapcoord{font-size:15px;color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums}
+.mapwrap{position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#04070c}
+#orbit{display:block;width:100%;height:210px}
+.mapoverlay{position:absolute;top:8px;left:8px;display:flex;gap:8px;pointer-events:none}
+.maptag{font-size:13px;font-weight:800;letter-spacing:.06em;padding:4px 10px;border-radius:6px;
+  background:rgba(5,9,14,.72);backdrop-filter:blur(2px)}
+.maptag.ok{color:var(--ok)} .maptag.warn{color:var(--warn)}
+.maptag.danger{color:#ff6a78;animation:tblink .7s steps(1) infinite}
+
+/* alarm overlay */
+.alarm{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(120,0,10,.28);z-index:40;pointer-events:none;animation:aflash 1.1s infinite}
+@keyframes aflash{50%{background:rgba(120,0,10,.5)}}
+.alarmbox{border:2px solid var(--danger);background:#12060a;border-radius:14px;padding:32px 52px;
+  text-align:center;box-shadow:0 0 60px rgba(255,59,78,.5)}
+.atitle{font-size:46px;font-weight:800;color:var(--danger);letter-spacing:.04em}
+.adesc{margin-top:14px;color:#ff9aa5;font-size:21px;max-width:660px}
+
+@media(max-width:1200px){.panels{grid-template-columns:1fr 1fr}}
+@media(max-width:1000px){.toprow{grid-template-columns:1fr}.panels{grid-template-columns:1fr 1fr}}

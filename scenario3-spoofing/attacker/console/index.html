@@ -1,0 +1,540 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>ATTACKER // Targeting Console — ③ Satellite Targeting</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<!--
+  Attacker 3rd screen. Two real tools embedded side by side. NO reimplementation
+  — gpredict is streamed via noVNC, OpenVSA is its own web/Electron UI. Configure
+  the sources with URL query params:
+
+    index.html?gp=<gpredict-noVNC-url>&vsa=<OpenVSA-url>&gs=http://localhost:4540
+
+  ⚡ TRANSMIT (in the OpenVSA caption bar) → POST <gs>/api/inject → adcs_torque 999.
+-->
+<style>
+  :root {
+    --bg: #0c1118;
+    --panel: #131a24;
+    --ink: #e6edf3;
+    --dim: #8497a8;
+    --line: rgba(255, 255, 255, 0.1);
+    --cyan: #35d0e0;
+    --good: #4ec98a;
+    --crit: #ff5c5c;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  html,
+  body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font:
+      14px/1.5 system-ui,
+      -apple-system,
+      "Segoe UI",
+      sans-serif;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+  button {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 6px 13px;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  button:hover {
+    border-color: var(--cyan);
+    color: var(--cyan);
+  }
+  button.fire {
+    border-color: var(--crit);
+    color: var(--crit);
+  }
+  button.fire:hover {
+    background: var(--crit);
+    color: #120606;
+  }
+  #status {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    text-align: right;
+  }
+  #status b {
+    color: var(--ink);
+  }
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 2fr 3fr;
+    gap: 1px;
+    background: var(--line);
+    min-height: 0;
+  }
+  section {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    min-height: 0;
+    position: relative;
+  }
+  section .cap {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--dim);
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  section .cap b {
+    color: var(--cyan);
+  }
+  section .cap--row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  section .cap--row .spacer {
+    flex: 1;
+  }
+  section .cap--row button {
+    letter-spacing: normal;
+    text-transform: none;
+  }
+  section .cap .stepno {
+    display: inline-block;
+    background: var(--cyan);
+    color: #04222a;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 5px;
+    margin-right: 8px;
+    letter-spacing: 0.08em;
+  }
+  /* STEP 2 gate: a transparent box over OpenVSA that swallows clicks until the
+     gpredict aiming (STEP 1) is engaged. Removed once STEP 1 reports "engaged". */
+  .lockbox {
+    position: absolute;
+    inset: 0;
+    z-index: 15;
+    cursor: not-allowed;
+    background: transparent;
+  }
+  .lockbox.hidden {
+    display: none;
+  }
+  #lockTip {
+    position: fixed;
+    z-index: 60;
+    pointer-events: none;
+    display: none;
+    white-space: nowrap;
+    background: rgba(20, 26, 34, 0.97);
+    border: 1px solid var(--crit);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+  #lockTip.show {
+    display: block;
+  }
+  iframe {
+    flex: 1;
+    width: 100%;
+    border: 0;
+    background: #000;
+  }
+  .empty {
+    flex: 1;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    color: var(--dim);
+    text-align: center;
+  }
+  .empty code {
+    font-family: var(--mono);
+    color: var(--ink);
+    background: var(--panel);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  @media (max-width: 820px) {
+    main {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr 1fr;
+    }
+  }
+  /* participant guide — anchored just under the gpredict panel caption */
+  #guide {
+    position: absolute;
+    left: 12px;
+    top: 42px;
+    width: min(340px, calc(100% - 24px));
+    z-index: 20;
+    background: rgba(15, 21, 29, 0.95);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55);
+    display: none;
+  }
+  #guide.show {
+    display: block;
+  }
+  #guide h3 {
+    margin: 0 0 10px;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    font-family: var(--mono);
+  }
+  #guide .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--dim);
+    margin: 3px 0;
+  }
+  #guide .row b {
+    color: var(--ink);
+  }
+  #guide .bar {
+    height: 6px;
+    border-radius: 4px;
+    background: var(--panel);
+    overflow: hidden;
+    margin: 8px 0;
+  }
+  #guide .bar > i {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: var(--cyan);
+    transition: width 0.5s;
+  }
+  #guide .state {
+    margin: 8px 0;
+    font-weight: 640;
+  }
+  #guide .state .cd {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 720;
+    color: var(--cyan);
+    vertical-align: -2px;
+  }
+  #guide .state.wait {
+    color: var(--dim);
+  }
+  #guide .state.ready {
+    color: var(--good);
+  }
+  #guide .state.busy {
+    color: var(--cyan);
+  }
+  #guide .state.done {
+    color: var(--cyan);
+  }
+  #guide .state.err {
+    color: var(--crit);
+  }
+  #guide .spin {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border: 2px solid var(--line);
+    border-top-color: var(--cyan);
+    border-radius: 50%;
+    animation: gspin 0.7s linear infinite;
+    vertical-align: -1px;
+    margin-right: 6px;
+  }
+  @keyframes gspin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  #guide button.go {
+    width: 100%;
+    border-color: var(--good);
+    color: var(--good);
+    font-size: 13px;
+    padding: 10px;
+    margin-top: 2px;
+  }
+  #guide button.go:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: var(--line);
+    color: var(--dim);
+  }
+  #guide ol {
+    margin: 10px 0 0;
+    padding-left: 18px;
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--dim);
+  }
+  #guide ol li.active {
+    color: var(--ink);
+  }
+  #guide ol li.ok {
+    color: var(--good);
+  }
+  #guide ol li.ok::marker {
+    content: "✓ ";
+  }
+</style>
+
+<main>
+  <section>
+    <div class="cap"><span class="stepno">STEP 1</span>🛰️ gpredict — <b>SATELLITE TRACKING</b> (virtual TLE)</div>
+    <!-- participant guide: wait for the pass, then one button auto-operates gpredict -->
+    <div id="guide">
+      <h3>SATELLITE TARGETING</h3>
+      <div class="state wait" id="gState">Waiting for the satellite to enter range…</div>
+      <button class="go" id="gGo" disabled>⚡ ENGAGE</button>
+    </div>
+    <div id="gpSlot" class="empty"></div>
+  </section>
+  <section>
+    <div class="cap cap--row">
+      <span><span class="stepno">STEP 2</span>📡 OpenVSA — <b>VSA UPLINK / ROTATOR</b></span>
+      <span class="spacer"></span>
+      <span id="status"></span>
+    </div>
+    <div id="vsaSlot" class="empty"></div>
+    <!-- swallows all clicks on OpenVSA (incl. its TRANSMIT) until STEP 1 is engaged -->
+    <div id="vsaLock" class="lockbox"></div>
+  </section>
+</main>
+<div id="lockTip">❗ Complete Step 1 first</div>
+
+<script>
+  const q = new URLSearchParams(location.search);
+  const GS = (q.get("gs") || "http://localhost:4540").replace(/\/$/, "");
+  const GP = q.get("gp") || ""; // gpredict noVNC url
+  const VSA = q.get("vsa") || ""; // OpenVSA UI url
+  const CTRL = (q.get("ctrl") || "http://localhost:6079").replace(/\/$/, ""); // gpredict time-control
+
+  function embed(slot, src, hint) {
+    const el = document.getElementById(slot);
+    if (src) {
+      el.outerHTML = `<iframe id="${slot}" src="${src}" allow="fullscreen"></iframe>`;
+    } else {
+      el.innerHTML = hint;
+    }
+  }
+  embed(
+    "gpSlot",
+    GP,
+    `To embed the real gpredict screen here, start noVNC with <code>run-gpredict-web.sh</code>, then open<br>
+     <code>?gp=http://localhost:6080/vnc.html?autoconnect=1&amp;resize=scale</code>.`,
+  );
+  embed(
+    "vsaSlot",
+    VSA,
+    `Set the OpenVSA UI address with <code>?vsa=…</code>.<br>By default it runs in a separate window (Electron).`,
+  );
+
+  const statusEl = document.getElementById("status");
+
+  // ── STEP 2 lock: transparent overlay blocks OpenVSA until STEP 1 (gpredict
+  //    aiming) is engaged. Hover/click surfaces the "finish Step 1 first" tip. ──
+  const vsaLock = document.getElementById("vsaLock");
+  const lockTip = document.getElementById("lockTip");
+  function showTip(e) {
+    if (vsaLock.classList.contains("hidden")) return;
+    lockTip.classList.add("show");
+    const x = Math.min(e.clientX + 14, innerWidth - lockTip.offsetWidth - 8);
+    lockTip.style.left = Math.max(8, x) + "px";
+    lockTip.style.top = e.clientY + 16 + "px";
+  }
+  function hideTip() {
+    lockTip.classList.remove("show");
+  }
+  vsaLock.addEventListener("mouseenter", showTip);
+  vsaLock.addEventListener("mousemove", showTip);
+  vsaLock.addEventListener("mouseleave", hideTip);
+  vsaLock.addEventListener("click", showTip);
+  function unlockStep2() {
+    vsaLock.classList.add("hidden");
+    hideTip();
+  }
+
+  async function post(path, body) {
+    const r = await fetch(GS + path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    if (!r.ok) throw new Error(r.status);
+  }
+  function setStatus(t, cls) {
+    statusEl.innerHTML = t;
+    statusEl.style.color = cls || "";
+  }
+
+  // ⚡ TRANSMIT — fired by the VSA's own uplink TRANSMIT button (it posts a
+  // "vsa-transmit" message to this parent). We POST the attack straight to the GS
+  // API (/api/inject) → adcs_torque 999 mNm → tumbling → sun-track loss + solar
+  // panel motor runaway + dashboard alarm.
+  const ATTACK = { command: "adcs_torque", payload: ["0x03", "0xe7"] };
+  async function fireAttack() {
+    try {
+      await post("/api/inject", ATTACK);
+      setStatus("⚡ UPLINK TRANSMITTED · adcs_torque 999 mNm", "var(--crit)");
+    } catch (e) {
+      setStatus("GS connection failed (" + e.message + ")", "var(--crit)");
+    }
+  }
+  window.addEventListener("message", (e) => {
+    if (e.data && e.data.type === "vsa-transmit") fireAttack();
+  });
+
+  // ── participant guide: poll gpredict's time-control server, gate the ENGAGE
+  //    button on "satellite in range", then auto-operate gpredict on click. ────
+  const guide = document.getElementById("guide");
+  const gState = document.getElementById("gState");
+  const gGo = document.getElementById("gGo");
+  let engaged = false;
+
+  // Countdown runs client-side from the moment phase 3 opens (this console loads),
+  // so "wait N seconds then in range" is deterministic regardless of the gpredict
+  // clock. We also flip early if the live elevation already reports in-range, and
+  // LATCH once reached so a later re-arm never sends it back to "waiting".
+  const T0 = Date.now();
+  let leadSec = 20,
+    reached = false;
+
+  function setStateHTML(html, cls) {
+    gState.innerHTML = html;
+    gState.className = "state " + cls;
+  }
+  function render(s) {
+    if (s && s.leadSec) leadSec = s.leadSec;
+    const remaining = Math.max(0, leadSec - (Date.now() - T0) / 1000);
+    const inNow = reached || remaining <= 0 || (s && s.inRange === true);
+    if (inNow) {
+      reached = true;
+      setStateHTML("✅ In range — aim now", "ready");
+      gGo.disabled = false;
+    } else {
+      gGo.disabled = true;
+      setStateHTML(
+        '<b class="cd">' + Math.ceil(remaining) + "</b>s until the satellite enters range…",
+        "wait",
+      );
+    }
+  }
+
+  async function pollStatus() {
+    let s = null;
+    try {
+      s = await (await fetch(CTRL + "/status")).json();
+    } catch (e) {
+      guide.classList.remove("show");
+      return;
+    } // gpredict/Docker down → hide
+    guide.classList.add("show");
+    if (engaged) return; // don't overwrite the "engaged" state
+    render(s);
+  }
+  setInterval(pollStatus, 1000); // refresh in-range signal
+  // tick the countdown every second even between polls, so the number never stalls
+  setInterval(() => {
+    if (guide.classList.contains("show") && !engaged) render(null);
+  }, 1000);
+  pollStatus();
+
+  // ENGAGE: open STEP 2 and preset the VSA to the aimed uplink state via a
+  // same-origin postMessage — target=DEMOSAT, uplink 433.5 MHz, and a fixed
+  // antenna aim of Az 206° / El 30° (chosen purely because the VSA antenna
+  // renders nicely at that angle — not tied to the real satellite geometry).
+  gGo.onclick = async () => {
+    if (engaged) return;
+    engaged = true;
+    gGo.style.display = "none"; // hide the button entirely once clicked
+    const azC = 206,
+      elC = 30;
+    const fmt = (v) => String(parseFloat(v.toFixed(6))); // up to 6 decimals, no trailing zeros
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const white = (t) => '<b style="color:var(--ink)">' + t + "</b>";
+    const sendVSA = (obj) => {
+      const f = document.getElementById("vsaSlot");
+      try {
+        if (f && f.contentWindow) f.contentWindow.postMessage({ type: "vsa-preset", ...obj }, "*");
+      } catch (e) {
+        /* ignore */
+      }
+    };
+    // Apply one field at a time with a loading beat, so users actually SEE each
+    // VSA field change (target → freq → az → el) instead of it happening at once.
+    const steps = [
+      {
+        load: "Setting target satellite…",
+        done: "Target Satellite: " + white("DEMOSAT"),
+        apply: () => sendVSA({ targetSat: "DEMOSAT" }),
+      },
+      {
+        load: "Setting uplink frequency…",
+        done: "Uplink Freq (MHz): " + white("433.5 MHz"),
+        apply: () => sendVSA({ uplinkFreq: 433.5 }),
+      },
+      {
+        load: "Setting antenna type…",
+        done: "Antenna Type: " + white("Dish"),
+        apply: () => sendVSA({ antennaType: "dish" }),
+      },
+      {
+        load: "Setting azimuth…",
+        done: "Azimuth: " + white(fmt(azC) + "°"),
+        // applying the antenna angle → tell the GS the target is acquired so the
+        // physical antenna motor moves (exact angle not needed; it just rotates).
+        apply: () => {
+          sendVSA({ azimuth: azC });
+          post("/api/acquire", {}).catch(() => {});
+        },
+      },
+      {
+        load: "Setting elevation…",
+        done: "Elevation: " + white(fmt(elC) + "°"),
+        apply: () => sendVSA({ elevation: elC }),
+      },
+    ];
+    let acc = "🎯 Aiming at DEMOSAT<br>";
+    for (const st of steps) {
+      setStateHTML(acc + '<span class="spin"></span>' + st.load, "busy");
+      await sleep(1000);
+      st.apply();
+      acc += st.done + "<br>";
+      setStateHTML(acc, "busy");
+      await sleep(400);
+    }
+    setStateHTML(
+      acc + '<br>🎯 Aim complete — in STEP 2, <b style="color:var(--ink)">load the IQ file</b> then TRANSMIT',
+      "done",
+    );
+    unlockStep2(); // STEP 2 (OpenVSA) is now clickable
+  };
+</script>
