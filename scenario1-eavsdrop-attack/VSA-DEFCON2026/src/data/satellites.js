@@ -14,7 +14,7 @@ export const SATELLITES = {
     // over AX.25 UI / G3RUH 9600-baud FSK. Visitor tunes in, captures IQ, then
     // decodes with gr-satellites (fsk_demodulator + ax25_deframer).
     centerFreqMHz: 433.5,        // UHF
-    eirp:          120,           // LEO UHF cubesat (VSA units)
+    eirp:          118,           // LEO UHF cubesat (VSA units) — 저궤도(~166km). 지평선 직후에도 또렷이 보이도록 +10dB(저고도 대기감쇠 완화와 병행)
     iqSampleRate:  96_000,       // Hz — matches generator (9600 baud x 10 sps)
     polarization:  "RHCP",       // helix is best; yagi gets −3 dB pol mismatch
   },

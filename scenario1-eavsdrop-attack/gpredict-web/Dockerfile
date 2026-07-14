@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 ENV GEOM=1280x900x24 VNC_PORT=5900 WEB_PORT=6080 CTRL_PORT=6079 \
-    ROTCTLD_HOST=host.docker.internal FAKETIME_FILE=/tmp/faketime.rc PASS_LEAD=60 MIN_PASS_ALT=25
+    ROTCTLD_HOST=host.docker.internal FAKETIME_FILE=/tmp/faketime.rc PASS_LEAD=20 MIN_PASS_ALT=25
 COPY start.sh /start.sh
 COPY control.py /control.py
 RUN chmod +x /start.sh

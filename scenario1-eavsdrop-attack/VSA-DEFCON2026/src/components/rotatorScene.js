@@ -139,14 +139,14 @@ export function createRotatorScene({ container, store, antennaTypes }) {
   // ── spectrum (FFT power plot) ──────────────────────────────────────────────
   const spCanvas = container.querySelector("#spectrum-canvas");
   const spCtx    = spCanvas.getContext("2d");
-  const SP_W = 308, SP_H = 50;
+  const SP_W = 231, SP_H = 38;    // 0.75x 축소 — 안테나 가림 방지(WF_W 와 동일 폭 유지)
   spCanvas.width  = SP_W;
   spCanvas.height = SP_H;
 
   // ── waterfall ─────────────────────────────────────────────────────────────
   const wfCanvas = container.querySelector("#waterfall-canvas");
   const wfCtx    = wfCanvas.getContext("2d");
-  const WF_W = 308, WF_H = 300;
+  const WF_W = 231, WF_H = 225;   // 0.75x 축소(비율 유지) — 안테나 가림 방지. 모든 버퍼 API 가 이 상수를 참조해 일관
   wfCanvas.width  = WF_W;
   wfCanvas.height = WF_H;
   wfCtx.fillStyle = "#000";
@@ -158,7 +158,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     wfRowHeight = Math.max(1, Math.min(8, wfRowHeight + (e.deltaY > 0 ? -1 : 1)));
   }, { passive: false });
 
-  const WF_AXIS_H = 22;
+  const WF_AXIS_H = 16;   // 0.75x — 축소된 워터폴에서 주파수 축 밴드 비율 유지
 
   function drawFreqAxis() {
     const { frequency, bandwidth } = store.getState();
@@ -192,7 +192,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     wfCtx.lineTo(WF_W / 2, WF_AXIS_H - 1);
     wfCtx.stroke();
 
-    wfCtx.font = "bold 9px monospace";
+    wfCtx.font = "bold 7px monospace";   // 0.75x — 축소 축 밴드에 맞춰 라벨 비율 유지
     wfCtx.textBaseline = "top";
     wfCtx.fillStyle = "#4e6880";
     wfCtx.textAlign = "left";
@@ -342,11 +342,18 @@ export function createRotatorScene({ container, store, antennaTypes }) {
   let satDopplerHz    = 0;
   let satRangeKm      = null;
 
+  // 마지막 SGP4 샘플(base)과 초당 변화율(rate) — 워터폴 렌더 시점에 이 둘로 선형 보간(외삽)한다.
+  let _sampBase = null;                       // { az, el, dop, rng }
+  let _sampRate = { az: 0, el: 0, dop: 0, rng: 0 };
+  let _sampTime = 0;                          // performance.now() of last sample
+  const _wrap360    = (d) => ((d % 360) + 360) % 360;
+  const _shortAngle = (a, b) => ((b - a + 540) % 360) - 180;   // a→b 최단 각차 -180 ~ +180 deg
+
   async function updateSatPosition() {
     if (!window.electronAPI) return;
     const state = store.getState();
     if (!SAT_CENTER_FREQ_MHZ[state.targetSat]) {
-      satAz = null; satEl = null;
+      satAz = null; satEl = null; _sampBase = null;
       return;
     }
     const simTime = Date.now() + gpredictTimeOffset;
@@ -354,24 +361,52 @@ export function createRotatorScene({ container, store, antennaTypes }) {
       state.targetSat, state.lat, state.lon, simTime
     );
     if (pos) {
-      satAz = pos.az; satEl = pos.el;
-      satDopplerHz = pos.dopplerHz ?? 0;
-      satRangeKm = pos.rangeKm ?? null;
+      const az = pos.az, el = pos.el, dop = pos.dopplerHz ?? 0, rng = pos.rangeKm ?? null;
+      const now = performance.now();
+      if (_sampBase && rng !== null && _sampBase.rng !== null && now > _sampTime) {
+        const dt = (now - _sampTime) / 1000;                 // 초 단위 샘플 간격
+        _sampRate = {
+          az:  _shortAngle(_sampBase.az, az) / dt,           // az 랩(0/360) 안전 최단각 변화율
+          el:  (el  - _sampBase.el)  / dt,
+          dop: (dop - _sampBase.dop) / dt,
+          rng: (rng - _sampBase.rng) / dt,
+        };
+      } else {
+        _sampRate = { az: 0, el: 0, dop: 0, rng: 0 };
+      }
+      _sampBase = { az, el, dop, rng };
+      _sampTime = now;
+      satAz = az; satEl = el; satDopplerHz = dop; satRangeKm = rng;
     } else {
       satAz = null; satEl = null;
       satDopplerHz = 0;
       satRangeKm = null;
+      _sampBase = null;
     }
     store.setState((s) => ({ ...s, _satEl: satEl, _satRangeKm: satRangeKm }));
   }
 
-  const satPosInterval = setInterval(updateSatPosition, 1000);
+  // 렌더 시점(매 워터폴/스펙트럼 프레임)에 마지막 샘플+변화율로 위성 상태를 선형 보간(외삽).
+  // 위치 샘플링은 드물게(200ms) 하되 화면은 매끄럽게 채워 신호강도/중심주파수 밴딩을 제거한다.
+  const _INTERP_CAP_S = 0.30;                 // 외삽 상한(샘플 간격보다 약간 크게) — 과도 외삽 방지
+  function interpolateSatState() {
+    if (!_sampBase || _sampBase.rng === null || _sampTime <= 0) return;
+    let dt = (performance.now() - _sampTime) / 1000;
+    if (dt <= 0) return;
+    if (dt > _INTERP_CAP_S) dt = _INTERP_CAP_S;
+    satAz        = _wrap360(_sampBase.az + _sampRate.az * dt);
+    satEl        = _sampBase.el  + _sampRate.el  * dt;
+    satDopplerHz = _sampBase.dop + _sampRate.dop * dt;
+    satRangeKm   = _sampBase.rng + _sampRate.rng * dt;
+  }
+
+  const satPosInterval = setInterval(updateSatPosition, 200);  // 5Hz 샘플 — 렌더 시점 보간으로 매끄럽게 채움
   updateSatPosition();
 
   function computeBeamAttenuationDb() {
     const state = store.getState();
     const EL_REFRACTION = 1;  // degrees of atmospheric refraction margin
-    const A_ZEN = 2;          // zenith atmospheric loss (dB)
+    const A_ZEN = 1;          // zenith atmospheric loss (dB) — 저고도 온셋이 죽지 않게 완화(2→1)
 
     // No TLE data → satellite position unknown, treat as below horizon
     if (satAz === null || satEl === null) return -60;
@@ -392,7 +427,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     const thetaDeg = Math.acos(Math.max(-1, Math.min(1, cosTheta))) * 180 / Math.PI;
     const ant      = antennaTypes[state.antennaType];
     const beamLoss = -12 * (thetaDeg / ant.beamwidthDeg) ** 2;
-    const atmLoss = -A_ZEN / Math.sin(elEff * Math.PI / 180);
+    const atmLoss = Math.max(-4, -A_ZEN / Math.sin(elEff * Math.PI / 180));   // 저고도 1/sin 발산에 -4dB 바닥 — 지평선 직후 신호가 바로 보이도록
 
     // Frequency-dependent gain for dish antenna: G = η(πD/λ)²
     // The dish feed determines the usable frequency range.
@@ -601,6 +636,7 @@ export function createRotatorScene({ container, store, antennaTypes }) {
 
   // ── Waterfall render loop ─────────────────────────────────────────────────
   function drawWaterfallRow() {
+    interpolateSatState();                    // 렌더 시점 보간 — 이후 강도/도플러/빔은 이 프레임 정확한 값 사용
     // scroll existing rows down by wfRowHeight pixels
     const img = wfCtx.getImageData(0, WF_AXIS_H, WF_W, WF_H - WF_AXIS_H - wfRowHeight);
     wfCtx.putImageData(img, 0, WF_AXIS_H + wfRowHeight);

@@ -1,4 +1,4 @@
-/* ENIGMA-1 Downlink Decoder — Scenario 1 web interface front-end.
+/* ENIGMA-1 Downlink Decoder - Scenario 1 web interface front-end.
    6 phases in one page (scenario2-style UI). Rendering + client-side flowgraph
    puzzle + a client-side "remaining communication time" countdown (satellite.js).
    Backend (server.py) supplies config, satellite dossier, .grc text, and mounts
@@ -23,6 +23,7 @@ const state = {
   cfg: {}, sat: null,
   qth: null, satrec: null, obs: null, offsetMs: 0,
   remain: { valid: false, boundaryMs: null, inPass: false, lastCalcMs: 0, lastOffset: 0 },
+  serverAos: null,   // authoritative AOS (ms) from gpredict-web (/api/remaining). If set, the countdown uses it first
 };
 
 // ── clock ──
@@ -41,6 +42,15 @@ function buildStepper() {
     item.addEventListener('click', () => { if (canGo(p.id)) show(p.id); });
     nav.append(item);
   });
+  renderPhaseTags();
+}
+// Render phase-tag labels ("PHASE n · NAME") from the PHASES order, so inserting a
+// phase (e.g. a signal-analysis step after PHASE 4) auto-renumbers every tag.
+function renderPhaseTags() {
+  PHASES.forEach((p, i) => {
+    const t = $(`#p-${p.id} .phasetag[data-tag]`);
+    if (t) t.textContent = `PHASE ${i + 1} · ${t.dataset.tag}`;
+  });
 }
 function canGo(id) {
   if (state.reached[id]) return true;
@@ -58,17 +68,17 @@ function refreshStepper() {
 }
 
 const BANNER = {
-  mission:   { cls: 'nominal', text: 'MISSION BRIEFING — 수신 목표 이해' },
-  target:    { cls: 'info',    text: 'TARGET LOCKED — ENIGMA-1 제원 확인' },
-  track:     { cls: 'info',    text: 'TRACK & SYNC — 안테나 추적 · RF 동기화' },
-  puzzle:    { cls: 'warn',    text: 'DEMOD PIPELINE — flowgraph 조립 중' },
-  flowgraph: { cls: 'info',    text: 'FLOWGRAPH READY — 복조 체인 실행' },
-  result:    { cls: 'nominal', text: 'DECODE COMPLETE — 이미지 복원됨' },
+  mission:   { cls: 'nominal', text: 'MISSION BRIEFING: know the goal' },
+  target:    { cls: 'info',    text: 'TARGET LOCKED: ENIGMA-1 specs confirmed' },
+  track:     { cls: 'info',    text: 'TRACK & SYNC: antenna tracking · RF sync' },
+  puzzle:    { cls: 'warn',    text: 'DEMOD PIPELINE: assembling the flowgraph' },
+  flowgraph: { cls: 'info',    text: 'FLOWGRAPH READY: run the demod chain' },
+  result:    { cls: 'nominal', text: 'DECODE COMPLETE: image recovered' },
 };
 function refreshBanner() {
   const idx = PHASES.findIndex((p) => p.id === state.phase);
   let b = BANNER[state.phase] || BANNER.mission;
-  if (state.phase === 'puzzle' && state.puzzleSolved) b = { cls: 'nominal', text: 'DEMOD PIPELINE — flowgraph 완성' };
+  if (state.phase === 'puzzle' && state.puzzleSolved) b = { cls: 'nominal', text: 'DEMOD PIPELINE: flowgraph complete' };
   const bn = $('#pipeBanner'); bn.className = `banner ${b.cls}`;
   $('#pipeText').textContent = b.text;
   $('#pipeStage').textContent = `STAGE ${idx + 1} / ${PHASES.length}`;
@@ -81,7 +91,7 @@ function show(id) {
   refreshStepper(); refreshBanner();
   window.scrollTo({ top: 0, behavior: 'smooth' });
   if (id === 'track') mountEmbeds();
-  if (id === 'flowgraph') mountFlowgraph();
+  if (id === 'flowgraph') { mountFlowgraph(); startDecode(); }   // start live reassembly automatically on entry (no manual button needed)
   if (id === 'puzzle') {
     syncPuzzleGate();
     if (state.recUploaded) requestAnimationFrame(() => { drawWires(); startSignalFlow(); });
@@ -107,7 +117,7 @@ function wireNav() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PHASE 2 — full dossier · PHASE 3 — SAT info strip
+// PHASE 2 - full dossier · PHASE 3 - SAT info strip
 // ─────────────────────────────────────────────────────────────────────────────
 const SECT = [['identity', 'IDENTITY'], ['rf', 'RF / DOWNLINK'], ['sdr', 'SDR / RECEIVER'], ['passes', 'PASS / DOPPLER']];
 function renderDossierFull(sat) {
@@ -140,18 +150,18 @@ function renderSatInfoStrip(sat) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PHASE 3 — embeds (VSA iframe + GPredict iframe/polar-preview) + remaining time
+// PHASE 3 - embeds (VSA iframe + GPredict iframe/polar-preview) + remaining time
 // ─────────────────────────────────────────────────────────────────────────────
-// noVNC 임베드 URL 정규화: iframe 안에서 클릭 좌표가 정확히 매핑되도록 원격을
-// 뷰포트에 맞춰 스케일(resize=scale). resize=remote 는 서버가 리사이즈를 지원하지
-// 않으면 1:1 스크롤 상태가 되어 클릭이 어긋난다.
+// Normalize the noVNC embed URL: scale the remote to the viewport (resize=scale)
+// so click coordinates map correctly inside the iframe. With resize=remote, if the
+// server does not support resizing it stays 1:1 and scrolls, so clicks land wrong.
 function novncEmbedUrl(url) {
   if (!url) return url;
   url = /[?&]resize=/.test(url)
     ? url.replace(/([?&])resize=[^&]*/, '$1resize=scale')
     : url + (url.includes('?') ? '&' : '?') + 'resize=scale';
   if (!/[?&]autoconnect=/.test(url)) url += '&autoconnect=1';
-  // 연결이 끊겨(컨테이너 재시작 등) 화면이 얼면 클릭이 안 되므로 자동 재접속.
+  // If the connection drops (e.g. container restart) the screen freezes and clicks stop working, so auto-reconnect.
   if (!/[?&]reconnect=/.test(url)) url += '&reconnect=true&reconnect_delay=2000';
   return url;
 }
@@ -159,9 +169,9 @@ let embedsMounted = false;
 function mountEmbeds() {
   if (embedsMounted) return;
   embedsMounted = true;
-  // VSA — served statically by this server; auto-selects ENIGMA-1 + loads its IQ.
+  // VSA - served statically by this server; auto-selects ENIGMA-1 + loads its IQ.
   $('#vsaFrame').src = state.cfg.vsaUrl || '/vsa/index.html';
-  // GPredict — real noVNC embed if configured, else a polar-tracking preview.
+  // GPredict - real noVNC embed if configured, else a polar-tracking preview.
   const slot = $('#gpredictSlot');
   if (state.cfg.gpredictUrl) {
     const f = el('iframe', 'embedframe'); f.title = 'GPredict';
@@ -180,18 +190,19 @@ function wireResetPass() {
   if (!btn || btn.dataset.wired) return;
   btn.dataset.wired = '1';
   btn.addEventListener('click', async () => {
-    btn.disabled = true; stat.className = 'passstat'; stat.textContent = '계산 중…';
+    btn.disabled = true; stat.className = 'passstat'; stat.textContent = 'computing…';
     try {
       const r = await fetch('/api/reset-pass'); const j = await r.json();
       if (!j.ok) throw new Error(j.error || 'failed');
       stat.className = 'passstat ok';
-      const alt = j.maxAltDeg != null ? `최대고도 ${j.maxAltDeg}° · ` : '';
-      stat.textContent = `${alt}AOS ${j.aosUtc} · gpredict 재시작…`;
-      const f = $('#gpredictSlot iframe');
-      setTimeout(() => { if (f) f.src = f.src; stat.textContent = `${alt}AOS ${j.aosUtc} (수신 직전)`; }, 6000);
+      const alt = j.maxAltDeg != null ? `max elevation ${j.maxAltDeg}° · ` : '';
+      const lead = j.leadSec != null ? ` · signal in ${j.leadSec}s` : ' (signal imminent)';
+      stat.textContent = `${alt}AOS ${j.aosUtc}${lead}`;
+      // The libfaketime clock jumps in real time without a restart (no iframe reload). The countdown snaps immediately too.
+      if (typeof j.aosUnix === 'number') state.serverAos = { aosMs: j.aosUnix * 1000 };
       refreshOffsetSoon();
     } catch (e) { stat.className = 'passstat err'; stat.textContent = `✗ ${e.message}`; }
-    finally { setTimeout(() => { btn.disabled = false; }, 6000); }
+    finally { setTimeout(() => { btn.disabled = false; }, 1200); }
   });
 }
 
@@ -255,17 +266,26 @@ function startRemainingCountdown() {
 function remainTick() {
   const val = $('#remainVal'), st = $('#remainState');
   if (!val) return;
-  if (!state.satrec) { buildSatrec(); if (!state.satrec) { val.textContent = '--:--'; val.className = 'remain-val los'; st.textContent = 'TLE 대기'; return; } }
+  if (!state.satrec) { buildSatrec(); if (!state.satrec) { val.textContent = '--:--'; val.className = 'remain-val los'; st.textContent = 'waiting for TLE'; return; } }
   const now = Date.now() + state.offsetMs;
+  // If the server (gpredict-web) gave an authoritative AOS, use it directly so the on-screen number matches gpredict exactly.
+  // After AOS (pass in progress) or if the server is absent, fall back to the local SGP4 (LOS calc) below.
+  if (state.serverAos && state.serverAos.aosMs > now) {
+    const left = state.serverAos.aosMs - now;
+    val.textContent = fmtDur(left);
+    val.className = 'remain-val los' + (left < 60000 ? ' warn' : '');
+    st.textContent = '- NEXT AOS';
+    return;
+  }
   const r = state.remain;
   const need = !r.valid || r.lastOffset !== state.offsetMs || (r.boundaryMs != null && now >= r.boundaryMs) || (now - r.lastCalcMs) > 15000;
   if (need) { const b = findBoundary(now); state.remain = { valid: true, boundaryMs: b.boundaryMs, inPass: b.inPass, lastCalcMs: now, lastOffset: state.offsetMs }; }
   const rr = state.remain;
-  if (rr.boundaryMs == null) { val.textContent = '--:--'; val.className = 'remain-val los'; st.textContent = rr.inPass ? 'IN PASS' : '패스 없음'; return; }
+  if (rr.boundaryMs == null) { val.textContent = '--:--'; val.className = 'remain-val los'; st.textContent = rr.inPass ? 'IN PASS' : 'no pass'; return; }
   const left = rr.boundaryMs - now;
   val.textContent = fmtDur(left);
   if (rr.inPass) { val.className = 'remain-val' + (left < 60000 ? ' warn' : ''); st.textContent = '● IN PASS · LOS'; }
-  else { val.className = 'remain-val los'; st.textContent = '— NEXT AOS'; }
+  else { val.className = 'remain-val los'; st.textContent = '- NEXT AOS'; }
 }
 // faketime offset from gpredict-web control (:6079 → /api/offset). 0 when no Docker.
 let offsetTimer = null;
@@ -273,7 +293,13 @@ function startOffsetPoll() {
   if (offsetTimer) return;
   const poll = async () => {
     try { const j = await (await fetch('/api/offset')).json(); if (j && typeof j.offsetMs === 'number') state.offsetMs = j.offsetMs; }
-    catch (e) { /* no control server — stay on real time */ }
+    catch (e) { /* no control server - stay on real time */ }
+    // Get the same AOS as gpredict (MIN_ALT filter + faketime) from the server so the countdown matches.
+    try {
+      const k = await (await fetch('/api/remaining')).json();
+      state.serverAos = (k && k.ok && typeof k.aosUnix === 'number' && k.remainingSec > 2)
+        ? { aosMs: k.aosUnix * 1000 } : null;   // pass in progress (≤2s) or error: fall back to client SGP4
+    } catch (e) { state.serverAos = null; }
   };
   poll(); offsetTimer = setInterval(poll, 3000);
 }
@@ -291,13 +317,13 @@ function makeGpredictView(container) {
       <div class="gpv-side">
         <div class="gpv-title">GPREDICT · TRACKING</div>
         <div class="gpv-sat">🛰 ENIGMA-1</div>
-        <div class="gpv-badge" data-k="state">— ACQUIRING —</div>
+        <div class="gpv-badge" data-k="state">- ACQUIRING -</div>
         <div class="gpv-row"><span>Azimuth</span><b data-k="az">–</b></div>
         <div class="gpv-row"><span>Elevation</span><b data-k="el">–</b></div>
         <div class="gpv-row"><span>Range</span><b data-k="rng">–</b></div>
         <div class="gpv-row"><span>Doppler</span><b data-k="dop">–</b></div>
         <div class="gpv-row"><span>RX freq</span><b data-k="rx">–</b></div>
-        <div class="gpv-note">⚠ 폴라 프리뷰 (실물 GPredict 미연결)<br>실물: <code>gpredict-web/run.sh</code> → <code>GPREDICT_URL</code> 로 실행</div>
+        <div class="gpv-note">⚠ polar preview (real GPredict not connected)<br>real: run <code>gpredict-web/run.sh</code> → set <code>GPREDICT_URL</code></div>
       </div>
     </div>`;
   const cv = container.querySelector('.gpv-canvas'); const ctx = cv.getContext('2d');
@@ -336,8 +362,8 @@ function makeGpredictView(container) {
       setv('az', `${az.toFixed(1)}°`); setv('el', `${elv.toFixed(1)}°`); setv('rng', `${rng.toFixed(0)} km`);
       setv('dop', `${dop >= 0 ? '+' : ''}${dop.toFixed(2)} kHz`); setv('rx', `${(433.5 + dop / 1000).toFixed(4)} MHz`);
     } else {
-      setv('state', '— LOS · WAITING —'); container.querySelector('.gpv-badge').className = 'gpv-badge';
-      setv('az', '—'); setv('el', 'below horizon'); setv('rng', '—'); setv('dop', '—'); setv('rx', '433.5000 MHz');
+      setv('state', '- LOS · WAITING -'); container.querySelector('.gpv-badge').className = 'gpv-badge';
+      setv('az', '-'); setv('el', 'below horizon'); setv('rng', '-'); setv('dop', '-'); setv('rx', '433.5000 MHz');
     }
     requestAnimationFrame(frame);
   }
@@ -345,7 +371,7 @@ function makeGpredictView(container) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PHASE 4 — flowgraph puzzle (blocks/slots/wires match enigma1_decoder.grc)
+// PHASE 4 - flowgraph puzzle (blocks/slots/wires match enigma1_decoder.grc)
 // ─────────────────────────────────────────────────────────────────────────────
 const BLOCKS = {
   file_source: { cat: 'src',  phase: 'SOURCE',   title: 'File Source',                sub: 'enigma34_downlink.cf32' },
@@ -382,7 +408,7 @@ function blockCardHTML(id) {
     <div class="bt">${b.title}</div><div class="bs">${b.sub}</div></div>`;
 }
 function initPuzzle() {
-  puzzle.placement = { file_source: 'file_source' };   // 첫 블록(File Source)은 고정 배치로 시작
+  puzzle.placement = { file_source: 'file_source' };   // the first block (File Source) starts fixed in place
   puzzle.selected = null;
   puzzle.tray = shuffle(Object.keys(BLOCKS).filter((id) => id !== 'file_source'));
   state.puzzleSolved = false;
@@ -399,7 +425,7 @@ function renderSlots() {
     const placed = puzzle.placement[s.id];
     if (placed) {
       d.classList.add('filled', placed === s.id ? 'correct' : 'wrong'); d.innerHTML = blockCardHTML(placed);
-      if (s.id === 'file_source') { d.classList.add('fixed'); d.insertAdjacentHTML('beforeend', '<div class="slotlock">🔒 고정</div>'); }
+      if (s.id === 'file_source') { d.classList.add('fixed'); d.insertAdjacentHTML('beforeend', '<div class="slotlock">🔒 fixed</div>'); }
     }
     else { d.innerHTML = `<div class="ghostname">${BLOCKS[s.id].phase}</div>`; if (puzzle.selected) d.classList.add('selectable'); }
     d.addEventListener('click', () => onSlotClick(s.id));
@@ -408,7 +434,7 @@ function renderSlots() {
 }
 function renderTray() {
   const tray = $('#tray'); tray.innerHTML = '';
-  if (!puzzle.tray.length) { tray.append(el('div', 'traynote', '모든 블록을 배치했다.')); return; }
+  if (!puzzle.tray.length) { tray.append(el('div', 'traynote', 'All blocks placed.')); return; }
   puzzle.tray.forEach((id) => {
     const b = BLOCKS[id];
     const chip = el('div', `traychip cat-${b.cat}${puzzle.selected === id ? ' selected' : ''}`);
@@ -418,7 +444,7 @@ function renderTray() {
   });
 }
 function onSlotClick(slotId) {
-  if (slotId === 'file_source') return;   // 고정 블록: 제거/이동 불가
+  if (slotId === 'file_source') return;   // fixed block: cannot be removed or moved
   const occupant = puzzle.placement[slotId];
   if (occupant) { delete puzzle.placement[slotId]; puzzle.tray.push(occupant); puzzle.selected = null; }
   else if (puzzle.selected) { puzzle.placement[slotId] = puzzle.selected; puzzle.tray = puzzle.tray.filter((b) => b !== puzzle.selected); puzzle.selected = null; }
@@ -451,32 +477,32 @@ function drawWires() {
 function updatePuzzleState() {
   const placed = Object.keys(puzzle.placement).length;
   const correct = SLOTS.filter((s) => puzzle.placement[s.id] === s.id).length;
-  $('#puzzleProg').textContent = `${placed} / ${SLOTS.length} 배치`;
+  $('#puzzleProg').textContent = `${placed} / ${SLOTS.length} placed`;
   const solved = correct === SLOTS.length;
   state.puzzleSolved = solved;
   $('#solvedBanner').classList.toggle('hidden', !solved);
   $('#toFlowgraph').disabled = !solved;
-  $('#toFlowgraph').textContent = solved ? '정답 flowgraph 확인 →' : '🔒 정답 flowgraph 확인 →';
+  $('#toFlowgraph').textContent = solved ? 'Show the correct flowgraph →' : '🔒 Show the correct flowgraph →';
   refreshStepper(); if (state.phase === 'puzzle') refreshBanner();
   updateSignalFlow();
 }
 function wirePuzzle() {
   $('#resetPuzzle').addEventListener('click', initPuzzle);
-  // 힌트: 올바른 신호 체인 순서를 보여주고, 선택된 블록의 정답 슬롯을 잠깐 강조한다.
+  // Hint: show the correct signal-chain order and briefly highlight the correct slot for the selected block.
   $('#hintPuzzle').addEventListener('click', () => {
     const hb = $('#hintBox');
     const order = ['file_source', 'throttle', 'fir', 'fsk', 'deframer', 'reassembler'];
     const chain = order.map((id) => BLOCKS[id].title).join(' → ');
-    hb.innerHTML = `<b>신호 체인 순서</b><br>${chain}<br>
-      <span style="color:var(--dim)">· File Source 는 좌측 최하단, Reassembler/Message Debug 는 우측 최상/하단.
-      · Waterfall Sink 은 FIR 에서 분기(선택). 트레이의 블록을 선택하면 정답 슬롯이 잠깐 강조됩니다.</span>`;
+    hb.innerHTML = `<b>Signal chain order</b><br>${chain}<br>
+      <span style="color:var(--dim)">· File Source is bottom-left, Reassembler/Message Debug are top/bottom-right.
+      · Waterfall Sink branches off FIR (optional). Select a block in the tray to briefly highlight its correct slot.</span>`;
     hb.classList.remove('hidden');
     if (puzzle.selected) {
       const s = $(`.slot[data-slot="${puzzle.selected}"]`);
       if (s && !s.classList.contains('filled')) { s.style.boxShadow = '0 0 0 2px var(--amber) inset'; setTimeout(() => { s.style.boxShadow = ''; }, 1400); }
     }
   });
-  // 정답 배치 (배포 시 제거 예정)
+  // Auto-solve placement (to be removed before release)
   $('#revealPuzzle').addEventListener('click', () => {
     puzzle.placement = {}; SLOTS.forEach((s) => { puzzle.placement[s.id] = s.id; });
     puzzle.tray = []; puzzle.selected = null;
@@ -485,7 +511,7 @@ function wirePuzzle() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PHASE 4 — STEP 0 녹음 파일 업로드 게이트 (업로드 완료 시 퍼즐 노출)
+// PHASE 4 - STEP 0 recording upload gate (reveals the puzzle once upload completes)
 // ─────────────────────────────────────────────────────────────────────────────
 function fmtBytes(n) {
   if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
@@ -499,41 +525,41 @@ function ugError(msg) {
   info.classList.remove('hidden', 'ug-ok'); info.classList.add('ug-err');
   info.innerHTML = '⚠ ' + msg;
 }
-// .cf32(complex float32 IQ) 검증 후, PHASE 5 실물 GNU Radio 의 File Source 로 쓰도록 서버에 전송한다.
+// After validating .cf32 (complex float32 IQ), send it to the server so PHASE 5's real GNU Radio uses it as the File Source.
 async function handleRecFile(file) {
   const info = $('#ugInfo'); if (!info) return;
   info.classList.remove('hidden', 'ug-err', 'ug-ok');
-  info.innerHTML = '⏳ 파일 검증 중…';
+  info.innerHTML = '⏳ validating file…';
   const name = file.name, size = file.size;
   const okExt = /\.(cf32|iq|raw|c64|dat)$/i.test(name);
   if (size < 4096 || size % 8 !== 0) {
-    return ugError(`complex float32(IQ) 형식이 아닙니다 — 크기 ${fmtBytes(size)} (8바이트 배수가 아니거나 너무 작음). VSA 에서 녹음한 .cf32 를 올리세요.`);
+    return ugError(`not complex float32 (IQ) format - size ${fmtBytes(size)} (not a multiple of 8 bytes, or too small). Upload the .cf32 recorded in the VSA.`);
   }
-  let ok = true, peak = 0;                              // 앞부분을 float32 로 해석해 실제 IQ 인지 확인
+  let ok = true, peak = 0;                              // read the beginning as float32 to check it is real IQ
   try {
     const buf = await file.slice(0, 8192).arrayBuffer();
     const f = new Float32Array(buf);
     for (let i = 0; i < f.length; i++) { const v = f[i]; if (!Number.isFinite(v)) { ok = false; break; } const a = Math.abs(v); if (a > peak) peak = a; }
-    if (peak === 0 || peak > 1e6) ok = false;   // NaN/Inf 는 위 isFinite 에서 이미 차단; 정규화 안 된 캡처도 허용
+    if (peak === 0 || peak > 1e6) ok = false;   // NaN/Inf already blocked by isFinite above; un-normalized captures are also allowed
   } catch (e) { ok = false; }
-  if (!ok) return ugError('IQ 데이터로 해석되지 않습니다. VSA 에서 녹음한 .cf32(complex float32) 파일인지 확인하세요.');
+  if (!ok) return ugError('Cannot be read as IQ data. Check that it is a .cf32 (complex float32) file recorded in the VSA.');
   const samples = size / 8, durAt50k = samples / 50000;
   state.recUploaded = true; state.recFile = { name, size, samples };
-  BLOCKS.file_source.sub = name.length > 26 ? name.slice(0, 25) + '…' : name;   // 퍼즐 첫 블록 + PHASE5 File Source 라벨
+  BLOCKS.file_source.sub = name.length > 26 ? name.slice(0, 25) + '…' : name;   // puzzle's first block + PHASE 5 File Source label
   info.classList.remove('ug-err'); info.classList.add('ug-ok');
   info.innerHTML =
-    `✅ <b>${escHtml(name)}</b> 업로드 완료` +
-    `<br>크기 ${fmtBytes(size)} · IQ 샘플 ${samples.toLocaleString()}개 (complex float32)` +
-    (okExt ? '' : ' · <span class="ug-warn">확장자 비표준</span>') +
-    `<br><span class="ug-sub">≈ ${durAt50k.toFixed(1)}초 @ 50 kSps · 복조 flowgraph 퍼즐을 활성화합니다…</span>` +
-    `<br><span id="ugServerLine" class="ug-sub">⏳ PHASE 5 GNU Radio 용으로 서버 전송 중…</span>`;
-  uploadToServer(file, name, 50000).then((r) => {          // PHASE 5 실물 GNU Radio File Source 스테이징
+    `✅ <b>${escHtml(name)}</b> uploaded` +
+    `<br>size ${fmtBytes(size)} · ${samples.toLocaleString()} IQ samples (complex float32)` +
+    (okExt ? '' : ' · <span class="ug-warn">non-standard extension</span>') +
+    `<br><span class="ug-sub">≈ ${durAt50k.toFixed(1)}s @ 50 kSps · activating the demod flowgraph puzzle…</span>` +
+    `<br><span id="ugServerLine" class="ug-sub">⏳ uploading to the server for PHASE 5 GNU Radio…</span>`;
+  uploadToServer(file, name, 50000).then((r) => {          // stage the File Source for PHASE 5's real GNU Radio
     const el = $('#ugServerLine'); if (!el) return;
     el.textContent = (r && r.ok)
-      ? '⬆ 서버 등록 완료 — PHASE 5 실물 GNU Radio 의 File Source 로 사용됩니다'
-      : '⚠ 서버 전송 실패 — 퍼즐은 진행되지만 PHASE 5 파일소스에는 반영되지 않습니다';
+      ? '⬆ registered on the server: used as the File Source in PHASE 5 real GNU Radio'
+      : '⚠ server upload failed: the puzzle continues but the PHASE 5 file source is not updated';
   });
-  setTimeout(revealPuzzleBody, 900);                   // 결과를 잠깐 보여준 뒤 퍼즐 노출
+  setTimeout(revealPuzzleBody, 900);                   // show the result briefly, then reveal the puzzle
 }
 async function uploadToServer(file, name, sampleRate) {
   try {
@@ -546,7 +572,7 @@ function revealPuzzleBody() {
   const up = $('#puzzleUpload'), body = $('#puzzleBody');
   if (up) up.classList.add('hidden');
   if (body) body.classList.remove('hidden');
-  // 노출 후 레이아웃이 확정된 시점에 퍼즐을 새로 그린다(첫 블록 고정 + 업로드 파일명 반영).
+  // Once revealed and the layout settles, redraw the puzzle (first block fixed + uploaded filename applied).
   requestAnimationFrame(() => { initPuzzle(); startSignalFlow(); });
 }
 function syncPuzzleGate() {
@@ -560,7 +586,7 @@ function wireUploadGate() {
   if (!input || !drop) return;
   input.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) handleRecFile(f); });
   ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); drop.classList.add('dragover'); }));
-  // 라벨 내부 자식으로 커서가 넘어갈 때 dragleave 가 조기 발화하지 않도록 실제 이탈만 처리
+  // Only handle a real exit, so dragleave does not fire early when the cursor moves onto a child inside the label
   drop.addEventListener('dragleave', (e) => { if (!e.relatedTarget || !drop.contains(e.relatedTarget)) drop.classList.remove('dragover'); });
   drop.addEventListener('drop', (e) => {
     e.preventDefault(); drop.classList.remove('dragover');
@@ -570,15 +596,15 @@ function wireUploadGate() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PHASE 4 — signal-flow preview (블록을 맞출수록 각 단계 신호가 살아난다)
-// 각 단계는 "그 지점까지의 체인이 정답으로 채워졌을 때"만 활성화되어 애니메이션한다.
+// PHASE 4 - signal-flow preview (each stage's signal comes alive as you place blocks)
+// A stage only activates and animates once the chain up to that point is filled in correctly.
 // ─────────────────────────────────────────────────────────────────────────────
 const SIGFLOW = [
-  { key: 'iq',     label: 'RAW IQ',    sub: 'IQ + 잡음',      need: ['file_source'] },
-  { key: 'filter', label: 'FILTER',    sub: '협대역 · 도플러', need: ['file_source', 'throttle', 'fir'] },
-  { key: 'demod',  label: 'FSK DEMOD', sub: '마크 · 스페이스', need: ['file_source', 'throttle', 'fir', 'fsk'] },
-  { key: 'frame',  label: 'AX.25',     sub: '프레임 (HDLC)',   need: ['file_source', 'throttle', 'fir', 'fsk', 'deframer'] },
-  { key: 'image',  label: 'IMAGE',     sub: '재조립',          need: ['file_source', 'throttle', 'fir', 'fsk', 'deframer', 'reassembler'] },
+  { key: 'iq',     label: 'RAW IQ',    sub: 'IQ + noise',        need: ['file_source'] },
+  { key: 'filter', label: 'FILTER',    sub: 'narrowband · Doppler', need: ['file_source', 'throttle', 'fir'] },
+  { key: 'demod',  label: 'FSK DEMOD', sub: 'mark · space',      need: ['file_source', 'throttle', 'fir', 'fsk'] },
+  { key: 'frame',  label: 'AX.25',     sub: 'frame (HDLC)',      need: ['file_source', 'throttle', 'fir', 'fsk', 'deframer'] },
+  { key: 'image',  label: 'IMAGE',     sub: 'reassembly',        need: ['file_source', 'throttle', 'fir', 'fsk', 'deframer', 'reassembler'] },
 ];
 const NUM = '①②③④⑤';
 const sigResultImg = new Image();
@@ -607,7 +633,7 @@ function startSignalFlow() {
   buildSignalFlow(); updateSignalFlow();
   if (sigflowRAF) return;
   const loop = (now) => {
-    if (state.phase !== 'puzzle') { sigflowRAF = null; return; }   // 다른 phase 로 가면 정지
+    if (state.phase !== 'puzzle') { sigflowRAF = null; return; }   // stop when leaving for another phase
     const t = now / 1000;
     SIGFLOW.forEach((s) => {
       const cv = document.querySelector(`.sigstage[data-stage="${s.key}"] canvas`);
@@ -623,32 +649,32 @@ function drawSig(cv, key, active, t) {
   const w = cv.clientWidth || 140, h = cv.clientHeight || 62;
   if (cv.width !== w * dpr || cv.height !== h * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
-  if (!active) {   // 비활성: 흐린 점선 baseline
+  if (!active) {   // inactive: faint dashed baseline
     ctx.strokeStyle = '#1c2836'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 5]);
     ctx.beginPath(); ctx.moveTo(6, h / 2); ctx.lineTo(w - 6, h / 2); ctx.stroke(); ctx.setLineDash([]);
     return;
   }
   ctx.lineWidth = 2; ctx.lineJoin = 'round';
-  if (key === 'iq') {                                   // 잡음 섞인 IQ (I 시안 / Q 보라)
+  if (key === 'iq') {                                   // noisy IQ (I cyan / Q purple)
     const line = (color, ph) => { ctx.strokeStyle = color; ctx.beginPath();
       for (let x = 0; x <= w; x += 2) {
         const n = Math.sin(x * 0.35 - t * 3 + ph) * 0.5 + Math.sin(x * 0.14 - t * 2.1 + ph) * 0.3 + Math.sin(x * 0.8 - t * 4.7 + ph) * 0.2;
         const y = h / 2 + n * (h * 0.30); x ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
       } ctx.stroke(); };
     line('#39c5ff', 0); line('#8a7dff', 1.7);
-  } else if (key === 'filter') {                        // 필터 전(광대역·잡음·오프셋) ▸ 후(협대역·정렬·저잡음)
+  } else if (key === 'filter') {                        // before filter (wideband · noisy · offset) ▸ after (narrowband · aligned · low-noise)
     const gap = 16, pad = 5, midX = w / 2, baseY = h - 6, topY = 13;
     const lx0 = pad, lx1 = midX - gap / 2, rx0 = midX + gap / 2, rx1 = w - pad;
     const spectrum = (x0, x1, peakFrac, sigma, peakH, noiseAmp, col) => {
       const cx = x0 + (x1 - x0) * peakFrac;
-      ctx.strokeStyle = 'rgba(95,125,155,.55)'; ctx.lineWidth = 1; ctx.beginPath();   // 노이즈 플로어
+      ctx.strokeStyle = 'rgba(95,125,155,.55)'; ctx.lineWidth = 1; ctx.beginPath();   // noise floor
       let first = true;
       for (let x = x0; x <= x1; x += 2) {
         const n = Math.max(0, (Math.sin(x * 1.9 + t * 5) * 0.5 + 0.5) + Math.sin(x * 0.7 - t * 3) * 0.35);
         const y = baseY - n * noiseAmp; first ? (ctx.moveTo(x, y), first = false) : ctx.lineTo(x, y);
       }
       ctx.stroke();
-      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath();                       // 반송파 피크
+      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath();                       // carrier peak
       for (let x = x0; x <= x1; x += 1.5) {
         const g = Math.exp(-Math.pow((x - cx) / sigma, 2));
         const n = (Math.sin(x * 1.9 + t * 5) * 0.5 + 0.5) * noiseAmp * 0.5;
@@ -656,35 +682,35 @@ function drawSig(cv, key, active, t) {
       }
       ctx.stroke();
     };
-    ctx.fillStyle = 'rgba(57,197,255,.10)';                                            // OUT 통과대역(가운데만 통과)
+    ctx.fillStyle = 'rgba(57,197,255,.10)';                                            // OUT passband (only the center passes)
     ctx.fillRect((rx0 + rx1) / 2 - 7, topY, 14, baseY - topY);
-    spectrum(lx0, lx1, 0.66, 8, (h - topY) * 0.5 * (0.85 + 0.15 * Math.sin(t * 3)), (h - topY) * 0.30, '#7f92a6');  // 전
-    spectrum(rx0, rx1, 0.5, 4.5, (h - topY) * 0.80 * (0.85 + 0.15 * Math.sin(t * 4)), (h - topY) * 0.07, '#39c5ff'); // 후
+    spectrum(lx0, lx1, 0.66, 8, (h - topY) * 0.5 * (0.85 + 0.15 * Math.sin(t * 3)), (h - topY) * 0.30, '#7f92a6');  // before
+    spectrum(rx0, rx1, 0.5, 4.5, (h - topY) * 0.80 * (0.85 + 0.15 * Math.sin(t * 4)), (h - topY) * 0.07, '#39c5ff'); // after
     ctx.fillStyle = '#33d17a'; ctx.font = '12px ui-monospace,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('▸', midX, (topY + baseY) / 2);
     ctx.fillStyle = '#7f92a6'; ctx.font = '9px ui-monospace,monospace'; ctx.textBaseline = 'top';
-    ctx.textAlign = 'left'; ctx.fillText('전(광대역)', lx0, 2);
-    ctx.textAlign = 'right'; ctx.fillText('후(협대역)', rx1, 2);
-  } else if (key === 'demod') {                         // FSK: 마크/스페이스 사각파 + 아래 0/1 비트 스트림
+    ctx.textAlign = 'left'; ctx.fillText('before (wide)', lx0, 2);
+    ctx.textAlign = 'right'; ctx.fillText('after (narrow)', rx1, 2);
+  } else if (key === 'demod') {                         // FSK: mark/space square wave + 0/1 bit stream below
     const bits = [1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1], bw = 14, off = (t * 38) % bw;
     const hi = h * 0.18, lo = h * 0.48;
-    ctx.strokeStyle = '#33d17a'; ctx.lineWidth = 2; ctx.beginPath(); let started = false;    // 사각파(마크/스페이스)
+    ctx.strokeStyle = '#33d17a'; ctx.lineWidth = 2; ctx.beginPath(); let started = false;    // square wave (mark/space)
     for (let i = -1; i < Math.ceil(w / bw) + 1; i++) {
       const bit = bits[((i % bits.length) + bits.length) % bits.length], x0 = i * bw - off, y = bit ? hi : lo;
       if (!started) { ctx.moveTo(x0, y); started = true; } else ctx.lineTo(x0, y); ctx.lineTo(x0 + bw, y);
     } ctx.stroke();
-    ctx.strokeStyle = 'rgba(95,125,155,.22)'; ctx.lineWidth = 1;                             // 구분선
+    ctx.strokeStyle = 'rgba(95,125,155,.22)'; ctx.lineWidth = 1;                             // divider line
     ctx.beginPath(); ctx.moveTo(0, h * 0.60); ctx.lineTo(w, h * 0.60); ctx.stroke();
-    ctx.font = '11px ui-monospace,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';   // 0/1 스트림(파형과 동기)
+    ctx.font = '11px ui-monospace,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';   // 0/1 stream (synced to the waveform)
     for (let i = -1; i < Math.ceil(w / bw) + 1; i++) {
       const bit = bits[((i % bits.length) + bits.length) % bits.length], cx = i * bw - off + bw / 2;
       if (cx < -6 || cx > w + 6) continue;
       ctx.fillStyle = bit ? '#33d17a' : '#5b6b7d';
       ctx.fillText(bit ? '1' : '0', cx, h * 0.82);
     }
-  } else if (key === 'frame') {                         // 0/1 비트가 AX.25 필드로 묶이는 모습
+  } else if (key === 'frame') {                         // 0/1 bits being packed into AX.25 fields
     const pad = 5;
-    // 상단: 들어오는 0/1 비트 스트림(demod 에서 넘어온 비트가 흘러들어옴)
+    // top: incoming 0/1 bit stream (bits flowing in from demod)
     const inb = [1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0], ibw = 9, ioff = (t * 30) % ibw;
     ctx.font = '8px ui-monospace,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (let i = -1; i < Math.ceil(w / ibw) + 1; i++) {
@@ -692,8 +718,8 @@ function drawSig(cv, key, active, t) {
       if (cx < -4 || cx > w + 4) continue;
       ctx.fillStyle = bit ? 'rgba(51,209,122,.6)' : 'rgba(95,125,155,.5)'; ctx.fillText(bit ? '1' : '0', cx, 8);
     }
-    ctx.fillStyle = '#5b6b7d'; ctx.fillText('▾ 묶기', w / 2, 18);
-    // 하단: AX.25 UI 프레임 필드 (조립 스윕이 지나가며 각 필드가 채워짐)
+    ctx.fillStyle = '#5b6b7d'; ctx.fillText('▾ pack', w / 2, 18);
+    // bottom: AX.25 UI frame fields (each field fills as the assembly sweep passes over it)
     const fields = [
       { l: '7E', w: 1, c: '#ffd23f' }, { l: 'ADDR', w: 3, c: '#39c5ff' },
       { l: 'C', w: 0.7, c: '#8a7dff' }, { l: 'PID', w: 0.9, c: '#8a7dff' },
@@ -711,7 +737,7 @@ function drawSig(cv, key, active, t) {
       x += fwpx; acc += f.w;
     });
     ctx.globalAlpha = 1;
-  } else if (key === 'image') {                         // 복원 이미지 + 스캔라인
+  } else if (key === 'image') {                         // recovered image + scanline
     if (sigResultImg.complete && sigResultImg.naturalWidth) {
       const iw = sigResultImg.naturalWidth, ih = sigResultImg.naturalHeight, sc = Math.min((w - 8) / iw, (h - 8) / ih);
       const dw = iw * sc, dh = ih * sc, dx = (w - dw) / 2, dy = (h - dh) / 2;
@@ -723,23 +749,23 @@ function drawSig(cv, key, active, t) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PHASE 5 — GNU Radio (real noVNC embed) or rendered solution
+// PHASE 5 - GNU Radio (real noVNC embed) or rendered solution
 // ─────────────────────────────────────────────────────────────────────────────
 const VARS = [['samp_rate', '96k'], ['baud_rate', '9.6k'], ['deviation', '2.4k'], ['freq_offset', '0']];
 let flowgraphMounted = false;
-// PHASE 4 에서 업로드한 파일이 있으면 PHASE 5 표시(samp_rate 칩 · File Source 힌트 · 재시작 안내)를 갱신.
+// If a file was uploaded in PHASE 4, refresh the PHASE 5 display (samp_rate chip · File Source hint · restart notice).
 function applyUploadedToFlowgraph() {
   fetch('/api/upload').then((r) => r.json()).then((u) => {
     if (!u || !u.exists) return;
     const rateK = (u.sampleRate / 1000);
-    const b = $('#varsRow .varchip[data-key="samp_rate"] b'); if (b) b.textContent = rateK + 'k';   // samp_rate 칩
-    const hint = $('#gnuFileHint'); if (hint) hint.textContent = `File Source: ${u.name} (업로드) · samp_rate ${rateK}k → ▶ Run`;
+    const b = $('#varsRow .varchip[data-key="samp_rate"] b'); if (b) b.textContent = rateK + 'k';   // samp_rate chip
+    const hint = $('#gnuFileHint'); if (hint) hint.textContent = `File Source: ${u.name} (uploaded) · samp_rate ${rateK}k → ▶ Run`;
     const note = $('#gnuUploadNote');
     if (note) {
       note.classList.remove('hidden');
-      note.innerHTML = `⬆ PHASE 4 업로드 파일 <code>${escHtml(u.name)}</code> 이(가) File Source 로 설정됨 ` +
-        `(samp_rate ${rateK}k). 이미 실행 중인 GNU Radio 라면 <code>gnuradio-web/run.sh</code> 로 ` +
-        `<b>(재)시작</b>해야 이 파일을 읽습니다.`;
+      note.innerHTML = `⬆ PHASE 4 upload <code>${escHtml(u.name)}</code> set as the File Source ` +
+        `(samp_rate ${rateK}k). If GNU Radio is already running, <b>(re)start</b> it with <code>gnuradio-web/run.sh</code> ` +
+        `to read this file.`;
     }
   }).catch(() => {});
 }
@@ -753,16 +779,16 @@ function mountFlowgraph() {
   if (state.cfg.gnuradioUrl) {
     const card = el('div', 'fgcard');
     const f = el('iframe', 'gnuframe'); f.title = 'GNU Radio'; f.src = novncEmbedUrl(state.cfg.gnuradioUrl);
-    card.append(el('h3', null, 'GNU RADIO COMPANION · ▶ Run 하면 이미지가 복원됩니다'), f);
+    card.append(el('h3', null, 'GNU RADIO COMPANION · ▶ Run to recover the image'), f);
     slot.append(card);
   } else {
     const card = el('div', 'fgcard'); card.innerHTML = '<h3>ENIGMA-1 DECODER · SOLVED FLOWGRAPH</h3>';
     const cv = el('div', 'fgcanvas'); cv.innerHTML = `<svg class="wirelayer" viewBox="0 0 1180 440" preserveAspectRatio="none"></svg><div class="slotlayer"></div>`;
     card.append(cv);
-    card.append(el('div', 'fgnote', '⚠ 정적 렌더 (실물 GNU Radio 미연결) — 실물: <code>gnuradio-web/run.sh</code> → <code>GNURADIO_URL</code> 로 실행'));
+    card.append(el('div', 'fgnote', '⚠ static render (real GNU Radio not connected) - real: run <code>gnuradio-web/run.sh</code> → set <code>GNURADIO_URL</code>'));
     slot.append(card); renderStaticFlowgraph(cv);
   }
-  fetch('/api/grc').then((r) => r.json()).then((d) => { $('#grcText').textContent = d.text; }).catch(() => { $('#grcText').textContent = '(.grc 로드 실패)'; });
+  fetch('/api/grc').then((r) => r.json()).then((d) => { $('#grcText').textContent = d.text; }).catch(() => { $('#grcText').textContent = '(.grc load failed)'; });
   initReassemble();
 }
 function renderStaticFlowgraph(cv) {
@@ -785,12 +811,12 @@ function renderStaticFlowgraph(cv) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PHASE 5 — 실시간 이미지 재조합 (▶ 디코드 실행 → 프레임 순서대로 이미지 복원)
-// 실물 GNU Radio 출력(gnuradio-out/*.png)이 있으면 그걸 사용, 없으면 기준 이미지로 시연.
+// PHASE 5 - live image reassembly (▶ run decode → recover the image frame by frame)
+// If real GNU Radio output (gnuradio-out/*.png) exists, use it; otherwise demo with the reference image.
 // ─────────────────────────────────────────────────────────────────────────────
 const reasImg = new Image();
 reasImg.src = '/assets/result.png';
-const reas = { running: false, done: false, frame: 0, total: 29, startT: 0, raf: null, real: false };
+const reas = { running: false, done: false, frac: 0, rows: 128, reps: 0, everDone: false, maxFrac: 0, liveStart: 0, poll: null, real: false };
 let reasWired = false;
 
 function initReassemble() {
@@ -809,31 +835,45 @@ function loadReasImage(src) {
     reasImg.src = src;
   });
 }
+function stopDecode() { if (reas.poll) { clearInterval(reas.poll); reas.poll = null; } reas.running = false; }
+// Poll the image/progress that real GNU Radio (▶Run) writes progressively to gnuradio-out and sync live.
+// If there is no real progress yet (before ▶Run), demo briefly with the reference image.
 async function startDecode() {
-  reas.real = false;
-  try {
-    const j = await (await fetch('/api/decoded', { cache: 'no-store' })).json();
-    if (j && j.exists) { reas.real = true; await loadReasImage('/decoded.png?t=' + Date.now()); }
-    else await loadReasImage('/assets/result.png');
-  } catch (e) { await loadReasImage('/assets/result.png'); }
   const s = $('#reasStatus'); if (s) s.classList.add('hidden');
   const b = $('#reasBadge'); if (b) b.classList.add('hidden');
-  reas.running = true; reas.done = false; reas.frame = 0; reas.startT = performance.now();
-  if (reas.raf) cancelAnimationFrame(reas.raf);
-  const loop = (now) => {
-    if (state.phase !== 'flowgraph') { reas.running = false; reas.raf = null; return; }
-    reas.frame = Math.min(reas.total, Math.floor((now - reas.startT) / 150));   // 150ms/프레임
-    drawReassemble();
-    const fill = $('#reasFill'); if (fill) fill.style.width = (reas.frame / reas.total * 100) + '%';
-    const fr = $('#reasFrame'); if (fr) fr.textContent = `프레임 ${reas.frame} / ${reas.total}`;
-    if (reas.frame >= reas.total) {
-      reas.running = false; reas.done = true; drawReassemble();
-      const badge = $('#reasBadge'); if (badge) { badge.textContent = reas.real ? '✅ 복원 완료 · 실물 GNU Radio 출력' : '✅ 복원 완료'; badge.classList.remove('hidden'); }
-      return;
+  stopDecode();
+  reas.running = true; reas.done = false; reas.frac = 0; reas.real = false; reas.everDone = false; reas.maxFrac = 0; reas.liveStart = 0;
+  const t0 = performance.now(); let sawLive = false;
+  reas.poll = setInterval(async () => {
+    if (state.phase !== 'flowgraph') { stopDecode(); return; }
+    let live = false, done = false, frac = 0;
+    try {
+      const p = await (await fetch('/api/decode-progress', { cache: 'no-store' })).json();
+      if (p && p.exists) { live = true; sawLive = true; frac = Math.min(1, p.fraction || 0); done = !!p.done; reas.rows = 128; reas.reps = p.reps || 0; if (!reas.liveStart) reas.liveStart = performance.now(); }
+    } catch (e) {}
+    if (live) {                                   // follow the real progressive image
+      reas.real = true;
+      await loadReasImage('/decoded.png?t=' + Date.now());
+      reas.frac = frac; reas.done = done && frac >= 0.99;
+      if (reas.done) reas.everDone = true;
+      if (frac > reas.maxFrac) reas.maxFrac = frac;
+    } else if (!sawLive) {                         // before ▶Run: 6-second demo with the reference image
+      if (!reas.real) { await loadReasImage('/assets/result.png'); reas.frac = Math.min(1, (performance.now() - t0) / 6000); reas.done = reas.frac >= 1; }
     }
-    reas.raf = requestAnimationFrame(loop);
-  };
-  reas.raf = requestAnimationFrame(loop);
+    drawReassemble();
+    const fill = $('#reasFill'); if (fill) fill.style.width = Math.round(reas.frac * 100) + '%';
+    const fr = $('#reasFrame'); if (fr) fr.textContent = reas.real ? `recovered ${Math.round(reas.frac * 100)}% · pass ${(reas.reps || 0) + 1}` : `recovered ${Math.round(reas.frac * 100)}%`;
+    const badge = $('#reasBadge');
+    const failing = reas.real && !reas.everDone && reas.liveStart && (performance.now() - reas.liveStart > 30000);   // demodulating for over 30s without ever completing = recovery failure (center-frequency offset, etc.)
+    if (badge) {
+      badge.classList.toggle('reas-fail', failing);
+      if (failing) { badge.classList.remove('hidden'); badge.textContent = `⚠ recovery failed: center-frequency offset (after ${(reas.reps || 0) + 1} repeated passes, stuck at max ${Math.round(reas.maxFrac * 100)}%)`; }
+      else if (reas.done) { badge.classList.remove('hidden'); badge.textContent = reas.real ? `✅ recovered · pass ${(reas.reps || 0) + 1} (still receiving)` : '✅ recovered'; }
+      else badge.classList.add('hidden');
+    }
+    // Continuous display: keep polling while on PHASE 5 to refresh live (shows repeated demodulation passes in sequence).
+    // Only stops when leaving the phase (the state.phase check at the top). The fallback demo also switches automatically once real data arrives.
+  }, 350);
 }
 function reasNoise(ctx, x, y, w, h, intensity) {
   if (w <= 0 || h <= 0) return;
@@ -853,15 +893,8 @@ function drawReassemble() {
   const sc = Math.min((w - 16) / iw, (h - 16) / ih), dw = iw * sc, dh = ih * sc, dx = (w - dw) / 2, dy = (h - dh) / 2;
   ctx.imageSmoothingEnabled = false;
   ctx.strokeStyle = '#1e2b3a'; ctx.lineWidth = 1; ctx.strokeRect(dx - 1, dy - 1, dw + 2, dh + 2);
-  const revealed = reas.running ? reas.frame : (reas.done ? reas.total : 0);
-  if (revealed <= 0) { reasNoise(ctx, dx, dy, dw, dh, 0.55); return; }
-  const revRows = Math.min(ih, Math.round(revealed * (ih / reas.total)));
-  ctx.drawImage(reasImg, 0, 0, iw, revRows, dx, dy, dw, revRows * sc);   // 복원된 윗부분
-  if (revRows < ih) {
-    const ny = dy + revRows * sc;
-    reasNoise(ctx, dx, ny, dw, dy + dh - ny, 0.7);                        // 아직 안 온 아랫부분
-    ctx.strokeStyle = '#39c5ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(dx, ny); ctx.lineTo(dx + dw, ny); ctx.stroke();
-  }
+  if (!reas.running && !reas.done) { reasNoise(ctx, dx, dy, dw, dh, 0.55); return; }   // before start: noise
+  ctx.drawImage(reasImg, dx, dy, dw, dh);   // draw the full image as-is on one screen (no row split or partial reveal; the real decode fills top to bottom)
 }
 
 // ── boot ──

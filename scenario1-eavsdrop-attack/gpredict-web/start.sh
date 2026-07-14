@@ -40,7 +40,7 @@ EOF
     cat > "$CFG/modules/${NAME}.mod" <<EOF
 [GLOBAL]
 VERSION=1.4
-TIMEOUT=15000
+TIMEOUT=250
 GRID=1
 QTHFILE=defcon.qth
 SATELLITES=${CAT}
@@ -48,10 +48,12 @@ EOF
   fi
 fi
 
-# faketime: start at real time; the control server writes a new offset here and
-# restarts gpredict (via the supervisor loop below) to jump to just before a pass.
+# faketime: 첫 기동도 '다음 좋은 패스 LEAD초 전'에서 시작(실시간 아님). control.py --seed 가
+# 오프셋을 미리 기록하고, 이후 리셋은 파일만 갱신해 gpredict 재시작 없이 실시간 반영된다.
+# (FAKETIME_TIMESTAMP_FILE + FAKETIME_NO_CACHE=1 → 아래 supervisor 의 gpredict 가 파일을 실시간 재읽기)
 FT="${FAKETIME_FILE:-/tmp/faketime.rc}"
-[ -f "$FT" ] || echo '+0' > "$FT"
+QTH_FILE="$CFG/defcon.qth" TLE_FILE=/config/enigma1.tle python3 /control.py --seed >/tmp/seed.log 2>&1 \
+  || echo '+0' > "$FT"      # 패스 계산 실패 시 실시간(+0)로 폴백
 LIB=$(ls /usr/lib/*/faketime/libfaketime.so.1 2>/dev/null | head -1)
 
 Xvfb :99 -screen 0 "${GEOM:-1280x900x24}" >/dev/null 2>&1 &
@@ -59,7 +61,7 @@ sleep 1
 export DISPLAY=:99
 openbox >/dev/null 2>&1 &
 
-# time-control server (:6079) — computes next AOS, sets faketime, restarts gpredict
+# time-control server (:6079) — computes next AOS, writes faketime (no restart; live re-read)
 QTH_FILE="$CFG/defcon.qth" TLE_FILE=/config/enigma1.tle python3 /control.py >/dev/null 2>&1 &
 
 # gpredict supervisor: (re)write the open-modules cfg and launch under libfaketime;

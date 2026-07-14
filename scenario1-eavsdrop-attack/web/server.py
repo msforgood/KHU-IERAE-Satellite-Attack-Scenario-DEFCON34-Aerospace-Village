@@ -163,7 +163,7 @@ VSA_IQ_SHIM = """
   // poll gpredict's faketime offset so VSA computes the sat at the SAME time as gpredict
   (function poll(){ fetch('/api/offset').then(function(r){return r.json();})
     .then(function(j){ if(j&&typeof j.offsetMs==='number') fakeOffsetMs=j.offsetMs; })
-    .catch(function(){}).then(function(){ setTimeout(poll,2500); }); })();
+    .catch(function(){}).then(function(){ setTimeout(poll,500); }); })();
 
   function satPos(satName, lat, lon){
     var S=window.satellite; if(!S) return null;
@@ -183,7 +183,12 @@ VSA_IQ_SHIM = """
       var o={x:(Nn+h)*Math.cos(latr)*Math.cos(lonr),y:(Nn+h)*Math.cos(latr)*Math.sin(lonr),z:(Nn*(1-e2)+h)*Math.sin(latr)};
       function d(p,q){return Math.sqrt(Math.pow(p.x-q.x,2)+Math.pow(p.y-q.y,2)+Math.pow(p.z-q.z,2));}
       var rr=d(ecf2,o)-d(ecf,o);
-      var dop=-(CENTER_HZ[satName]||433.5e6)*rr/299792.458;
+      // 도플러: gpredict Radio(rigctld)가 store.frequency 를 +도플러만큼 재튜닝(retune)하고(server.js→ws:4534),
+      // 워터폴은 신호 위치에서 -satDopplerHz 를 빼 상쇄한다 → 둘이 상쇄되어 신호가 튜닝 중심에 고정된다.
+      // 따라서 satDopplerHz 는 gpredict 와 동일한 '실제 도플러'여야 상쇄가 성립: DOP_SCALE=1.0.
+      // (0 이면 상쇄가 깨져 gpredict 재튜닝량만큼 신호가 화면에서 벗어난다 — OpenVSA 원본과 동일 모델)
+      var DOP_SCALE=1.0;
+      var dop=-(CENTER_HZ[satName]||433.5e6)*rr/299792.458*DOP_SCALE;
       return {az:S.radiansToDegrees(look.azimuth), el:S.radiansToDegrees(look.elevation),
               rangeKm:look.rangeSat, dopplerHz:dop};
     }catch(e){ return null; }
@@ -329,6 +334,29 @@ def latest_decoded():
     return best
 
 
+def latest_progress():
+    """gnuradio-out/ 의 가장 최근 *_progress.txt — progressive 재조립 진행도(실물 ▶Run)."""
+    best = None
+    try:
+        for f in os.listdir(GRC_OUT_DIR):
+            if f.lower().endswith("_progress.txt"):
+                fp = os.path.join(GRC_OUT_DIR, f)
+                m = os.path.getmtime(fp)
+                if best is None or m > best[1]:
+                    best = (fp, m)
+    except OSError:
+        pass
+    if not best:
+        return {"exists": False}
+    try:
+        p = open(best[0]).read().split() + ["0", "1", "0", "0"]
+        dec, tot, done, reps = int(p[0]), int(p[1]), int(p[2]), int(p[3])
+        return {"exists": True, "decoded": dec, "total": tot, "done": bool(done),
+                "reps": reps, "fraction": (dec / tot) if tot else 0.0, "mtime": best[1]}
+    except Exception:
+        return {"exists": False}
+
+
 def uploaded_status():
     """PHASE 4 에서 업로드된 녹음(있으면 PHASE 5 File Source)의 상태."""
     try:
@@ -414,6 +442,9 @@ class Handler(BaseHTTPRequestHandler):
         # PHASE 4 업로드 녹음 상태(= PHASE 5 GNU Radio File Source)
         if path == "/api/upload":
             return self._json(uploaded_status())
+        # PHASE 5 실시간 재조립 진행도(실물 ▶Run 이 gnuradio-out 에 progressive 기록)
+        if path == "/api/decode-progress":
+            return self._json(latest_progress())
         if path == "/decoded.png":
             d = latest_decoded()
             if d:
