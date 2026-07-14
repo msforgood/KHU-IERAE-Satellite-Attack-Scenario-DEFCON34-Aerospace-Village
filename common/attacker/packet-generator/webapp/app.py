@@ -39,6 +39,27 @@ OUT_DIR = os.environ.get("UPLINK_OUT_DIR", os.path.expanduser("~/uplink"))
 #   /targeting → 콘솔 페이지, /vsa/… → OpenVSA 정적 렌더러(gpredict는 :6080 직접 iframe).
 OPENVSA_DIR = os.path.abspath(os.path.join(HERE, "..", "..", "openvsa"))
 CONSOLE_DIR = os.path.abspath(os.path.join(HERE, "..", "..", "console"))
+
+# ── Scenario extension points (phases ④+ live outside common/) ───────────────
+# A scenario supplies extra phases without editing common: point EXTRA_DIR at its
+# `extras/` folder (served at /extra/…) and SCENARIO_CONFIG at its scenario.json.
+# The Command Builder template reads /api/scenario and renders the extra phases
+# (nav buttons + iframes) at runtime. With neither set, this is the plain 3-phase
+# attack (scenario 2), so common stays scenario-agnostic.
+EXTRA_DIR = os.path.abspath(os.environ["EXTRA_DIR"]) if os.environ.get("EXTRA_DIR") else ""
+SCENARIO_CONFIG = os.environ.get("SCENARIO_CONFIG", "")
+
+def load_scenario():
+    cfg = {"id": "scn2", "name": "Uplink Attack", "phaseCount": 3, "extras": []}
+    if SCENARIO_CONFIG and os.path.isfile(SCENARIO_CONFIG):
+        try:
+            with open(SCENARIO_CONFIG, encoding="utf-8") as f:
+                cfg.update(json.load(f))
+        except Exception as e:
+            print(f"[scenario] failed to read {SCENARIO_CONFIG}: {e}")
+    cfg.setdefault("extras", [])
+    cfg.setdefault("phaseCount", 3 + len(cfg["extras"]))
+    return cfg
 _VSA_MIME = {
     ".html": "text/html; charset=utf-8", ".js": "application/javascript", ".mjs": "application/javascript",
     ".css": "text/css", ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg",
@@ -276,6 +297,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"stamp": _RELOAD_STAMP})
         if self.path == "/api/mission":
             return self._json(mission_payload())
+        # scenario descriptor — the template renders extra phases (④+) from this
+        if self.path == "/api/scenario":
+            return self._json(load_scenario())
         if self.path.startswith("/static/"):
             rel = self.path[len("/static/"):].split("?")[0]
             fp = os.path.normpath(os.path.join(STATIC_DIR, rel))
@@ -290,6 +314,17 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/targeting":
             with open(os.path.join(CONSOLE_DIR, "index.html"), "rb") as f:
                 return self._send(200, "text/html; charset=utf-8", f.read())
+        # ④+ 시나리오 전용 화면 (EXTRA_DIR 하위) — scenarioN/extras/… 를 /extra/… 로 서빙
+        pth_x = self.path.split("?")[0]
+        if EXTRA_DIR and (pth_x == "/extra" or pth_x.startswith("/extra/")):
+            rel = pth_x[len("/extra"):].lstrip("/") or "index.html"
+            fp = os.path.normpath(os.path.join(EXTRA_DIR, rel))
+            if os.path.isdir(fp):
+                fp = os.path.join(fp, "index.html")
+            if fp.startswith(EXTRA_DIR) and os.path.isfile(fp):
+                ctype = _VSA_MIME.get(os.path.splitext(fp)[1].lower(), "application/octet-stream")
+                with open(fp, "rb") as f:
+                    return self._send(200, ctype, f.read())
         # ③ OpenVSA 렌더러 정적 서빙 (/vsa/… → attacker/openvsa/…)
         pth = self.path.split("?")[0]
         if pth == "/vsa" or pth.startswith("/vsa/"):
@@ -320,7 +355,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    sc = load_scenario()
     print(f"DEMOSAT Command Builder → http://localhost:{PORT}")
+    print(f"  scenario: {sc.get('id')} · {sc.get('name')} · {sc.get('phaseCount')} phases")
+    if sc.get("extras"):
+        print(f"  extra phases: {', '.join(e.get('label', e.get('id', '?')) for e in sc['extras'])}  (EXTRA_DIR={EXTRA_DIR or '—'})")
     print(f"  attack target: {GS_URL}/api/inject  (GENERATE fires the alert here)")
     if RELOAD:
         print("  live-reload: ON (edits auto-refresh the browser / restart the server)")

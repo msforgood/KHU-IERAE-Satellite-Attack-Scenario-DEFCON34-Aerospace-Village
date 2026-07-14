@@ -7,6 +7,11 @@
 // tumbling → sun-track loss → power collapse → battery drain → dashboard alarm.
 // Also fires an optional Arduino HTTP trigger hook on attack onset (ARDUINO_URL);
 // the physical panel/antenna are driven live by arduino/bridge/bridge.js polling /api/state.
+//
+// Scenario 3 (drone spoof): POST /api/spoof {on:true} makes a drone-impersonated
+// "healthy" beacon overwrite the DASHBOARD telemetry (browser WS) → the alarm is
+// suppressed and everything reads NOMINAL, while /api/state keeps the real tumbling
+// state so the physical motors never stop. The deception lives only on the screen.
 
 const http = require("http");
 const fs = require("fs");
@@ -33,10 +38,38 @@ sat.loadFromFiles({
 let lastState = sat.getState();
 let tumblingWas = false;
 
+// ── SCENARIO 3 · drone telemetry spoof ──────────────────────────────────────
+// A drone impersonates the satellite and replays a "healthy" beacon at the GS.
+// Effect: the operator's DASHBOARD reads NOMINAL (alarm suppressed) while the
+// REAL satellite keeps tumbling — /api/state (Arduino motors) stays truthful, so
+// the physical panel/antenna keep running. The lie lives only on the screen.
+const NOMINAL = JSON.parse(JSON.stringify(sat.getState())); // pristine defaults @ boot
+let spoofing = false;
+
+// what the browser dashboard is shown: real state, or the drone's healthy forgery.
+function browserState(realState) {
+  if (!spoofing) return realState;
+  const s = JSON.parse(JSON.stringify(NOMINAL));
+  s["obc.uptime"] = realState["obc.uptime"];               // clock keeps advancing
+  // faint liveliness so the forged telemetry doesn't look frozen
+  s["solar_panel.power"] = +(4.15 + Math.random() * 0.1).toFixed(2);
+  s["battery.level"]     = +(98 + Math.random() * 1.5).toFixed(1);
+  s["obc.temp"]          = +(22 + (Math.random() - 0.5)).toFixed(1);
+  s["adcs.roll"]  = +((Math.random() - 0.5) * 0.4).toFixed(2);
+  s["adcs.pitch"] = +((Math.random() - 0.5) * 0.4).toFixed(2);
+  s["adcs.yaw"]   = +((Math.random() - 0.5) * 0.4).toFixed(2);
+  s._flags = {};                                           // no tumbling/attack flags
+  return s;
+}
+function broadcastState() {
+  browserWss.broadcast(JSON.stringify({ type: "state", state: browserState(lastState) }));
+}
+
 sat.onChange((s) => {
-  lastState = s;
-  browserWss.broadcast(JSON.stringify({ type: "state", state: s }));
-  // Arduino trigger hook — rising edge of the attack (tumbling begins)
+  lastState = s;                                           // REAL state (truth for /api/state + motors)
+  broadcastState();                                        // dashboard sees real OR spoofed
+  // Arduino trigger hook — rising edge of the attack (tumbling begins). Fires on
+  // the REAL state, so the physical panel spins even while the screen says NOMINAL.
   if (s._flags.tumbling && !tumblingWas) fireArduino(s);
   tumblingWas = !!s._flags.tumbling;
 });
@@ -96,8 +129,24 @@ const httpServer = http.createServer((req, res) => {
   }
 
   if (url === "/api/state") {
+    // always the REAL state (Arduino bridge / motors read this — truth persists)
     res.writeHead(200, { "Content-Type": "application/json" });
-    return res.end(JSON.stringify({ state: lastState, panel: sat.getPanelConfig() }));
+    return res.end(JSON.stringify({ state: lastState, panel: sat.getPanelConfig(), spoofing }));
+  }
+  // drone spoof hook (scenario 3): POST {} (or {"on":true}) → dashboard reads NOMINAL
+  // while the satellite keeps tumbling; POST {"on":false} clears it.
+  if (url === "/api/spoof" && req.method === "POST") {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      let on = true;
+      try { const j = JSON.parse(body || "{}"); if (j.on === false) on = false; } catch {}
+      spoofing = on;
+      console.log(`[spoof] drone beacon ${on ? "ACTIVE — GS alarm SUPPRESSED (satellite still tumbling)" : "cleared — real telemetry restored"}`);
+      broadcastState();  // flip the dashboard immediately
+      res.writeHead(200); res.end(JSON.stringify({ spoofing }));
+    });
+    return;
   }
   // test hook: inject a mock uplink-command without OpenVSA
   if (url === "/api/inject" && req.method === "POST") {
@@ -124,7 +173,7 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
   if (url === "/api/reset" && req.method === "POST") {
-    sat.reset(); tumblingWas = false; res.writeHead(200); return res.end("{}");
+    sat.reset(); tumblingWas = false; spoofing = false; res.writeHead(200); return res.end("{}");
   }
 
   let file = url === "/" ? "/index.html" : url;
@@ -139,7 +188,7 @@ const httpServer = http.createServer((req, res) => {
 const browserWss = new WSServer(httpServer);
 browserWss.on("connection", (ws) => {
   ws.send(JSON.stringify({ type: "panel", panel: sat.getPanelConfig() }));
-  ws.send(JSON.stringify({ type: "state", state: lastState }));
+  ws.send(JSON.stringify({ type: "state", state: browserState(lastState) }));
 });
 
 httpServer.listen(HTTP_PORT, "0.0.0.0", () =>

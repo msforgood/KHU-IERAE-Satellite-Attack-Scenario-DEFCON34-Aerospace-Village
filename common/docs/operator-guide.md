@@ -1,7 +1,14 @@
-# Operator Guide — Scenario 2 "Uplink Attack"
+# Operator Guide — Phases ①②③ "Uplink Attack" (shared base)
 
 DEFCON 34 Aerospace Village. For **booth operators** running the demo. For the
 card visitors follow, see `participant-guide.md`.
+
+> 📦 **This guide lives in `common/docs/` and covers the shared phases ①②③** used by
+> scenario 2 (Uplink Attack) and scenario 3 (Telemetry Spoofing). **Run from a scenario
+> folder**, not from `common/`: `cd ../scenario2-uplink-attack && ./start-victim.sh` and
+> `./start-attacker.sh up`. The manual `cd victim/backend` / `cd attacker/…` paths below
+> are now under `common/` (e.g. `common/victim/backend`); prefer the start scripts. For
+> scenario 3's phase ④ (drone spoof) see `../scenario3-spoofing/README.md`.
 
 > 🇰🇷 **부스 담당자용 상세 실행 매뉴얼(스크린샷 포함)은 `operator-guide-kr.md`** 를 보세요 —
 > 설치부터 간편 모드(노트북 1대) 시연, 관람객 응대 스크립트까지 단계별로 정리되어 있습니다.
