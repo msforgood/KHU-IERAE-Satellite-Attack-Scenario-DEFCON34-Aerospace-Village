@@ -178,11 +178,6 @@ export function createControls({ container, store, antennaTypes }) {
         <input type="number" id="ctrl-uplink-freq" step="0.001" />
       </div>
 
-      <div class="control-row control-row--inline">
-        <label for="ctrl-uplink-purpose">Channel</label>
-        <input type="text" id="ctrl-uplink-purpose" disabled value="—" />
-      </div>
-
       <div class="control-row">
         <label>Command IQ file</label>
         <div class="rec-dir-group">
@@ -261,7 +256,6 @@ export function createControls({ container, store, antennaTypes }) {
   // ── uplink panel refs ────────────────────────────────────────────────────
   const uplinkSatEl     = container.querySelector("#ctrl-sat-uplink");
   const uplinkFreqEl     = container.querySelector("#ctrl-uplink-freq");
-  const uplinkPurposeEl  = container.querySelector("#ctrl-uplink-purpose");
   const uplinkTypeEl     = container.querySelector("#ctrl-type-uplink");
   const uplinkAmpEl      = container.querySelector("#ctrl-amplifier");
   const uplinkTxPowerEl  = container.querySelector("#ctrl-tx-power");
@@ -296,11 +290,9 @@ export function createControls({ container, store, antennaTypes }) {
     uplinkTxPowerEl.value = amp ? `${amp.powerDbm} dBm (${amp.label})` : "—";
 
     if (sat && sat.uplink) {
-      uplinkPurposeEl.value = sat.uplink.purpose;
       btnTransmit.disabled = !uplinkFilePath;
     } else {
       uplinkFreqEl.value = "";
-      uplinkPurposeEl.value = satName ? "No uplink available" : "—";
       btnTransmit.disabled = true;
     }
   }
