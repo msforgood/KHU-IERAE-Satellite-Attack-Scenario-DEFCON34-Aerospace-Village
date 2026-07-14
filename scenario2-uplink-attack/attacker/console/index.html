@@ -297,12 +297,7 @@
     <div id="guide">
       <h3>SATELLITE TARGETING</h3>
       <div class="state wait" id="gState">위성이 범위에 들어오기를 기다리는 중…</div>
-      <button class="go" id="gGo" disabled>▶ 조준 시작 (TRACK + ENGAGE)</button>
-      <ol id="gSteps">
-        <li data-k="menu">Antenna Control 열기</li>
-        <li data-k="track">Target ▸ Track</li>
-        <li data-k="engage">Settings ▸ Engage</li>
-      </ol>
+      <button class="go" id="gGo" disabled>⚡ ENGAGE</button>
     </div>
     <div id="gpSlot" class="empty"></div>
   </section>
@@ -403,12 +398,8 @@
   //    button on "satellite in range", then auto-operate gpredict on click. ────
   const guide = document.getElementById("guide");
   const gState = document.getElementById("gState");
-  const gGo = document.getElementById("gGo"),
-    gSteps = document.getElementById("gSteps");
-  const stepEls = {};
-  gSteps.querySelectorAll("li").forEach((li) => (stepEls[li.dataset.k] = li));
-  let engaging = false,
-    engaged = false;
+  const gGo = document.getElementById("gGo");
+  let engaged = false;
 
   // Countdown runs client-side from the moment phase 3 opens (this console loads),
   // so "wait N seconds then in range" is deterministic regardless of the gpredict
@@ -432,7 +423,10 @@
       gGo.disabled = false;
     } else {
       gGo.disabled = true;
-      setStateHTML('<b class="cd">' + Math.ceil(remaining) + "</b> 초 뒤 위성이 범위에 들어오기를 기다리는 중…", "wait");
+      setStateHTML(
+        '<b class="cd">' + Math.ceil(remaining) + "</b> 초 뒤 위성이 범위에 들어오기를 기다리는 중…",
+        "wait",
+      );
     }
   }
 
@@ -445,39 +439,26 @@
       return;
     } // gpredict/Docker down → hide
     guide.classList.add("show");
-    if (engaging || engaged) return; // don't fight the engage flow
+    if (engaged) return; // don't overwrite the "engaged" state
     render(s);
   }
-  setInterval(pollStatus, 1000); // refresh distance/elev + in-range signal
+  setInterval(pollStatus, 1000); // refresh in-range signal
   // tick the countdown every second even between polls, so the number never stalls
   setInterval(() => {
-    if (guide.classList.contains("show") && !engaging && !engaged) render(null);
+    if (guide.classList.contains("show") && !engaged) render(null);
   }, 1000);
   pollStatus();
 
-  function markStep(k, cls) {
-    if (stepEls[k]) stepEls[k].className = cls;
-  }
-  gGo.onclick = async () => {
-    if (engaging || engaged) return;
-    engaging = true;
+  // ENGAGE: open STEP 2 and preset the VSA to the aimed uplink state via a
+  // same-origin postMessage — target=DEMOSAT, uplink 433.5 MHz, Az 283°, El 11°.
+  gGo.onclick = () => {
+    if (engaged) return;
+    engaged = true;
     gGo.disabled = true;
-    setState("⏳ gpredict 자동 조작 중…", "busy");
-    markStep("menu", "active");
-    setTimeout(() => markStep("track", "active"), 700);
-    setTimeout(() => markStep("engage", "active"), 1400);
-    try {
-      const r = await (await fetch(CTRL + "/engage")).json();
-      if (!r.ok) throw new Error(r.detail || "engage failed");
-      ["menu", "track", "engage"].forEach((k) => markStep(k, "ok"));
-      setState("🎯 안테나 교전 — 조준 완료. 이제 ⚡ TRANSMIT", "done");
-      engaged = true;
-      unlockStep2(); // STEP 1 done → OpenVSA (STEP 2) is now clickable
-    } catch (e) {
-      engaging = false;
-      gGo.disabled = false;
-      ["menu", "track", "engage"].forEach((k) => markStep(k, ""));
-      setState("자동 조작 실패 — 재시도하세요 (" + e.message + ")", "err");
-    }
+    const preset = { type: "vsa-preset", targetSat: "DEMOSAT", uplinkFreq: 433.5, azimuth: 283, elevation: 11 };
+    const f = document.getElementById("vsaSlot");
+    try { if (f && f.contentWindow) f.contentWindow.postMessage(preset, "*"); } catch (e) { /* ignore */ }
+    setStateHTML("🎯 조준 완료 — DEMOSAT · 433.5 MHz · Az 283° · El 11°. 이제 ⚡ TRANSMIT", "done");
+    unlockStep2(); // STEP 2 (OpenVSA) is now clickable
   };
 </script>

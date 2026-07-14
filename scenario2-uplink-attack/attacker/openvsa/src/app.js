@@ -44,6 +44,29 @@ createRotatorScene({
 // Connect to the rotctld bridge server (falls back gracefully if not running)
 connectRotctld(store);
 
+// External preset from the attacker console's ENGAGE button (same-origin iframe):
+// aim the antenna + select the uplink target + set the uplink frequency in one shot.
+window.addEventListener("message", (e) => {
+  const m = e.data;
+  if (!m || m.type !== "vsa-preset") return;
+  store.setState((s) => ({
+    ...s,
+    ...(Number.isFinite(m.azimuth)   ? { azimuth: m.azimuth }     : {}),
+    ...(Number.isFinite(m.elevation) ? { elevation: m.elevation } : {}),
+    ...(m.targetSat                  ? { targetSat: m.targetSat }  : {}),
+  }));
+  // uplink target + freq are plain inputs (not store-bound): set the target first
+  // (enables the panel), then the frequency.
+  if (m.targetSat) {
+    const sel = document.querySelector("#ctrl-sat-uplink");
+    if (sel) { sel.value = m.targetSat; sel.dispatchEvent(new Event("change")); }
+  }
+  if (Number.isFinite(m.uplinkFreq)) {
+    const f = document.querySelector("#ctrl-uplink-freq");
+    if (f) { f.value = m.uplinkFreq; f.dispatchEvent(new Event("change")); }
+  }
+});
+
 // Load ground station location from GPredict's .qth files on startup
 if (window.electronAPI) {
   window.electronAPI.getQTH().then(stations => {
