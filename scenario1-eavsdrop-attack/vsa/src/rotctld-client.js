@@ -1,9 +1,9 @@
 // Copyright (c) 2026 SunHyuk Hwang. All Rights Reserved.
 
-// 페이지가 로드된 호스트를 그대로 사용(localhost / WSL IP 등) → WSL·원격 접속에서도 브리지에 붙음.
+// Use the host the page was loaded from as-is (localhost, WSL IP, and so on), so the bridge also connects from WSL and remote sessions.
 const WS_URL = `ws://${location.hostname || "localhost"}:4534`;
-// 재연결 간격(ms). 정의가 없어 close 핸들러가 ReferenceError 로 죽던 버그 → server.js
-// 를 나중에 켜도 자동 재연결되도록 상수를 명시.
+// Reconnect interval (ms). This constant was missing, which caused the close handler to fail with a ReferenceError; declaring it explicitly
+// lets the connection reconnect automatically even when server.js is started later.
 const RECONNECT_DELAY_MS = 2000;
 
 /**
