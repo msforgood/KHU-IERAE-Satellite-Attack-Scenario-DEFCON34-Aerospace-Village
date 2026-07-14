@@ -468,25 +468,15 @@
   pollStatus();
 
   // ENGAGE: open STEP 2 and preset the VSA to the aimed uplink state via a
-  // same-origin postMessage — target=DEMOSAT, uplink 433.5 MHz, and DEMOSAT's
-  // ACTUAL az/el at the moment of the click (from the control server's live
-  // look-angles), falling back to 283°/11° if the server can't be reached.
+  // same-origin postMessage — target=DEMOSAT, uplink 433.5 MHz, and a fixed
+  // antenna aim of Az 206° / El 30° (chosen purely because the VSA antenna
+  // renders nicely at that angle — not tied to the real satellite geometry).
   gGo.onclick = async () => {
     if (engaged) return;
     engaged = true;
     gGo.style.display = "none"; // hide the button entirely once clicked
-    // capture DEMOSAT's actual az/el at the moment of the click
-    let az = 283,
-      el = 11;
-    try {
-      const s = await (await fetch(CTRL + "/status")).json();
-      if (Number.isFinite(s.azimDeg)) az = s.azimDeg;
-      if (Number.isFinite(s.elevDeg)) el = s.elevDeg;
-    } catch (e) {
-      /* keep fallback */
-    }
-    const azC = Math.max(0, Math.min(360, az));
-    const elC = Math.max(0, Math.min(90, el));
+    const azC = 206,
+      elC = 30;
     const fmt = (v) => String(parseFloat(v.toFixed(6))); // up to 6 decimals, no trailing zeros
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const white = (t) => '<b style="color:var(--ink)">' + t + "</b>";
