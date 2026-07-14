@@ -1,0 +1,299 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>ATTACKER // Drone Spoof — ④ Impersonate the Satellite</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+<!--
+  Attacker 4th screen (scenario 3). A drone impersonates DEMOSAT and replays a
+  forged "healthy" beacon at the victim ground station, so the operator's dashboard
+  reads NOMINAL and the alarm is suppressed — while the REAL satellite keeps tumbling.
+
+    index.html?gs=http://localhost:4540
+
+  START SPOOFING → POST <gs>/api/spoof {on:true}   ·   STOP → {on:false}
+  The GS keeps the real (tumbling) state on /api/state, so the physical motors
+  never stop; only the browser dashboard is deceived.
+-->
+<style>
+  :root {
+    --bg: #0c1118;
+    --panel: #131a24;
+    --panel2: #0f1620;
+    --ink: #e6edf3;
+    --dim: #8497a8;
+    --line: rgba(255, 255, 255, 0.1);
+    --cyan: #35d0e0;
+    --good: #4ec98a;
+    --crit: #ff5c5c;
+    --warn: #ffb020;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { display: flex; flex-direction: column; }
+
+  header { display: flex; align-items: center; gap: 14px; padding: 10px 18px;
+    border-bottom: 1px solid var(--line); background: var(--panel2); }
+  header .t { font-family: var(--mono); font-size: 13px; letter-spacing: .04em; }
+  header .t b { color: var(--cyan); }
+  header .sub { color: var(--dim); font-size: 11px; }
+  header .spacer { flex: 1; }
+  .pill { font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
+    text-transform: uppercase; padding: 5px 12px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--dim); }
+  .pill.on { color: #06251c; background: var(--good); border-color: var(--good);
+    box-shadow: 0 0 14px rgba(78,201,138,.5); }
+  button { font-family: var(--mono); font-size: 12px; color: var(--ink);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
+    padding: 6px 13px; cursor: pointer; transition: .15s; }
+  button:hover { border-color: var(--cyan); color: var(--cyan); }
+
+  main { flex: 1; display: grid; grid-template-columns: 5fr 4fr; gap: 1px;
+    background: var(--line); min-height: 0; }
+  section { display: flex; flex-direction: column; background: var(--bg); min-height: 0; }
+  .cap { font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--dim); padding: 8px 16px;
+    border-bottom: 1px solid var(--line); }
+  .cap b { color: var(--cyan); }
+
+  /* ── attack stage ── */
+  .stage { flex: 1; position: relative; overflow: hidden; padding: 8px 0 0; }
+  .stage svg { width: 100%; height: 100%; display: block; }
+
+  /* satellite tumble (the truth — never stops) */
+  .truthsat { transform-box: fill-box; transform-origin: center;
+    animation: tumble 3s linear infinite; }
+  @keyframes tumble { to { transform: rotate(360deg); } }
+
+  /* forged beacon packets drone → GS (only while spoofing) */
+  .beam { opacity: 0; }
+  .beam line { stroke: var(--good); stroke-width: 2; stroke-dasharray: 6 10;
+    opacity: .55; }
+  .pkt { fill: var(--good); opacity: 0; }
+  body.spoofing .beam { opacity: 1; }
+  body.spoofing .beam line { animation: dash 1s linear infinite; }
+  body.spoofing .pkt { opacity: 1; animation: fly 1.6s linear infinite; }
+  .pkt.p2 { animation-delay: .53s; }
+  .pkt.p3 { animation-delay: 1.06s; }
+  @keyframes dash { to { stroke-dashoffset: -32; } }
+  @keyframes fly {
+    0% { transform: translate(0,0); opacity: 0; }
+    12% { opacity: 1; }
+    88% { opacity: 1; }
+    100% { transform: translate(214px,150px); opacity: 0; }
+  }
+
+  /* GS dish state icon */
+  .gsglow { opacity: 0; transition: opacity .5s; }
+  .gsglow.red { opacity: 1; }
+  body.spoofing .gsglow.red { opacity: 0; }
+  .gsglow.green { opacity: 0; }
+  body.spoofing .gsglow.green { opacity: 1; }
+  .alarmring { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity:.35 } 50% { opacity:.9 } }
+
+  /* control deck */
+  .deck { border-top: 1px solid var(--line); background: var(--panel2);
+    padding: 16px 18px; }
+  .bigbtn { width: 100%; font-family: var(--mono); font-size: 16px; font-weight: 700;
+    letter-spacing: .08em; padding: 16px; border-radius: 10px; cursor: pointer;
+    color: #06251c; background: var(--good); border: 1px solid var(--good);
+    box-shadow: 0 0 22px rgba(78,201,138,.35); transition: .15s; }
+  .bigbtn:hover { filter: brightness(1.08); }
+  .bigbtn.stop { color: #2a0d0d; background: var(--warn); border-color: var(--warn);
+    box-shadow: 0 0 22px rgba(255,176,32,.35); }
+  .cmphint { color: var(--dim); font-size: 12px; margin: 10px 2px 0;
+    font-family: var(--mono); }
+  .cmphint code { color: var(--cyan); }
+
+  /* truth vs lie split */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    padding: 12px 16px 4px; }
+  .card { border: 1px solid var(--line); border-radius: 9px; padding: 11px 13px;
+    background: var(--panel); }
+  .card h4 { margin: 0 0 6px; font-family: var(--mono); font-size: 10px;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+  .card .big { font-family: var(--mono); font-size: 15px; font-weight: 700; }
+  .card.reality { border-color: rgba(255,92,92,.4); }
+  .card.reality .big { color: var(--crit); }
+  .card.screen .big { color: var(--good); }
+  .card p { margin: 5px 0 0; font-size: 11px; color: var(--dim); line-height: 1.45; }
+
+  /* embedded victim GS */
+  .gswrap { flex: 1; min-height: 0; position: relative; }
+  .gswrap iframe { width: 100%; height: 100%; border: 0; display: block; background: #04070c; }
+  .gsfoot { font-family: var(--mono); font-size: 10px; color: var(--dim);
+    padding: 6px 16px; border-top: 1px solid var(--line); }
+  .gsfoot b { color: var(--good); }
+  .badconn { padding: 20px; color: var(--dim); font-family: var(--mono); font-size: 12px; }
+</style>
+
+<header>
+  <div class="t"><b>DRONE C2</b> // SATELLITE BEACON SPOOF</div>
+  <div class="sub">④ impersonate DEMOSAT · suppress the ground-station alarm</div>
+  <div class="spacer"></div>
+  <span id="pill" class="pill">SPOOF INACTIVE</span>
+  <button id="resetBtn" title="clear spoof + reset victim GS">RESET GS</button>
+</header>
+
+<main>
+  <!-- ── ATTACK STAGE ── -->
+  <section>
+    <div class="cap">ATTACK STAGE · <b>drone → ground station</b></div>
+    <div class="stage">
+      <svg viewBox="0 0 420 320" aria-label="Drone spoofing the ground station">
+        <defs>
+          <radialGradient id="gGood" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#8affc9"/><stop offset="100%" stop-color="#4ec98a"/>
+          </radialGradient>
+        </defs>
+
+        <!-- real satellite: keeps tumbling (the truth) -->
+        <g class="truthsat">
+          <rect x="150" y="26" width="46" height="16" rx="2" fill="#1c2a38" stroke="#e0556a" stroke-width="1.5"/>
+          <rect x="224" y="26" width="46" height="16" rx="2" fill="#1c2a38" stroke="#e0556a" stroke-width="1.5"/>
+          <rect x="196" y="18" width="28" height="32" rx="4" fill="#20303f" stroke="#e0556a" stroke-width="2"/>
+          <line x1="210" y1="18" x2="210" y2="6" stroke="#e0556a" stroke-width="2"/>
+          <circle cx="210" cy="5" r="2.5" fill="#ff5c5c"/>
+        </g>
+        <text x="210" y="66" text-anchor="middle" fill="#ff6a78" font-size="11"
+              font-family="monospace">↻ DEMOSAT · STILL TUMBLING</text>
+
+        <!-- attacker drone -->
+        <g>
+          <ellipse cx="70" cy="150" rx="34" ry="9" fill="#16202c" stroke="#35d0e0" stroke-width="1.5"/>
+          <rect x="60" y="140" width="20" height="12" rx="3" fill="#20303f" stroke="#35d0e0" stroke-width="1.5"/>
+          <line x1="36" y1="146" x2="18" y2="138" stroke="#35d0e0" stroke-width="2"/>
+          <line x1="104" y1="146" x2="122" y2="138" stroke="#35d0e0" stroke-width="2"/>
+          <circle cx="18" cy="137" r="4" fill="none" stroke="#35d0e0" stroke-width="1.5"/>
+          <circle cx="122" cy="137" r="4" fill="none" stroke="#35d0e0" stroke-width="1.5"/>
+          <circle cx="70" cy="146" r="3" fill="#35d0e0"/>
+        </g>
+        <text x="70" y="182" text-anchor="middle" fill="#35d0e0" font-size="11"
+              font-family="monospace">🛸 ROGUE DRONE</text>
+        <text x="70" y="196" text-anchor="middle" fill="#8497a8" font-size="9"
+              font-family="monospace">TX AS "SAT-200"</text>
+
+        <!-- forged beacon packets drone → GS -->
+        <g class="beam">
+          <line x1="96" y1="150" x2="300" y2="286"/>
+          <rect class="pkt"    x="92"  y="144" width="30" height="13" rx="2"/>
+          <rect class="pkt p2" x="92"  y="144" width="30" height="13" rx="2"/>
+          <rect class="pkt p3" x="92"  y="144" width="30" height="13" rx="2"/>
+        </g>
+        <text id="beaconLbl" x="150" y="228" fill="#4ec98a" font-size="10"
+              font-family="monospace" opacity="0">STATUS: ALL NOMINAL ✓</text>
+
+        <!-- victim ground station -->
+        <g>
+          <!-- alarm ring (before spoof) / healthy glow (after) -->
+          <circle class="gsglow red alarmring" cx="322" cy="288" r="30" fill="none"
+                  stroke="#ff5c5c" stroke-width="2"/>
+          <circle class="gsglow green" cx="322" cy="288" r="26" fill="url(#gGood)" opacity="0.18"/>
+          <path d="M300 300 L322 262 L344 300 Z" fill="#16202c" stroke="#5b7186" stroke-width="1.5"/>
+          <line x1="322" y1="262" x2="322" y2="248" stroke="#5b7186" stroke-width="2"/>
+          <ellipse cx="322" cy="246" rx="10" ry="5" fill="none" stroke="#5b7186" stroke-width="1.5"/>
+          <rect x="304" y="300" width="36" height="8" fill="#20303f" stroke="#5b7186" stroke-width="1"/>
+        </g>
+        <text x="322" y="240" text-anchor="middle" fill="#8497a8" font-size="11"
+              font-family="monospace">📡 VICTIM GS</text>
+      </svg>
+    </div>
+
+    <!-- truth vs. what's on screen -->
+    <div class="split">
+      <div class="card reality">
+        <h4>Reality (satellite)</h4>
+        <div class="big">↻ TUMBLING</div>
+        <p>Reaction wheels overspun. Panels off-sun, power collapsing, physical motors
+          still spinning. <b>Nothing about the attack is undone.</b></p>
+      </div>
+      <div class="card screen">
+        <h4>Operator's screen</h4>
+        <div class="big" id="screenState">— AWAITING —</div>
+        <p id="screenNote">Press START to replay a forged healthy beacon at the GS. The
+          dashboard will read NOMINAL and the alarm goes quiet.</p>
+      </div>
+    </div>
+
+    <div class="deck">
+      <button id="spoofBtn" class="bigbtn">▶ START SPOOFING</button>
+      <div class="cmphint" id="hint">Sends <code>POST /api/spoof {on:true}</code> to the victim GS —
+        the drone's beacon overwrites the dashboard telemetry only.</div>
+    </div>
+  </section>
+
+  <!-- ── OPERATOR'S VIEW (embedded victim GS) ── -->
+  <section>
+    <div class="cap">OPERATOR'S VIEW · <b>victim ground station</b> (live)</div>
+    <div class="gswrap">
+      <iframe id="gsFrame" title="Victim ground station dashboard"></iframe>
+    </div>
+    <div class="gsfoot" id="gsFoot">watch this flip <b>RED → GREEN</b> the instant the spoof engages — the operator never sees the crisis.</div>
+  </section>
+</main>
+
+<script>
+  (function () {
+    var p = new URLSearchParams(location.search);
+    var GS = (p.get('gs') || 'http://localhost:4540').replace(/\/$/, '');
+
+    var body = document.body;
+    var btn = document.getElementById('spoofBtn');
+    var pill = document.getElementById('pill');
+    var beaconLbl = document.getElementById('beaconLbl');
+    var screenState = document.getElementById('screenState');
+    var screenNote = document.getElementById('screenNote');
+    var hint = document.getElementById('hint');
+    var frame = document.getElementById('gsFrame');
+    var resetBtn = document.getElementById('resetBtn');
+
+    // embed the live victim dashboard so the audience sees the alarm vanish
+    frame.setAttribute('src', GS + '/');
+
+    var active = false;
+
+    function render() {
+      body.classList.toggle('spoofing', active);
+      beaconLbl.setAttribute('opacity', active ? '1' : '0');
+      pill.textContent = active ? 'SPOOF ACTIVE' : 'SPOOF INACTIVE';
+      pill.classList.toggle('on', active);
+      btn.textContent = active ? '■ STOP SPOOFING' : '▶ START SPOOFING';
+      btn.classList.toggle('stop', active);
+      screenState.textContent = active ? '🟢 NOMINAL' : '— AWAITING —';
+      screenNote.textContent = active
+        ? 'GS dashboard is being fed the forged beacon: NOMINAL, battery ~98%, SUN-TRACKING, COMM CONNECTED. The alarm is suppressed.'
+        : 'Press START to replay a forged healthy beacon at the GS. The dashboard will read NOMINAL and the alarm goes quiet.';
+      hint.innerHTML = active
+        ? 'Spoof engaged — <code>POST /api/spoof {on:false}</code> restores the real (alarming) telemetry.'
+        : 'Sends <code>POST /api/spoof {on:true}</code> to the victim GS — the drone\'s beacon overwrites the dashboard telemetry only.';
+    }
+
+    function setSpoof(on) {
+      return fetch(GS + '/api/spoof', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ on: on }),
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        active = !!(j && j.spoofing);
+        render();
+      }).catch(function () {
+        pill.textContent = 'GS UNREACHABLE';
+        hint.innerHTML = 'Could not reach the victim GS at <code>' + GS + '</code> — is it running?';
+      });
+    }
+
+    btn.addEventListener('click', function () { setSpoof(!active); });
+    resetBtn.addEventListener('click', function () {
+      fetch(GS + '/api/reset', { method: 'POST' }).catch(function () {});
+      active = false; render();
+      // nudge the embedded dashboard to reflect the reset
+      try { frame.contentWindow.location.reload(); } catch (e) { frame.src = frame.src; }
+    });
+
+    // reflect current GS spoof state on load (e.g. after a refresh)
+    fetch(GS + '/api/state').then(function (r) { return r.json(); })
+      .then(function (j) { active = !!(j && j.spoofing); render(); })
+      .catch(function () { render(); });
+  })();
+</script>
