@@ -183,7 +183,7 @@ export function createControls({ container, store, antennaTypes }) {
         <span id="uplink-file-label" class="rec-dir-label">No file loaded</span>
       </div>
       <button id="btn-load-uplink" class="btn-step" style="width:100%;padding:8px;margin-top:6px"
-              title="아까 만든 IQ 파일을 적재">📎 아까 만든 IQ 파일 적재</button>
+              title="Load the IQ file you generated earlier">📎 Load generated IQ file</button>
 
       <button id="btn-transmit" class="btn-transmit" disabled title="Transmit command to satellite">TRANSMIT</button>
       <p id="tx-status" class="tx-status"></p>
