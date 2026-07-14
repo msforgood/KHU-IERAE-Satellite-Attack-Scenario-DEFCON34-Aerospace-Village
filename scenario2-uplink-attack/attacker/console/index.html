@@ -463,14 +463,15 @@
       if (Number.isFinite(s.azimDeg)) az = s.azimDeg;
       if (Number.isFinite(s.elevDeg)) el = s.elevDeg;
     } catch (e) { /* keep fallback */ }
-    const azR = Math.round(Math.max(0, Math.min(360, az)));
-    const elR = Math.round(Math.max(0, Math.min(90, el)));
-    const preset = { type: "vsa-preset", targetSat: "DEMOSAT", uplinkFreq: 433.5, azimuth: azR, elevation: elR };
+    const azC = Math.max(0, Math.min(360, az));
+    const elC = Math.max(0, Math.min(90, el));
+    const fmt = (v) => String(parseFloat(v.toFixed(6))); // up to 6 decimals, no trailing zeros
+    const preset = { type: "vsa-preset", targetSat: "DEMOSAT", uplinkFreq: 433.5, azimuth: azC, elevation: elC };
     const f = document.getElementById("vsaSlot");
     try { if (f && f.contentWindow) f.contentWindow.postMessage(preset, "*"); } catch (e) { /* ignore */ }
     setStateHTML(
       '🎯 조준 완료 — DEMOSAT<br><span style="color:var(--ink)">Uplink Freq (MHz): 433.5 MHz<br>Azimuth ' +
-        azR + "°<br>Elevation " + elR +
+        fmt(azC) + "°<br>Elevation " + fmt(elC) +
         '°</span><br>이제 Step 2를 완료하고 ⚡ TRANSMIT 하세요',
       "done",
     );

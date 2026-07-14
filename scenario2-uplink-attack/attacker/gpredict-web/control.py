@@ -56,8 +56,8 @@ def status():
         "aosUtc": time.strftime("%Y-%m-%d %H:%M:%SZ", time.gmtime(AOS)),
         "offsetMs": offset_ms,
         # live look-angles at gpredict's faked time (for the wait/approach guide)
-        "elevDeg": round(el, 1) if el is not None else None,
-        "azimDeg": round(az, 1) if az is not None else None,
+        "elevDeg": round(el, 6) if el is not None else None,
+        "azimDeg": round(az, 6) if az is not None else None,
         "rangeKm": round(rng) if rng is not None else None,
         "secToAos": round(AOS - faked_now, 1),
         "inRange": bool(el is not None and el >= IN_RANGE),
