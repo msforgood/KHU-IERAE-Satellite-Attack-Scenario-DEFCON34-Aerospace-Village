@@ -322,10 +322,9 @@
       <span><span class="stepno">STEP 2</span>📡 OpenVSA — <b>VSA UPLINK / ROTATOR</b></span>
       <span class="spacer"></span>
       <span id="status"></span>
-      <button class="fire" id="transmit">⚡ TRANSMIT</button>
     </div>
     <div id="vsaSlot" class="empty"></div>
-    <!-- swallows all clicks on OpenVSA (incl. TRANSMIT) until STEP 1 is engaged -->
+    <!-- swallows all clicks on OpenVSA (incl. its TRANSMIT) until STEP 1 is engaged -->
     <div id="vsaLock" class="lockbox"></div>
   </section>
 </main>
@@ -396,19 +395,22 @@
     statusEl.style.color = cls || "";
   }
 
-  // ⚡ TRANSMIT — fire the uplink at the victim GS. OpenVSA's Electron decode/forward
-  // isn't available in the browser, so we POST the attack command straight to the GS
-  // API (/api/inject) — the same effect the forwarded uplink would have.
-  //   adcs_torque · payload 0x03e7 (999 mNm) → tumbling → sun-track loss → ENERGY SUPPLY CRITICAL
+  // ⚡ TRANSMIT — fired by the VSA's own uplink TRANSMIT button (it posts a
+  // "vsa-transmit" message to this parent). We POST the attack straight to the GS
+  // API (/api/inject) → adcs_torque 999 mNm → tumbling → sun-track loss + solar
+  // panel motor runaway + dashboard alarm.
   const ATTACK = { command: "adcs_torque", payload: ["0x03", "0xe7"] };
-  document.getElementById("transmit").onclick = async () => {
+  async function fireAttack() {
     try {
       await post("/api/inject", ATTACK);
       setStatus("⚡ UPLINK TRANSMITTED · adcs_torque 999 mNm", "var(--crit)");
     } catch (e) {
       setStatus("GS 연결 실패 (" + e.message + ")", "var(--crit)");
     }
-  };
+  }
+  window.addEventListener("message", (e) => {
+    if (e.data && e.data.type === "vsa-transmit") fireAttack();
+  });
 
   // ── participant guide: poll gpredict's time-control server, gate the ENGAGE
   //    button on "satellite in range", then auto-operate gpredict on click. ────
@@ -474,12 +476,15 @@
     engaged = true;
     gGo.style.display = "none"; // hide the button entirely once clicked
     // capture DEMOSAT's actual az/el at the moment of the click
-    let az = 283, el = 11;
+    let az = 283,
+      el = 11;
     try {
       const s = await (await fetch(CTRL + "/status")).json();
       if (Number.isFinite(s.azimDeg)) az = s.azimDeg;
       if (Number.isFinite(s.elevDeg)) el = s.elevDeg;
-    } catch (e) { /* keep fallback */ }
+    } catch (e) {
+      /* keep fallback */
+    }
     const azC = Math.max(0, Math.min(360, az));
     const elC = Math.max(0, Math.min(90, el));
     const fmt = (v) => String(parseFloat(v.toFixed(6))); // up to 6 decimals, no trailing zeros
@@ -487,15 +492,47 @@
     const white = (t) => '<b style="color:var(--ink)">' + t + "</b>";
     const sendVSA = (obj) => {
       const f = document.getElementById("vsaSlot");
-      try { if (f && f.contentWindow) f.contentWindow.postMessage({ type: "vsa-preset", ...obj }, "*"); } catch (e) { /* ignore */ }
+      try {
+        if (f && f.contentWindow) f.contentWindow.postMessage({ type: "vsa-preset", ...obj }, "*");
+      } catch (e) {
+        /* ignore */
+      }
     };
     // Apply one field at a time with a loading beat, so users actually SEE each
     // VSA field change (target → freq → az → el) instead of it happening at once.
     const steps = [
-      { load: "타겟 위성 설정 중…",         done: "Target Satellite: " + white("DEMOSAT"),    apply: () => sendVSA({ targetSat: "DEMOSAT" }) },
-      { load: "업링크 주파수 설정 중…",      done: "Uplink Freq (MHz): " + white("433.5 MHz"), apply: () => sendVSA({ uplinkFreq: 433.5 }) },
-      { load: "방위각(Azimuth) 설정 중…",    done: "Azimuth: " + white(fmt(azC) + "°"),        apply: () => sendVSA({ azimuth: azC }) },
-      { load: "고도각(Elevation) 설정 중…",  done: "Elevation: " + white(fmt(elC) + "°"),      apply: () => sendVSA({ elevation: elC }) },
+      {
+        load: "타겟 위성 설정 중…",
+        done: "Target Satellite: " + white("DEMOSAT"),
+        apply: () => sendVSA({ targetSat: "DEMOSAT" }),
+      },
+      {
+        load: "업링크 주파수 설정 중…",
+        done: "Uplink Freq (MHz): " + white("433.5 MHz"),
+        apply: () => sendVSA({ uplinkFreq: 433.5 }),
+      },
+      {
+        load: "안테나 타입 설정 중…",
+        done: "Antenna Type: " + white("Helix (RHCP)"),
+        apply: () => sendVSA({ antennaType: "helix" }),
+      },
+      {
+        load: "방위각(Azimuth) 설정 중…",
+        done: "Azimuth: " + white(fmt(azC) + "°"),
+        // applying the antenna angle → tell the GS the target is acquired so the
+        // physical antenna motor moves (exact angle not needed; it just rotates).
+        apply: () => { sendVSA({ azimuth: azC }); post("/api/acquire", {}).catch(() => {}); },
+      },
+      {
+        load: "고도각(Elevation) 설정 중…",
+        done: "Elevation: " + white(fmt(elC) + "°"),
+        apply: () => sendVSA({ elevation: elC }),
+      },
+      {
+        load: "IQ 파일 로드 중…",
+        done: "Command IQ: " + white("attack.cf32"),
+        apply: () => sendVSA({ uplinkFile: "attack.cf32" }),
+      },
     ];
     let acc = "🎯 DEMOSAT 조준 중<br>";
     for (const st of steps) {
@@ -506,7 +543,7 @@
       setStateHTML(acc, "busy");
       await sleep(400);
     }
-    setStateHTML(acc + "<br>🎯 조준 완료 — 이제 Step 2를 완료하고 ⚡ TRANSMIT 하세요", "done");
+    setStateHTML(acc + "<br>🎯 조준 완료 — 이제 Step 2를 완료하고 TRANSMIT 하세요", "done");
     unlockStep2(); // STEP 2 (OpenVSA) is now clickable
   };
 </script>

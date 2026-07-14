@@ -51,15 +51,20 @@ window.addEventListener("message", (e) => {
   if (!m || m.type !== "vsa-preset") return;
   store.setState((s) => ({
     ...s,
-    ...(Number.isFinite(m.azimuth)   ? { azimuth: m.azimuth }     : {}),
-    ...(Number.isFinite(m.elevation) ? { elevation: m.elevation } : {}),
-    ...(m.targetSat                  ? { targetSat: m.targetSat }  : {}),
+    ...(Number.isFinite(m.azimuth)   ? { azimuth: m.azimuth }         : {}),
+    ...(Number.isFinite(m.elevation) ? { elevation: m.elevation }     : {}),
+    ...(m.targetSat                  ? { targetSat: m.targetSat }      : {}),
+    ...(m.antennaType                ? { antennaType: m.antennaType }  : {}),
   }));
-  // uplink target + freq are plain inputs (not store-bound): set the target first
-  // (enables the panel), then the frequency.
+  // uplink target/freq/antenna are plain inputs (not store-bound): set the target
+  // first (enables the panel), then the rest.
   if (m.targetSat) {
     const sel = document.querySelector("#ctrl-sat-uplink");
     if (sel) { sel.value = m.targetSat; sel.dispatchEvent(new Event("change")); }
+  }
+  if (m.antennaType) {
+    const ut = document.querySelector("#ctrl-type-uplink");
+    if (ut) { ut.value = m.antennaType; ut.dispatchEvent(new Event("change")); }
   }
   if (Number.isFinite(m.uplinkFreq)) {
     const f = document.querySelector("#ctrl-uplink-freq");

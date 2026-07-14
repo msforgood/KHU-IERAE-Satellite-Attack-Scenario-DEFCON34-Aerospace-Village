@@ -327,7 +327,28 @@ export function createControls({ container, store, antennaTypes }) {
     }
   });
 
+  // External preset from the attacker console (ENGAGE): mark the IQ file built in
+  // phase 2 as loaded so the panel shows it and TRANSMIT arms. No real bytes are
+  // needed here — the actual uplink is fired by the console → GS /api/inject.
+  window.addEventListener("message", (e) => {
+    const m = e.data;
+    if (!m || m.type !== "vsa-preset" || !m.uplinkFile) return;
+    uplinkFilePath = m.uplinkFile;
+    uplinkFileLabel.textContent = m.uplinkFile;
+    uplinkFileLabel.title = m.uplinkFile;
+    updateUplinkPanel();
+  });
+
   btnTransmit.addEventListener("click", async () => {
+    // Embedded in the attacker console (browser, no Electron): the console owns the
+    // victim-GS URL and fires the uplink. Notify it and skip the Electron physics flow.
+    if (!window.electronAPI) {
+      window.parent.postMessage({ type: "vsa-transmit" }, "*");
+      txStatus.textContent = "Tx attempted";
+      txStatus.style.color = "#44994a";
+      setTimeout(() => { txStatus.textContent = ""; }, 3000);
+      return;
+    }
     const state = store.getState();
     const satName = uplinkSatEl.value;
     const sat = SATELLITES[satName];
