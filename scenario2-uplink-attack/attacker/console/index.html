@@ -402,10 +402,7 @@
   // ── participant guide: poll gpredict's time-control server, gate the ENGAGE
   //    button on "satellite in range", then auto-operate gpredict on click. ────
   const guide = document.getElementById("guide");
-  const gDist = document.getElementById("gDist"),
-    gElev = document.getElementById("gElev");
-  const gBar = document.getElementById("gBar"),
-    gState = document.getElementById("gState");
+  const gState = document.getElementById("gState");
   const gGo = document.getElementById("gGo"),
     gSteps = document.getElementById("gSteps");
   const stepEls = {};
@@ -426,22 +423,16 @@
     gState.className = "state " + cls;
   }
   function render(s) {
-    if (s) {
-      if (s.leadSec) leadSec = s.leadSec;
-      gDist.textContent = s.rangeKm != null ? s.rangeKm.toLocaleString() + " km" : "—";
-      gElev.textContent = s.elevDeg != null ? s.elevDeg.toFixed(1) + "°" : "—";
-    }
+    if (s && s.leadSec) leadSec = s.leadSec;
     const remaining = Math.max(0, leadSec - (Date.now() - T0) / 1000);
     const inNow = reached || remaining <= 0 || (s && s.inRange === true);
     if (inNow) {
       reached = true;
-      gBar.style.width = "100%";
       setStateHTML("✅ 범위 진입 — 지금 조준하세요", "ready");
       gGo.disabled = false;
     } else {
       gGo.disabled = true;
-      gBar.style.width = Math.max(0, Math.min(100, (1 - remaining / leadSec) * 100)) + "%";
-      setStateHTML('🛰 위성 접근 중 · 범위 진입까지 <b class="cd">' + Math.ceil(remaining) + "</b> 초", "wait");
+      setStateHTML('<b class="cd">' + Math.ceil(remaining) + "</b> 초 뒤 위성이 범위에 들어오기를 기다리는 중…", "wait");
     }
   }
 
