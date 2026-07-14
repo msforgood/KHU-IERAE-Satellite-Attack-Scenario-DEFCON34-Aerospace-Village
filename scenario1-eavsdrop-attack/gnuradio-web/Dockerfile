@@ -1,7 +1,7 @@
-# Isolated GNU Radio Companion + noVNC. Nothing installs on the host — everything
+# Isolated GNU Radio Companion + noVNC. Nothing installs on the host; everything
 # lives in this container. Streams the REAL GNU Radio Companion GTK UI to the
 # browser at :6081, opened on the answer flowgraph enigma1_decoder.grc.
-# (Scenario 1 · ENIGMA-1 decoder — same pattern as gpredict-web.)
+# (Scenario 1: ENIGMA-1 decoder, same pattern as gpredict-web.)
 #
 # Ubuntu 24.04 ships GNU Radio 3.10.9 (≥ the .grc's 3.10.7 → blocks_throttle2 present).
 FROM ubuntu:24.04

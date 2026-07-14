@@ -2,11 +2,11 @@
 """
 gpredict-web time-control server (in-container).
 
-GET /reset-pass  → compute ENIGMA-1's next AOS over the QTH (pyephem), set the
+GET /reset-pass  -> compute ENIGMA-1's next AOS over the QTH (pyephem), set the
                    libfaketime offset so gpredict jumps to LEAD seconds before that
                    AOS, and restart gpredict (the start.sh supervisor relaunches it
                    reading the new offset). Returns the AOS time.
-GET /realtime    → reset the faketime offset to real time and restart gpredict.
+GET /realtime    -> reset the faketime offset to real time and restart gpredict.
 
 The web-guide proxies these (see /api/reset-pass in web-guide/server.py); CORS is
 also enabled so a browser can call it directly.
@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 FT_FILE = os.environ.get("FAKETIME_FILE", "/tmp/faketime.rc")
 QTH = os.environ.get("QTH_FILE", "/config/defcon.qth")
 TLE = os.environ.get("TLE_FILE", "/config/enigma1.tle")
-LEAD = int(os.environ.get("PASS_LEAD", "20"))           # seconds before AOS (Dockerfile ENV 우선)
+LEAD = int(os.environ.get("PASS_LEAD", "20"))           # seconds before AOS (Dockerfile ENV takes priority)
 PORT = int(os.environ.get("CTRL_PORT", "6079"))
 
 
@@ -43,7 +43,7 @@ MIN_ALT_DEG = float(os.environ.get("MIN_PASS_ALT", "25"))  # skip low grazing pa
 def next_pass_aos():
     """Find the next pass whose max elevation >= MIN_ALT_DEG (skip low grazing passes)
     and return its AOS (rise) time (unix) and the pass's max-elevation (deg). Resetting
-    to just before this AOS puts ENIGMA-1 at the START of the pass — the moment just
+    to just before this AOS puts ENIGMA-1 at the START of the pass - the moment just
     before the ground station begins receiving the signal (not the mid-pass culmination)."""
     import ephem
     import math
@@ -89,12 +89,12 @@ def read_offset_ms():
 
 
 def write_pass_offset():
-    """다음 '좋은 패스'(max el ≥ MIN_ALT_DEG)의 AOS-LEAD 로 libfaketime 오프셋을 기록.
-    gpredict 를 재시작하지 않는다 — start.sh 가 FAKETIME_TIMESTAMP_FILE + FAKETIME_NO_CACHE=1
-    로 실행하므로 돌고 있는 gpredict 가 이 파일을 실시간 재읽기해 시계가 즉시 점프한다.
-    반환: (aos_unix, offset_sec, max_alt_deg)."""
+    """Write the libfaketime offset as the AOS-LEAD of the next 'good pass' (max el >= MIN_ALT_DEG).
+    This does not restart gpredict: because start.sh runs it with FAKETIME_TIMESTAMP_FILE + FAKETIME_NO_CACHE=1,
+    the running gpredict re-reads this file in real time and its clock jumps immediately.
+    Returns: (aos_unix, offset_sec, max_alt_deg)."""
     aos, max_alt = next_pass_aos()
-    off = int((aos - LEAD) - time.time())        # LEAD 초 만큼 AOS 이전으로
+    off = int((aos - LEAD) - time.time())        # move LEAD seconds before AOS
     with open(FT_FILE, "w") as f:
         f.write("%+ds" % off)
     return aos, off, max_alt
@@ -114,7 +114,7 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path == "/reset-pass":
             try:
-                aos, off, max_alt = write_pass_offset()   # 파일만 기록 — 재시작 없이 실시간 반영
+                aos, off, max_alt = write_pass_offset()   # write the file only - applied in real time without a restart
                 return self._reply(200, {
                     "ok": True, "offsetSec": off, "leadSec": LEAD,
                     "maxAltDeg": round(max_alt, 1),
@@ -126,15 +126,15 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/offset":
             return self._reply(200, {"ok": True, "offsetMs": read_offset_ms()})
         if path == "/remaining":
-            # gpredict 와 동일한 소스(next_pass_aos: MIN_ALT 필터 + faketime offset)로
-            # AOS 까지 남은 시간을 계산 → 웹 카운트다운이 gpredict 화면과 정확히 일치.
+            # Compute the time remaining until AOS using the same source as gpredict
+            # (next_pass_aos: MIN_ALT filter + faketime offset), so the web countdown matches the gpredict screen exactly.
             try:
                 aos, max_alt = next_pass_aos()
-                off = read_offset_ms() // 1000            # 현재 faketime 오프셋(초)
-                sim_now = time.time() + off               # gpredict 의 현재 (가짜) 시각
+                off = read_offset_ms() // 1000            # current faketime offset (seconds)
+                sim_now = time.time() + off               # gpredict's current (faked) time
                 return self._reply(200, {
                     "ok": True,
-                    "remainingSec": int(aos - sim_now),   # <0 이면 패스 진행 중
+                    "remainingSec": int(aos - sim_now),   # <0 means the pass is in progress
                     "aosUnix": int(aos),
                     "simNowUnix": int(sim_now),
                     "leadSec": LEAD,
@@ -160,8 +160,8 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     import sys
     if "--seed" in sys.argv:
-        # 컨테이너 최초 기동 시 start.sh 가 호출 — gpredict 가 '다음 좋은 패스 LEAD초 전'에서
-        # 시작하도록 faketime 오프셋을 미리 기록(HTTP 서버는 띄우지 않음).
+        # Called by start.sh on the container's first boot - pre-writes the faketime offset so
+        # gpredict starts at 'LEAD seconds before the next good pass' (does not launch the HTTP server).
         try:
             aos, off, alt = write_pass_offset()
             print("[control] seeded %+ds (AOS %s, maxAlt %.1f deg)" % (
