@@ -46,7 +46,7 @@ long targetStep  = 0;    // desired absolute step position
 long currentStep = 0;    // where we are now
 int  az          = 180;  // last commanded azimuth (default antenna.az)
 int  el          = 45;   // last commanded elevation (logged only)
-int  mode        = 0;    // 0 nominal · 1 tumbling · 2 acquisition sweep
+int  mode        = 0;    // 0 nominal · 1 tumbling · 2 acquisition sweep · 3 continuous spin
 char lineBuf[48];
 uint8_t lineLen = 0;
 
@@ -62,7 +62,7 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   motor.setSpeed(STEPPER_RPM);
   targetStep = currentStep = azToStep(az);
-  Serial.println(F("ANT READY az=180"));
+  Serial.println(F("ANT READY id=ANTENNA az=180"));
 }
 
 void loop() {
@@ -76,9 +76,15 @@ void loop() {
     }
   }
 
-  // 2) step toward target, bounded per loop so serial stays responsive.
-  //    Take the short way around the 2048-step ring.
-  if (currentStep != targetStep) {
+  // 2) drive the stepper.
+  if (mode == 3) {
+    // continuous spin: keep stepping one direction endlessly (진짜 무한 회전)
+    motor.step(MAX_STEPS_LOOP);
+    currentStep = (currentStep + MAX_STEPS_LOOP) % STEPS_PER_REV;
+    targetStep  = currentStep;               // keep target synced so exit is clean
+  } else if (currentStep != targetStep) {
+    // step toward target, bounded per loop so serial stays responsive.
+    // Take the short way around the 2048-step ring.
     long diff = targetStep - currentStep;
     // wrap into [-half, +half] so we rotate the short direction
     while (diff >  STEPS_PER_REV / 2) diff -= STEPS_PER_REV;
@@ -92,9 +98,10 @@ void loop() {
     targetStep = (targetStep == hiStep) ? azToStep(SWEEP_LO_AZ) : hiStep;
   }
 
-  // 3) LED: solid nominal · fast blink tumbling · slow blink acquisition sweep
+  // 3) LED: solid nominal · fast blink tumbling · slow blink sweep · blink spin
   if      (mode == 1) digitalWrite(LED_PIN, (millis() / 120) % 2);
   else if (mode == 2) digitalWrite(LED_PIN, (millis() / 300) % 2);
+  else if (mode == 3) digitalWrite(LED_PIN, (millis() / 150) % 2);
   else                digitalWrite(LED_PIN, HIGH);
 }
 
@@ -119,8 +126,16 @@ void applyLine(char *line) {
   } else if (strncmp(line, "SWEEP", 5) == 0 || strncmp(line, "ACQUIRE", 7) == 0) {
     mode = 2;
     targetStep = azToStep(SWEEP_HI_AZ);   // kick the head toward one side to start
+  } else if (strncmp(line, "SPIN", 4) == 0) {
+    mode = 3;                             // continuous rotation
+  } else if (strncmp(line, "STOP", 4) == 0) {
+    mode = 0;                             // stop spinning / hold
+  } else if (strncmp(line, "WHOAMI", 6) == 0) {
+    Serial.println(F("ID=ANTENNA"));      // role identity for host auto-routing
   } else if (strncmp(line, "PING", 4) == 0) {
-    Serial.print(F("ANT READY az="));
-    Serial.println(az);
+    Serial.print(F("ANT READY id=ANTENNA az="));
+    Serial.print(az);
+    Serial.print(F(" mode="));            // 0 nominal·1 tumble·2 sweep·3 spin
+    Serial.println(mode);
   }
 }

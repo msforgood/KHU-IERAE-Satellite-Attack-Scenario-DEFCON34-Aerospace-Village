@@ -4,10 +4,13 @@
 # OpenVSA rotctld (:4533) from inside the container.
 set -e
 CFG=/root/.config/Gpredict
-mkdir -p "$CFG/satdata" "$CFG/hwconf"
+mkdir -p "$CFG/satdata" "$CFG/hwconf" "$CFG/modules"
 if [ -d /config ]; then
   cp -f /config/demosat.tle "$CFG/satdata/" 2>/dev/null || true
+  cp -f /config/70003.sat   "$CFG/satdata/" 2>/dev/null || true
   cp -f /config/defcon.qth  "$CFG/"         2>/dev/null || true
+  cp -f /config/DEMOSAT.mod  "$CFG/modules/" 2>/dev/null || true
+  cp -f /config/gpredict.cfg "$CFG/"         2>/dev/null || true
   sed "s/^HOST=.*/HOST=${ROTCTLD_HOST:-host.docker.internal}/" /config/OpenVSA.rot \
       > "$CFG/hwconf/OpenVSA.rot" 2>/dev/null || true
 fi
