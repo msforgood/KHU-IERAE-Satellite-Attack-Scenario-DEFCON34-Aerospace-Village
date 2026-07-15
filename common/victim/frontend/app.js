@@ -8,6 +8,7 @@ const COMM_STYLE = { CONNECTED: 'nominal', LOST: 'danger', DEAD: 'danger',
 let panelCfg = null;
 let state = {};
 let truthState = {};   // REAL physical state (drives the simulator even while telemetry is spoofed)
+let simEnabled = false; // spacecraft simulator is a per-scenario feature (scn3 on, scn2 off)
 const powHist = [], batHist = [], HIST = 120;
 
 const $ = (s) => document.querySelector(s);
@@ -20,6 +21,13 @@ function connect() {
   ws.onmessage = (e) => {
     const m = JSON.parse(e.data);
     if (m.type === 'panel') { panelCfg = m.panel; }
+    else if (m.type === 'config') {
+      simEnabled = !!m.simulator;
+      document.body.classList.toggle('sim-on', simEnabled);
+      const el = document.querySelector('.simcard');
+      if (el) el.classList.toggle('hidden', !simEnabled);
+      if (simEnabled) { sizeSat(); sizeMap(); }
+    }
     else if (m.type === 'state') { state = m.state; onState(); }
     else if (m.type === 'truth') { truthState = m.state; }
     else if (m.type === 'uplink') { logUplink(m); }
@@ -318,6 +326,28 @@ earthImg.onload = () => { earthReady = true; };
 earthImg.src = '/assets/earth.jpg';
 const GS = { lat: 37.5, lon: 127.0 };       // ground-station (Seoul) marker
 
+// Live gpredict sub-satellite point → the map plots the SAME position gpredict shows
+// (same TLE + same faked clock). Polls the gpredict time-control server; falls back
+// to a procedural track when it isn't reachable. Configure/disable with ?ctrl=URL
+// (default http://localhost:6079) or ?ctrl=off.
+const GP = { url: null, tlat: null, tlon: null, lat: null, lon: null, trail: [], have: false, since: 0, acc: 0 };
+(function () {
+  const c = new URLSearchParams(location.search).get('ctrl');
+  if (c === 'off' || c === 'none' || c === '') return;                 // disabled
+  GP.url = (c || 'http://localhost:6079').replace(/\/$/, '');
+  (function poll() {
+    fetch(GP.url + '/status', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => {
+        if (typeof j.subLatDeg === 'number' && typeof j.subLonDeg === 'number') {
+          GP.tlat = j.subLatDeg; GP.tlon = j.subLonDeg; GP.have = true; GP.since = 0;
+        }
+      })
+      .catch(() => {})                                                  // gpredict down → procedural
+      .finally(() => setTimeout(poll, 1500));
+  })();
+})();
+
 function sizeMap() { const cv = $('#orbit'); const { w, h } = sizeCanvasDPR(cv); MAP.W = w; MAP.H = h; }
 const proj = (lat, lon) => [((lon + 180) / 360) * MAP.W, ((90 - lat) / 180) * MAP.H];
 
@@ -333,16 +363,29 @@ function drawMap(dt, v) {
   for (let lon = -120; lon <= 120; lon += 60) { const [x] = proj(0, lon); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
   for (let lat = -60; lat <= 60; lat += 30) { const [, y] = proj(lat, 0); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
 
-  // simulated LEO ground-track: inclined orbit advancing in longitude over time
-  const period = 92;                       // ~92 min LEO, sped for the booth
-  const rate = 360 / period / 4;           // deg/sec (4× real-time feel)
-  const incl = 51;                         // inclination
-  const lonNow = ((MAP.t * rate + 200) % 360) - 180;
-  const track = [];
-  for (let d = -70; d <= 70; d += 2) {
-    const lon = (((lonNow + d * 2) + 540) % 360) - 180;
-    const lat = incl * Math.sin((d + MAP.t * rate) * Math.PI / 180);
-    track.push([lon, lat]);
+  // position + ground-track: live gpredict fix when available, else a procedural LEO
+  let lonNow, satLat, track;
+  if (GP.have && GP.tlat != null && (GP.since += dt) > 8) GP.have = false;  // gpredict went quiet
+  if (GP.have && GP.tlat != null) {
+    if (GP.lat == null) { GP.lat = GP.tlat; GP.lon = GP.tlon; }
+    const a = Math.min(1, dt * 3);                    // ease toward the polled fix
+    GP.lat += (GP.tlat - GP.lat) * a;
+    let dlon = GP.tlon - GP.lon;                       // shortest-path longitude lerp
+    if (dlon > 180) dlon -= 360; else if (dlon < -180) dlon += 360;
+    GP.lon = (((GP.lon + dlon * a) + 540) % 360) - 180;
+    satLat = GP.lat; lonNow = GP.lon;
+    GP.acc += dt;                                      // breadcrumb trail = the ground track
+    if (!GP.trail.length || GP.acc > 0.8) { GP.trail.push([lonNow, satLat]); GP.acc = 0; if (GP.trail.length > 90) GP.trail.shift(); }
+    track = GP.trail;
+  } else {
+    const period = 92, rate = 360 / period / 4, incl = 51;   // ~92 min LEO, 4× booth feel
+    lonNow = ((MAP.t * rate + 200) % 360) - 180;
+    track = [];
+    for (let d = -70; d <= 70; d += 2) {
+      const lon = (((lonNow + d * 2) + 540) % 360) - 180;
+      track.push([lon, incl * Math.sin((d + MAP.t * rate) * Math.PI / 180)]);
+    }
+    satLat = incl * Math.sin((MAP.t * rate) * Math.PI / 180);
   }
   // draw track (split at antimeridian wraps)
   ctx.strokeStyle = v.critical ? 'rgba(255,59,78,.85)' : 'rgba(57,197,255,.85)';
@@ -355,8 +398,6 @@ function drawMap(dt, v) {
   });
   ctx.stroke(); ctx.shadowBlur = 0;
 
-  // sub-satellite point (current position = middle of track)
-  const satLat = incl * Math.sin((MAP.t * rate) * Math.PI / 180);
   const [sx, sy] = proj(satLat, lonNow);
   // coverage footprint
   ctx.strokeStyle = v.critical ? 'rgba(255,59,78,.5)' : 'rgba(57,197,255,.45)';
@@ -377,7 +418,8 @@ function drawMap(dt, v) {
   // readouts
   $('#mapCoord').textContent = `${satLat >= 0 ? 'N' : 'S'} ${Math.abs(satLat).toFixed(1)}° , ${lonNow >= 0 ? 'E' : 'W'} ${Math.abs(lonNow).toFixed(1)}°`;
   const tag = $('#mapTag');
-  tag.textContent = v.dead ? '● SIGNAL LOST' : v.critical ? '● TUMBLING — TRACK UNSTABLE' : '● TRACKING';
+  tag.textContent = v.dead ? '● SIGNAL LOST' : v.critical ? '● TUMBLING — TRACK UNSTABLE'
+    : (GP.have ? '● TRACKING · GPREDICT' : '● TRACKING');
   tag.className = 'maptag ' + (v.dead || v.critical ? 'danger' : v.warn ? 'warn' : 'ok');
 }
 
@@ -388,7 +430,7 @@ function frame(t) {
   const v = computeVitals();
   stepECG(dt, v); drawECG(v);
   drawMap(dt, v);
-  stepSat(dt); drawSat();
+  if (simEnabled) { stepSat(dt); drawSat(); }
   requestAnimationFrame(frame);
 }
 
@@ -414,7 +456,8 @@ function satGeometry() {
              [[0,4,7,3],[-1,0,0]],[[7,6,2,3],[0,1,0]],[[0,1,5,4],[0,-1,0]]];
     return F.map(([i,n]) => ({ pts: i.map((k) => V[k]), n, color, kind }));
   };
-  const BODY=[150,161,175], BOOM=[92,99,112], DISH=[120,128,142], NOZ=[74,80,90], CELL=[46,84,172];
+  // BODY = gold MLI thermal blanket · CELL = deep-indigo photovoltaic
+  const BODY=[192,156,82], BOOM=[122,126,134], DISH=[150,156,168], NOZ=[68,70,80], CELL=[38,50,128];
   // solar wings as single double-sided quads (thin boxes z-fight; a quad reads clean)
   const wing = (sgn) => [{ pts: [[sgn*0.85,0,-0.62],[sgn*3.1,0,-0.62],[sgn*3.1,0,0.62],[sgn*0.85,0,0.62]],
     n: [0,1,0], color: CELL, kind: 'panel' }];
@@ -450,6 +493,12 @@ function mv3(m, v) {
           m[2][0]*v[0]+m[2][1]*v[1]+m[2][2]*v[2]];
 }
 const SAT_VIEW = rotM(-0.34, 0.62, 0);   // fixed 3/4 camera angle
+// specular lighting: camera dir in world = 3rd row of the view rotation; the Blinn
+// half-vector between sun and camera gives metallic glints on the bus + panel sheen.
+const CAMW = [SAT_VIEW[2][0], SAT_VIEW[2][1], SAT_VIEW[2][2]];
+const HALF = (() => { const h = [SUN[0]+CAMW[0], SUN[1]+CAMW[1], SUN[2]+CAMW[2]];
+  const m = Math.hypot(h[0], h[1], h[2]); return h.map((x) => x / m); })();
+const MAT = { body: { spec: 0.55, shin: 20 }, panel: { panel: true, spec: 0.6, shin: 44 } };
 function projS(p) {                       // view-space point → [screenX, screenY]
   const MS = 1.35, camZ = 13, f = SAT.H * 1.7;
   const s = f / (camZ - p[2]*MS);
@@ -481,11 +530,13 @@ function stepSat(dt) {
   SAT._p = p;
 }
 
-function satShade(color, nW, panel) {
+function satShade(color, nW, mat) {
   let d = nW[0]*SUN[0] + nW[1]*SUN[1] + nW[2]*SUN[2];
-  d = panel ? Math.abs(d) : Math.max(0, d);           // panels are double-sided (lit either way)
-  const k = panel ? (0.4 + 0.72*d) : (0.2 + 0.92*d);  // keep the array readable even off-sun
-  return `rgb(${Math.min(255,color[0]*k)|0},${Math.min(255,color[1]*k)|0},${Math.min(255,color[2]*k)|0})`;
+  d = mat.panel ? Math.abs(d) : Math.max(0, d);           // panels are double-sided
+  const k = (mat.panel ? 0.42 : 0.24) + (mat.panel ? 0.7 : 0.9) * d;
+  const hn = Math.max(0, nW[0]*HALF[0] + nW[1]*HALF[1] + nW[2]*HALF[2]);
+  const s = (mat.spec || 0) * Math.pow(hn, mat.shin || 16);   // Blinn specular glint
+  return `rgb(${Math.min(255, color[0]*k + 255*s*0.95)|0},${Math.min(255, color[1]*k + 255*s*0.9)|0},${Math.min(255, color[2]*k + 255*s*(mat.panel?1:0.68))|0})`;
 }
 
 function drawSat() {
@@ -520,19 +571,40 @@ function drawSat() {
 
   const lerp = (a,b,t) => [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t];
   faces.forEach(({ scr, nW, face }) => {
-    ctx.beginPath(); ctx.moveTo(scr[0][0],scr[0][1]);
-    for (let i=1;i<scr.length;i++) ctx.lineTo(scr[i][0],scr[i][1]);
+    const mat = MAT[face.kind] || MAT.body, P = scr;
+    ctx.beginPath(); ctx.moveTo(P[0][0],P[0][1]);
+    for (let i=1;i<P.length;i++) ctx.lineTo(P[i][0],P[i][1]);
     ctx.closePath();
-    ctx.fillStyle = satShade(face.color, nW, face.kind === 'panel'); ctx.fill();
+    ctx.fillStyle = satShade(face.color, nW, mat); ctx.fill();
+
+    // localized specular glint (clipped to the face) — metallic pop / panel sheen
+    const hn = Math.max(0, nW[0]*HALF[0] + nW[1]*HALF[1] + nW[2]*HALF[2]);
+    const glint = (mat.spec || 0) * Math.pow(hn, mat.shin || 16);
+    if (glint > 0.06) {
+      let gx=0, gy=0; P.forEach((p) => { gx+=p[0]; gy+=p[1]; }); gx/=P.length; gy/=P.length;
+      const rad = mat.panel ? 96 : 46;
+      const gr = ctx.createRadialGradient(gx,gy,0, gx,gy,rad);
+      gr.addColorStop(0, `rgba(255,255,${mat.panel?255:226},${Math.min(0.5, glint)})`);
+      gr.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.save(); ctx.clip(); ctx.fillStyle = gr; ctx.fillRect(gx-rad,gy-rad,rad*2,rad*2); ctx.restore();
+    }
+
     if (face.kind === 'panel') {
-      const P = scr;
-      ctx.strokeStyle = 'rgba(8,16,34,.55)'; ctx.lineWidth = 1;
-      for (let u=1;u<8;u++){ const t=u/8, A=lerp(P[0],P[1],t), B=lerp(P[3],P[2],t); ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.stroke(); }
-      for (let w=1;w<3;w++){ const t=w/3, A=lerp(P[0],P[3],t), B=lerp(P[1],P[2],t); ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.stroke(); }
-      ctx.strokeStyle = 'rgba(198,172,86,.8)'; ctx.lineWidth = 1.6;
+      // photovoltaic cells: fine silver interconnect grid + thicker busbar + metal frame
+      ctx.strokeStyle = 'rgba(150,170,205,.26)'; ctx.lineWidth = 1;
+      for (let u=1;u<9;u++){ const t=u/9, A=lerp(P[0],P[1],t), B=lerp(P[3],P[2],t); ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.stroke(); }
+      for (let w=1;w<4;w++){ const t=w/4, A=lerp(P[0],P[3],t), B=lerp(P[1],P[2],t); ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.stroke(); }
+      ctx.strokeStyle = 'rgba(196,210,235,.42)'; ctx.lineWidth = 1.5;
+      { const A=lerp(P[0],P[3],0.5), B=lerp(P[1],P[2],0.5); ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.stroke(); }
+      ctx.strokeStyle = 'rgba(206,201,178,.8)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(P[0][0],P[0][1]); for (let i=1;i<P.length;i++) ctx.lineTo(P[i][0],P[i][1]); ctx.closePath(); ctx.stroke();
-    } else {
-      ctx.strokeStyle = 'rgba(200,220,245,.13)'; ctx.lineWidth = 1; ctx.stroke();
+    } else if (P.length === 4) {
+      // gold MLI blanket: dark seam cross + warm foil edge highlight
+      const A=lerp(P[0],P[1],0.5),B=lerp(P[3],P[2],0.5),C=lerp(P[0],P[3],0.5),D=lerp(P[1],P[2],0.5);
+      ctx.strokeStyle = 'rgba(58,42,12,.45)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.moveTo(C[0],C[1]); ctx.lineTo(D[0],D[1]); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,236,190,.16)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(P[0][0],P[0][1]); for (let i=1;i<P.length;i++) ctx.lineTo(P[i][0],P[i][1]); ctx.closePath(); ctx.stroke();
     }
   });
 

@@ -45,6 +45,10 @@ def status():
         el, az, rng = passloop.look_angles(QTH, TLE, faked_now)
     except Exception:
         el = az = rng = None
+    try:
+        sublat, sublon = passloop.sub_point(TLE, faked_now)   # for the victim GS map
+    except Exception:
+        sublat = sublon = None
     return {
         "armed": ARMER.enabled,
         "leadSec": LEAD,
@@ -61,6 +65,9 @@ def status():
         "rangeKm": round(rng) if rng is not None else None,
         "secToAos": round(AOS - faked_now, 1),
         "inRange": bool(el is not None and el >= IN_RANGE),
+        # sub-satellite geographic point (deg) — victim GS map plots this to match gpredict
+        "subLatDeg": round(sublat, 4) if sublat is not None else None,
+        "subLonDeg": round(sublon, 4) if sublon is not None else None,
     }
 
 

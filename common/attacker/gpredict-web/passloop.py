@@ -73,6 +73,20 @@ def find_pass(qth_path, tle_path, min_alt=15.0, max_alt=45.0, search=40):
     return best if best else (int(time.time()), int(time.time()) + 600, 0.0)
 
 
+def sub_point(tle_path, when_unix):
+    """Sub-satellite geographic point (lat_deg, lon_deg) at a UTC unix time.
+    Same TLE + same (faked) clock gpredict uses → the victim GS map can plot the
+    identical position. Longitude is normalised to [-180, 180]."""
+    import ephem
+    import math
+    l0, l1, l2 = read_tle(tle_path)
+    sat = ephem.readtle(l0, l1, l2)
+    sat.compute(ephem.Date(datetime.datetime.utcfromtimestamp(when_unix)))
+    lat = math.degrees(sat.sublat)
+    lon = ((math.degrees(sat.sublong) + 180.0) % 360.0) - 180.0
+    return lat, lon
+
+
 def look_angles(qth_path, tle_path, when_unix):
     """Satellite look-angles from the QTH at a given UTC unix time:
     (elevation_deg, azimuth_deg, range_km). Used to show the participant the
