@@ -322,6 +322,11 @@
           n = Math.max(1, Math.min(n, PHASES.length));
           PHASES.forEach(function (ph, i) { if (ph.el) ph.el.classList.toggle("hidden", i !== n - 1); });
           if (PHASES[n - 1] && PHASES[n - 1].onShow) PHASES[n - 1].onShow();
+          // phases 3+ are full-screen iframes (console/drone) with their own header —
+          // hide the outer topbar there so the 100vh iframe == the viewport exactly and
+          // the page doesn't overflow (no dead scroll below). Show it for 1-2.
+          var tb = document.querySelector(".topbar");
+          if (tb) tb.style.display = n >= 3 ? "none" : "";
           if (push) { try { history.pushState({ phase: n }, "", "/" + n + location.search); } catch (e) {} }
           window.scrollTo(0, 0);
         }
