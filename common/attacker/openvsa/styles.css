@@ -384,6 +384,20 @@ body {
   color: #ffffff;
 }
 
+/* "Load generated IQ file" call-to-action — pulses to invite a click */
+@keyframes iqCtaPulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(214, 106, 45, 0.35); border-color: #d66a2d; }
+  50%      { box-shadow: 0 0 16px 3px rgba(214, 106, 45, 0.8); border-color: #ffa55a; }
+}
+.iq-cta {
+  background: #3a2a1a;
+  border-color: #d66a2d;
+  color: #ffcfa3;
+  animation: iqCtaPulse 1.15s ease-in-out infinite;
+}
+.iq-cta:hover { background: #d66a2d; color: #1a1206; animation: none; }
+.iq-cta.loading { animation: none; opacity: 0.85; cursor: progress; }
+
 .control-row input[type="number"] {
   width: 100%;
   background: #2a3a4a;

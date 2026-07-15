@@ -182,7 +182,7 @@ export function createControls({ container, store, antennaTypes }) {
         <label>Command IQ file</label>
         <span id="uplink-file-label" class="rec-dir-label">No file loaded</span>
       </div>
-      <button id="btn-load-uplink" class="btn-step" style="width:100%;padding:8px;margin-top:6px"
+      <button id="btn-load-uplink" class="btn-step iq-cta" style="width:100%;padding:8px;margin-top:6px"
               title="Load the IQ file you generated earlier">📎 Load generated IQ file</button>
 
       <button id="btn-transmit" class="btn-transmit" disabled title="Transmit command to satellite">TRANSMIT</button>
@@ -316,14 +316,20 @@ export function createControls({ container, store, antennaTypes }) {
   });
 
   btnLoadUplink.addEventListener("click", async () => {
+    if (btnLoadUplink.dataset.busy) return;
     // Embedded in the attacker console (browser, no Electron): "load" the IQ file
     // built back in phase 2. No real bytes needed — the actual uplink is fired by
     // the console → GS /api/inject; this just arms the panel's TRANSMIT button.
     if (!window.electronAPI) {
+      btnLoadUplink.dataset.busy = "1";
+      btnLoadUplink.classList.add("loading");
+      btnLoadUplink.textContent = "⏳ Loading attack.cf32…";
+      await new Promise((r) => setTimeout(r, 900)); // deliberate loading beat
       uplinkFilePath = "attack.cf32";
       uplinkFileLabel.textContent = "attack.cf32";
       uplinkFileLabel.title = "attack.cf32";
       updateUplinkPanel();
+      btnLoadUplink.style.display = "none"; // gone once clicked
       return;
     }
     const filePath = await window.electronAPI.chooseUplinkFile();
@@ -332,6 +338,7 @@ export function createControls({ container, store, antennaTypes }) {
       uplinkFileLabel.textContent = filePath.split(/[/\\]/).pop();
       uplinkFileLabel.title = filePath;
       updateUplinkPanel();
+      btnLoadUplink.style.display = "none"; // gone once loaded
     }
   });
 
