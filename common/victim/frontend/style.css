@@ -62,10 +62,8 @@ h2{font-size:1em;letter-spacing:.14em;color:var(--dim);margin:0 0 clamp(4px,.8vh
 .leftcol > .card:nth-child(1){flex:1.15 1 0}
 .leftcol > .card:nth-child(2){flex:1 1 0}
 .panels{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(2,minmax(0,1fr));gap:var(--gap);min-height:0}
-/* scn2 (no simulator): energy | uplink fill row A side by side */
-body:not(.sim-on) .rowA{grid-template-columns:1fr}
-body:not(.sim-on) .leftcol{flex-direction:row}
-body:not(.sim-on) .leftcol > .card{flex:1 1 0;min-width:0}
+/* scn2 (no simulator): JS moves the 4 boxes into row A's right slot and hides row B
+   (the map). Row A stays a 2-col grid → leftcol (energy/uplink) | 4 boxes. */
 
 .card,.section{background:var(--panel);border:1px solid var(--line);border-radius:10px;
   padding:var(--pad);min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}

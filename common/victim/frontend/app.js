@@ -24,8 +24,22 @@ function connect() {
     else if (m.type === 'config') {
       simEnabled = !!m.simulator;
       document.body.classList.toggle('sim-on', simEnabled);
-      const el = document.querySelector('.simcard');
-      if (el) el.classList.toggle('hidden', !simEnabled);
+      const simcard = document.querySelector('.simcard');
+      const rowA = document.querySelector('.rowA');
+      const rowB = document.querySelector('.rowB');
+      const panels = document.getElementById('panels');
+      if (simcard) simcard.classList.toggle('hidden', !simEnabled);
+      if (rowA && rowB && panels) {
+        if (simEnabled) {
+          // scn3: 4 boxes sit in row B beside the orbital map, simulator in row A
+          if (panels.parentElement !== rowB) rowB.appendChild(panels);
+          rowB.classList.remove('hidden');
+        } else {
+          // scn2: the 4 boxes take the (absent) simulator's slot in row A; drop the map
+          if (panels.parentElement !== rowA) rowA.appendChild(panels);
+          rowB.classList.add('hidden');
+        }
+      }
       requestAnimationFrame(sizeAll);   // layout reflowed → resize every canvas to its box
     }
     else if (m.type === 'state') { state = m.state; onState(); }
