@@ -182,7 +182,7 @@ export function createControls({ container, store, antennaTypes }) {
         <label>Command IQ file</label>
         <span id="uplink-file-label" class="rec-dir-label">No file loaded</span>
       </div>
-      <button id="btn-load-uplink" class="btn-step iq-cta" style="width:100%;padding:8px;margin-top:6px"
+      <button id="btn-load-uplink" class="btn-step" style="width:100%;height:auto;padding:9px 10px;margin-top:6px;line-height:1.25;font-size:13px"
               title="Load the IQ file you generated earlier">📎 Load generated IQ file</button>
 
       <button id="btn-transmit" class="btn-transmit" disabled title="Transmit command to satellite">TRANSMIT</button>
@@ -294,6 +294,15 @@ export function createControls({ container, store, antennaTypes }) {
       uplinkFreqEl.value = "";
       btnTransmit.disabled = true;
     }
+
+    // "Load generated IQ file" only starts pulsing (iq-cta) once STEP 1's ENGAGE has
+    // filled every uplink value — target satellite + uplink freq + antenna type — and
+    // no IQ file is loaded yet. Skip while a load is in flight (.loading owns the look).
+    const freqOk = parseFloat(uplinkFreqEl.value) > 0;
+    const ready = !!(sat && sat.uplink) && freqOk && !!uplinkTypeEl.value && !uplinkFilePath;
+    if (!btnLoadUplink.classList.contains("loading")) {
+      btnLoadUplink.classList.toggle("iq-cta", ready);
+    }
   }
 
   uplinkSatEl.addEventListener("change", () => {
@@ -314,6 +323,10 @@ export function createControls({ container, store, antennaTypes }) {
       detail: { active: true, ampKey: uplinkAmpEl.value || null, satellite: uplinkSatEl.value || null },
     }));
   });
+  // Freq is a plain input (not store-bound); STEP 1's preset dispatches "change" and
+  // participants may type it — either way re-evaluate the load-CTA pulse.
+  uplinkFreqEl.addEventListener("input", updateUplinkPanel);
+  uplinkFreqEl.addEventListener("change", updateUplinkPanel);
 
   btnLoadUplink.addEventListener("click", async () => {
     if (btnLoadUplink.dataset.busy) return;
