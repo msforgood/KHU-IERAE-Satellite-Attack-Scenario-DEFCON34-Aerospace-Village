@@ -2,6 +2,28 @@
   "id": "scn3",
   "name": "Telemetry Spoofing",
   "phaseCount": 4,
+  "briefing": {
+    "title": "Break the satellite, then impersonate it",
+    "sections": [
+      {
+        "h": "① The target",
+        "p": "<b>DEMOSAT</b> stays alive by keeping its solar panels pointed at the sun, held steady by reaction wheels. Its ground station trusts whatever telemetry beacon it hears."
+      },
+      {
+        "h": "② Step 1 — break it",
+        "p": "You uplink <b>adcs_torque</b> with an abused value (999 mNm). The wheels overspin, the satellite <b>tumbles</b>, the panels lose the sun, and <b>power collapses</b> — the ground-station alarm fires."
+      },
+      {
+        "h": "③ Step 2 — hide it",
+        "p": "A rogue <b>drone impersonates DEMOSAT</b> and replays a forged <b>\"healthy\" beacon</b> at the ground station. Every telemetry field is a lie: NOMINAL, battery 98%, sun-tracking, comm connected."
+      },
+      {
+        "h": "④ Why it works",
+        "p": "The dashboard believes the beacon and the <b>alarm goes quiet</b> — while the real satellite keeps tumbling and the physical motors never stop. <span class=\"hl\">The operator never sees the crisis.</span>"
+      }
+    ],
+    "ack": "I understand I'll first break the satellite by uplink, then hide the damage by spoofing a forged healthy beacon."
+  },
   "extras": [
     {
       "id": "phase4",
