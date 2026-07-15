@@ -23,7 +23,7 @@ import passloop
 FT_FILE   = os.environ.get("FAKETIME_FILE", "/tmp/faketime.rc")
 QTH       = os.environ.get("QTH_FILE", "/config/defcon.qth")
 TLE       = os.environ.get("TLE_FILE", "/config/demosat.tle")
-LEAD      = int(os.environ.get("PASS_LEAD", "20"))           # wait before AOS (s)
+LEAD      = int(os.environ.get("PASS_LEAD", "30"))           # wait before AOS (s)
 INTERVAL  = int(os.environ.get("RESET_INTERVAL", "300"))     # auto re-arm every (s)
 MIN_ALT   = float(os.environ.get("MIN_PASS_ALT", "15"))      # grazing band floor
 MAX_ALT   = float(os.environ.get("MAX_PASS_ALT", "45"))      # grazing band ceil

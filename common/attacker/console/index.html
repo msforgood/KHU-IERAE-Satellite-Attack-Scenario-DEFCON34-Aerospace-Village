@@ -404,6 +404,9 @@
     try {
       await post("/api/inject", ATTACK);
       setStatus("⚡ UPLINK TRANSMITTED · adcs_torque 999 mNm", "var(--crit)");
+      // notify the outer Command Builder that the uplink was fired, so a scenario's
+      // next-phase entry (e.g. ④ drone spoof) can be revealed only AFTER transmit.
+      try { window.parent.postMessage({ type: "attack-fired" }, "*"); } catch (e) { /* no parent */ }
     } catch (e) {
       setStatus("GS connection failed (" + e.message + ")", "var(--crit)");
     }
@@ -424,7 +427,7 @@
   // clock. We also flip early if the live elevation already reports in-range, and
   // LATCH once reached so a later re-arm never sends it back to "waiting".
   const T0 = Date.now();
-  let leadSec = 20,
+  let leadSec = 30,
     reached = false;
 
   function setStateHTML(html, cls) {

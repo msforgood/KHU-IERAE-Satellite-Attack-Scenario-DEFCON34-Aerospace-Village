@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV GEOM=1280x900x24 VNC_PORT=5900 WEB_PORT=6080 CTRL_PORT=6079 \
     ROTCTLD_HOST=host.docker.internal FAKETIME_FILE=/tmp/faketime.rc \
-    PASS_LEAD=20 RESET_INTERVAL=300 MIN_PASS_ALT=15 MAX_PASS_ALT=45 \
+    PASS_LEAD=30 RESET_INTERVAL=300 MIN_PASS_ALT=15 MAX_PASS_ALT=45 \
     IN_RANGE_ELEV=0 AUTOPILOT=/autopilot.sh
 COPY start.sh /start.sh
 COPY control.py /control.py
