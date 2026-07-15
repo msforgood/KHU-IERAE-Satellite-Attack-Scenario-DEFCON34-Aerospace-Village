@@ -62,7 +62,10 @@ free_port "$UPLINK_PORT"
 
 TAILPID=""
 LOG="$(mktemp -t victim.XXXXXX)"
-( cd "$BACKEND" && GS_HTTP_PORT="$PORT" UPLINK_PORT="$UPLINK_PORT" ATTACK_DELAY_MS="${ATTACK_DELAY_MS:-4000}" node server.js ) >"$LOG" 2>&1 &
+# 시나리오 델타: scenario.json 의 victim.simulator → GS_SIMULATOR (scn3만 위성 시뮬레이터 표시).
+# scn2 등 플래그 없는 시나리오는 시뮬레이터 미표시. node 로 파싱(victim은 어차피 node 필요).
+GS_SIMULATOR="${GS_SIMULATOR:-$(node -e "try{const c=require(process.argv[1]);process.stdout.write((c.victim&&c.victim.simulator)?'1':'')}catch(e){}" "$DIR/scenario.json" 2>/dev/null)}"
+( cd "$BACKEND" && GS_HTTP_PORT="$PORT" UPLINK_PORT="$UPLINK_PORT" ATTACK_DELAY_MS="${ATTACK_DELAY_MS:-4000}" GS_SIMULATOR="$GS_SIMULATOR" node server.js ) >"$LOG" 2>&1 &
 SRV=$!
 trap 'kill $SRV ${TAILPID:-} 2>/dev/null || true; rm -f "$LOG"' EXIT INT TERM
 

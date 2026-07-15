@@ -26,6 +26,10 @@ const HTTP_PORT = +(process.env.GS_HTTP_PORT || 4540);
 const UPLINK_PORT = +(process.env.UPLINK_PORT || 4536);
 const ATTACK_DELAY_MS = +(process.env.ATTACK_DELAY_MS || 4000);
 const ARDUINO_URL = process.env.ARDUINO_URL || "";
+// Spacecraft simulator (3D attitude view) is a per-scenario feature: scenario 3 shows
+// the satellite tumbling on-screen (no hardware); scenario 2 uses none. The scenario's
+// start-victim.sh sets GS_SIMULATOR from scenario.json (victim.simulator).
+const SIMULATOR = /^(1|true|yes|on)$/i.test(process.env.GS_SIMULATOR || "");
 
 // ── satellite state engine ──────────────────────────────────────────────────
 const sat = createSatelliteState();
@@ -66,7 +70,7 @@ function broadcastState() {
   // drone beacon is active). `truth` = the REAL physical state, always — it drives the
   // spacecraft simulator so the satellite is seen tumbling even while the numbers lie.
   browserWss.broadcast(JSON.stringify({ type: "state", state: browserState(lastState) }));
-  browserWss.broadcast(JSON.stringify({ type: "truth", state: lastState }));
+  if (SIMULATOR) browserWss.broadcast(JSON.stringify({ type: "truth", state: lastState }));
 }
 
 sat.onChange((s) => {
@@ -191,9 +195,10 @@ const httpServer = http.createServer((req, res) => {
 
 const browserWss = new WSServer(httpServer);
 browserWss.on("connection", (ws) => {
+  ws.send(JSON.stringify({ type: "config", simulator: SIMULATOR }));
   ws.send(JSON.stringify({ type: "panel", panel: sat.getPanelConfig() }));
   ws.send(JSON.stringify({ type: "state", state: browserState(lastState) }));
-  ws.send(JSON.stringify({ type: "truth", state: lastState }));
+  if (SIMULATOR) ws.send(JSON.stringify({ type: "truth", state: lastState }));
 });
 
 httpServer.listen(HTTP_PORT, "0.0.0.0", () =>

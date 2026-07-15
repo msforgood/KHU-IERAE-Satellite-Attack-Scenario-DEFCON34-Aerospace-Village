@@ -2,6 +2,7 @@
   "id": "scn3",
   "name": "Telemetry Spoofing",
   "phaseCount": 4,
+  "victim": { "simulator": true },
   "briefing": {
     "title": "Break the satellite, then impersonate it",
     "sections": [
