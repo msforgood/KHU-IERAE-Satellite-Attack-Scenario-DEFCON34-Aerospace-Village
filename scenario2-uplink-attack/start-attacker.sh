@@ -41,6 +41,7 @@ GS_URL="${GS_URL:-http://localhost:4540}"
 BUILDER_PORT="${BUILDER_PORT:-8000}"
 CONSOLE_PORT="${CONSOLE_PORT:-8090}"   # 단일 포트: console(/) + OpenVSA(/vsa) + gpredict(/gpredict)
 GP_PORT="${GP_PORT:-6080}"
+CTRL_PORT="${CTRL_PORT:-6079}"   # gpredict 시간제어 서버(phase3 → /arm). noVNC(GP_PORT)와 한 쌍.
 GP_IMG="${GP_IMG:-demosat-gpredict}"
 UPLINK_DEST="${UPLINK_DEST:-ws://localhost:4536}"
 UPLINK_OUT_DIR="${UPLINK_OUT_DIR:-$HOME/uplink}"
@@ -86,6 +87,26 @@ free_port() {
   sleep 1
   pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null)" || true
   [ -n "$pids" ] && { echo "$pids" | xargs kill -9 2>/dev/null || true; sleep 1; }
+}
+
+# gpredict 는 Docker 컨테이너(noVNC :GP_PORT + 시간제어 :CTRL_PORT)로 뜬다. 이전 실행이
+# 비정상 종료(강제 kill·절전·크래시)되면 컨테이너가 남아 포트를 물고, 다음 실행의 컨테이너가
+# "Bind for 0.0.0.0:$CTRL_PORT failed: port is already allocated" 로 기동 실패 → ③ gpredict
+# 화면이 안 열린다. 그래서 실행 전에 우리 이미지의 잔존 컨테이너 + 해당 포트를 점유 중인
+# 컨테이너를 정리한다. (포트 소유자는 docker 데몬이라 free_port 의 lsof-kill 을 쓰면 안 되고 —
+# com.docker 를 죽이게 된다 — 반드시 docker stop 으로 내린다.)
+free_gpredict() {
+  have docker || return 0
+  docker info >/dev/null 2>&1 || return 0     # 데몬 꺼져 있으면 정리할 것도 없음
+  local ids pport
+  ids="$(docker ps -q --filter "ancestor=$GP_IMG" 2>/dev/null)"          # 우리 이미지 잔존 컨테이너
+  for pport in "$GP_PORT" "$CTRL_PORT"; do                               # 포트 점유 컨테이너(이미지 재빌드/다른 포트 대비)
+    ids="$ids $(docker ps -q --filter "publish=$pport" 2>/dev/null)"
+  done
+  ids="$(printf '%s\n' $ids | sort -u | sed '/^$/d')"
+  [ -z "$ids" ] && return 0
+  c_warn "이전 gpredict 컨테이너/포트(:$GP_PORT,:$CTRL_PORT) 점유 정리 → docker stop: $(echo $ids | tr '\n' ' ')"
+  echo "$ids" | xargs docker stop >/dev/null 2>&1 || true
 }
 
 # ── 최초 설치 ────────────────────────────────────────────────────────────────
@@ -178,6 +199,7 @@ up() {
 
   # ── preflight: 이전 실행이 남긴 좀비가 포트를 물고 있으면 정리(bind 실패 사고 예방) ──
   free_port "$BUILDER_PORT" "Command Builder"
+  free_gpredict   # 잔존 gpredict 컨테이너가 :GP_PORT/:CTRL_PORT 를 물고 있으면 내린다(③ 화면 안 뜨는 사고 예방)
 
   # ① Command Builder (:BUILDER_PORT) — 시나리오 config/extras 를 함께 전달(④+ 페이즈)
   mkdir -p "$UPLINK_OUT_DIR"
@@ -186,12 +208,21 @@ up() {
     >/tmp/demosat-builder.log 2>&1 &
   pids+=($!)
 
-  # ③ gpredict web (:GP_PORT) — Docker, 선택
+  # ③ gpredict web (:GP_PORT) + 시간제어(:CTRL_PORT) — Docker, 선택
   local GP=""
   if have docker; then
-    ( cd gpredict-web && WEB_PORT="$GP_PORT" IMG="$GP_IMG" ./run.sh ) >/tmp/demosat-gpredict.log 2>&1 &
+    ( cd gpredict-web && WEB_PORT="$GP_PORT" CTRL_PORT="$CTRL_PORT" IMG="$GP_IMG" ./run.sh ) >/tmp/demosat-gpredict.log 2>&1 &
     pids+=($!)
     GP="http://localhost:$GP_PORT/vnc.html?autoconnect=1&resize=remote"
+    # 컨테이너가 포트 바인딩에 실패하면(잔존 컨테이너 등) 로그에 남기고 계속 —
+    # 다른 화면(①②③ VSA)은 gpredict 없이도 동작.
+    for _ in $(seq 1 30); do
+      curl -fsS "http://localhost:$GP_PORT/vnc.html" >/dev/null 2>&1 && break
+      grep -q "already allocated\|address already in use" /tmp/demosat-gpredict.log 2>/dev/null && {
+        c_warn "gpredict 컨테이너가 포트(:$GP_PORT/:$CTRL_PORT) 바인딩 실패 — /tmp/demosat-gpredict.log 확인. free_gpredict 후에도 남으면 'docker ps' 로 점유 컨테이너 확인."
+        break; }
+      sleep 0.3
+    done
   fi
 
   # ③ OpenVSA 백엔드(rotctld :4533 ← gpredict / rigctld :4532 / WS :4534 → 렌더러 시각화 / forward :4536).
