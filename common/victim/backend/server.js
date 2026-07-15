@@ -62,7 +62,11 @@ function browserState(realState) {
   return s;
 }
 function broadcastState() {
+  // `state` = what the operator's telemetry panels show (spoofed to NOMINAL when the
+  // drone beacon is active). `truth` = the REAL physical state, always — it drives the
+  // spacecraft simulator so the satellite is seen tumbling even while the numbers lie.
   browserWss.broadcast(JSON.stringify({ type: "state", state: browserState(lastState) }));
+  browserWss.broadcast(JSON.stringify({ type: "truth", state: lastState }));
 }
 
 sat.onChange((s) => {
@@ -189,6 +193,7 @@ const browserWss = new WSServer(httpServer);
 browserWss.on("connection", (ws) => {
   ws.send(JSON.stringify({ type: "panel", panel: sat.getPanelConfig() }));
   ws.send(JSON.stringify({ type: "state", state: browserState(lastState) }));
+  ws.send(JSON.stringify({ type: "truth", state: lastState }));
 });
 
 httpServer.listen(HTTP_PORT, "0.0.0.0", () =>

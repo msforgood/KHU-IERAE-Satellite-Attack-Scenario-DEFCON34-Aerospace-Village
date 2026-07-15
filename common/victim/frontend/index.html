@@ -35,6 +35,23 @@
     <canvas id="ecg"></canvas>
   </section>
 
+  <section class="simcard">
+    <div class="simhead">
+      <div class="simtitle">SPACECRAFT SIMULATOR <span class="simsub">· PHYSICAL ATTITUDE — GROUND TRUTH (independent of received telemetry)</span></div>
+      <span id="simTag" class="maptag ok">● STABLE · SUN-TRACKING</span>
+    </div>
+    <div class="simwrap">
+      <canvas id="satsim"></canvas>
+      <div class="simreadout">
+        <div class="sim-r"><span>ROLL</span><b id="simRoll">0.0°</b></div>
+        <div class="sim-r"><span>PITCH</span><b id="simPitch">0.0°</b></div>
+        <div class="sim-r"><span>YAW</span><b id="simYaw">0.0°</b></div>
+        <div class="sim-r"><span>SPIN RATE</span><b id="simSpin">0.0 °/s</b></div>
+        <div class="sim-r"><span>SUN INCIDENCE</span><b id="simSun">0°</b></div>
+      </div>
+    </div>
+  </section>
+
   <main class="ground">
     <div class="toprow">
       <div class="leftcol">

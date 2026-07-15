@@ -87,6 +87,26 @@ h2{font-size:16px;letter-spacing:.16em;color:var(--dim);margin:0 0 14px;font-wei
 #ecg{display:block;width:100%;height:150px;background:#05090e;border:1px solid var(--line);border-radius:8px;
   box-shadow:inset 0 0 40px rgba(0,0,0,.6)}
 
+/* ═══════════ SPACECRAFT SIMULATOR · ground-truth 3D attitude ═══════════ */
+.simcard{margin:14px 18px 0;padding:14px 18px 10px;
+  background:radial-gradient(120% 140% at 50% 0%,#0b1420 0%,#05080e 70%);
+  border:1px solid var(--line);border-radius:12px}
+.simhead{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px}
+.simtitle{font-size:18px;font-weight:800;letter-spacing:.14em;color:#cfe8ff}
+.simtitle .simsub{color:var(--dim);font-weight:600;letter-spacing:.06em;font-size:13px}
+.simwrap{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;
+  background:#02040a;box-shadow:inset 0 0 60px rgba(0,0,0,.7)}
+#satsim{display:block;width:100%;height:420px}
+.simreadout{position:absolute;top:12px;left:12px;display:flex;flex-direction:column;gap:7px;
+  pointer-events:none}
+.sim-r{display:flex;justify-content:space-between;gap:16px;min-width:190px;
+  background:rgba(5,9,14,.66);border:1px solid rgba(29,41,55,.7);border-radius:7px;
+  padding:6px 11px;backdrop-filter:blur(2px)}
+.sim-r span{color:var(--dim);font-size:12px;letter-spacing:.1em;font-weight:700}
+.sim-r b{color:#eaf2fb;font-size:16px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.sim-r b.danger{color:#ff6a78}
+.simwrap.tumbling{border-color:var(--danger);box-shadow:inset 0 0 60px rgba(120,0,10,.5),0 0 0 1px rgba(255,59,78,.4)}
+
 /* ═══════════ ORBITAL TRACKING MAP ═══════════ */
 .maphead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
 .maphead h2{margin:0}

@@ -7,6 +7,7 @@ const COMM_STYLE = { CONNECTED: 'nominal', LOST: 'danger', DEAD: 'danger',
 
 let panelCfg = null;
 let state = {};
+let truthState = {};   // REAL physical state (drives the simulator even while telemetry is spoofed)
 const powHist = [], batHist = [], HIST = 120;
 
 const $ = (s) => document.querySelector(s);
@@ -20,6 +21,7 @@ function connect() {
     const m = JSON.parse(e.data);
     if (m.type === 'panel') { panelCfg = m.panel; }
     else if (m.type === 'state') { state = m.state; onState(); }
+    else if (m.type === 'truth') { truthState = m.state; }
     else if (m.type === 'uplink') { logUplink(m); }
   };
 }
@@ -386,13 +388,172 @@ function frame(t) {
   const v = computeVitals();
   stepECG(dt, v); drawECG(v);
   drawMap(dt, v);
+  stepSat(dt); drawSat();
   requestAnimationFrame(frame);
 }
 
 function initScopes() {
-  sizeECG(); sizeMap();
-  window.addEventListener('resize', () => { sizeECG(); sizeMap(); });
+  sizeECG(); sizeMap(); sizeSat();
+  window.addEventListener('resize', () => { sizeECG(); sizeMap(); sizeSat(); });
   requestAnimationFrame(frame);
+}
+
+// ── SPACECRAFT SIMULATOR · ground-truth 3D attitude ──────────────────────────
+// A vanilla-canvas pseudo-3D model of DEMOSAT driven by the REAL (truth) state:
+// nominal → stable, solar panels sun-tracking; under attack → tumbles on all axes
+// with the panels swinging off-sun. This is the physical reality the drone spoof
+// cannot hide — it keeps tumbling while the telemetry panels read NOMINAL.
+const SAT = { W: 0, H: 0, ax: 0.28, ay: 0.5, az: 0, vx: 0, vy: 0.14, vz: 0, stars: [], geo: null, _p: null };
+const SUN = (() => { const v = [-0.32, 0.9, 0.3]; const m = Math.hypot(v[0], v[1], v[2]); return v.map((x) => x / m); })();
+
+function satGeometry() {
+  const box = (cx, cy, cz, hx, hy, hz, color, kind) => {
+    const x0=cx-hx,x1=cx+hx,y0=cy-hy,y1=cy+hy,z0=cz-hz,z1=cz+hz;
+    const V=[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];
+    const F=[[[4,5,6,7],[0,0,1]],[[1,0,3,2],[0,0,-1]],[[5,1,2,6],[1,0,0]],
+             [[0,4,7,3],[-1,0,0]],[[7,6,2,3],[0,1,0]],[[0,1,5,4],[0,-1,0]]];
+    return F.map(([i,n]) => ({ pts: i.map((k) => V[k]), n, color, kind }));
+  };
+  const BODY=[150,161,175], BOOM=[92,99,112], DISH=[120,128,142], NOZ=[74,80,90], CELL=[46,84,172];
+  // solar wings as single double-sided quads (thin boxes z-fight; a quad reads clean)
+  const wing = (sgn) => [{ pts: [[sgn*0.85,0,-0.62],[sgn*3.1,0,-0.62],[sgn*3.1,0,0.62],[sgn*0.85,0,0.62]],
+    n: [0,1,0], color: CELL, kind: 'panel' }];
+  return [].concat(
+    box(0,0,0, 0.55,0.55,0.78, BODY,'body'),       // bus
+    box(-0.8,0,0, 0.3,0.05,0.05, BOOM,'body'),      // boom L
+    box( 0.8,0,0, 0.3,0.05,0.05, BOOM,'body'),      // boom R
+    wing(-1), wing(1),                              // solar wings L / R
+    box(0,0.72,0.15, 0.13,0.2,0.13, DISH,'body'),   // top sensor/dish
+    box(0,0,-0.9, 0.16,0.16,0.13, NOZ,'body'),      // thruster nozzle
+  );
+}
+
+function sizeSat() {
+  const cv = $('#satsim'); if (!cv) return;
+  const { w, h } = sizeCanvasDPR(cv); SAT.W = w; SAT.H = h;
+  if (!SAT.geo) SAT.geo = satGeometry();
+  if (!SAT.stars.length)
+    for (let i=0;i<170;i++) SAT.stars.push({ x: Math.random(), y: Math.random(), r: Math.random()*1.3+0.2, a: Math.random()*0.6+0.2 });
+}
+
+function rotM(ax, ay, az) {
+  const cx=Math.cos(ax),sx=Math.sin(ax),cy=Math.cos(ay),sy=Math.sin(ay),cz=Math.cos(az),sz=Math.sin(az);
+  return [
+    [cy*cz, sx*sy*cz - cx*sz, cx*sy*cz + sx*sz],
+    [cy*sz, sx*sy*sz + cx*cz, cx*sy*sz - sx*cz],
+    [-sy,   sx*cy,            cx*cy],
+  ];
+}
+function mv3(m, v) {
+  return [m[0][0]*v[0]+m[0][1]*v[1]+m[0][2]*v[2],
+          m[1][0]*v[0]+m[1][1]*v[1]+m[1][2]*v[2],
+          m[2][0]*v[0]+m[2][1]*v[1]+m[2][2]*v[2]];
+}
+const SAT_VIEW = rotM(-0.34, 0.62, 0);   // fixed 3/4 camera angle
+function projS(p) {                       // view-space point → [screenX, screenY]
+  const MS = 1.35, camZ = 13, f = SAT.H * 1.7;
+  const s = f / (camZ - p[2]*MS);
+  return [SAT.W/2 + p[0]*MS*s, SAT.H*0.5 - p[1]*MS*s];
+}
+
+function satParams() {
+  const flags = truthState._flags || {};
+  const torque = Math.abs(truthState['adcs.torque'] || 0);
+  const batt = truthState['battery.level'];
+  const dead = (typeof batt === 'number' && batt <= 0) || truthState['comm.status'] === 'DEAD' || !!flags.bricked;
+  const tumbling = !!(flags.tumbling || flags.solarAttacked) && !dead;
+  return { tumbling, torque, dead };
+}
+
+function stepSat(dt) {
+  const p = satParams();
+  let tx=0, ty=0.14, tz=0;                 // target angular velocity (rad/s)
+  if (p.dead) { tx=0.03; ty=0.06; tz=0.02; }
+  else if (p.tumbling) {
+    const k = Math.min(1, p.torque / 999);
+    tx = 1.1 + 2.3*k; ty = 0.8 + 1.9*k; tz = 0.6 + 1.7*k;
+  }
+  const ease = 1 - Math.exp(-dt * (p.tumbling ? 2.4 : 1.1));
+  SAT.vx += (tx - SAT.vx) * ease;
+  SAT.vy += (ty - SAT.vy) * ease;
+  SAT.vz += (tz - SAT.vz) * ease;
+  SAT.ax += SAT.vx*dt; SAT.ay += SAT.vy*dt; SAT.az += SAT.vz*dt;
+  SAT._p = p;
+}
+
+function satShade(color, nW, panel) {
+  let d = nW[0]*SUN[0] + nW[1]*SUN[1] + nW[2]*SUN[2];
+  d = panel ? Math.abs(d) : Math.max(0, d);           // panels are double-sided (lit either way)
+  const k = panel ? (0.4 + 0.72*d) : (0.2 + 0.92*d);  // keep the array readable even off-sun
+  return `rgb(${Math.min(255,color[0]*k)|0},${Math.min(255,color[1]*k)|0},${Math.min(255,color[2]*k)|0})`;
+}
+
+function drawSat() {
+  const cv = $('#satsim'); if (!cv || !SAT.W) return;
+  const ctx = cv.getContext('2d'), W = SAT.W, H = SAT.H;
+  const p = SAT._p || satParams();
+  ctx.clearRect(0,0,W,H);
+  const bg = ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#03060d'); bg.addColorStop(1,'#01030a');
+  ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+  SAT.stars.forEach((s) => { ctx.globalAlpha = s.a; ctx.fillStyle = '#cfe0ff'; ctx.fillRect(s.x*W, s.y*H, s.r, s.r); });
+  ctx.globalAlpha = 1;
+  // sun glow
+  const sp = projS([SUN[0]*4.5, SUN[1]*4.5, SUN[2]*4.5]);
+  const sg = ctx.createRadialGradient(sp[0],sp[1],0, sp[0],sp[1],140);
+  sg.addColorStop(0,'rgba(255,244,205,.95)'); sg.addColorStop(.4,'rgba(255,208,112,.34)'); sg.addColorStop(1,'rgba(255,208,112,0)');
+  ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sp[0],sp[1],140,0,Math.PI*2); ctx.fill();
+  // Earth limb along the bottom
+  const eg = ctx.createRadialGradient(W*0.5, H*1.95, H*1.0, W*0.5, H*1.95, H*1.6);
+  eg.addColorStop(0,'rgba(46,126,205,.5)'); eg.addColorStop(.5,'rgba(22,74,144,.3)'); eg.addColorStop(1,'rgba(22,74,144,0)');
+  ctx.fillStyle = eg; ctx.fillRect(0,0,W,H);
+
+  const R = rotM(SAT.ax, SAT.ay, SAT.az);
+  const faces = SAT.geo.map((face) => {
+    const view = face.pts.map((v) => mv3(SAT_VIEW, mv3(R, v)));
+    const nW = mv3(R, face.n);
+    const scr = view.map(projS);
+    const depth = (view[0][2]+view[1][2]+view[2][2]+view[3][2]) / 4;
+    return { scr, nW, depth, face };
+  });
+  faces.sort((a,b) => a.depth - b.depth);   // far (small z) first
+
+  const lerp = (a,b,t) => [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t];
+  faces.forEach(({ scr, nW, face }) => {
+    ctx.beginPath(); ctx.moveTo(scr[0][0],scr[0][1]);
+    for (let i=1;i<scr.length;i++) ctx.lineTo(scr[i][0],scr[i][1]);
+    ctx.closePath();
+    ctx.fillStyle = satShade(face.color, nW, face.kind === 'panel'); ctx.fill();
+    if (face.kind === 'panel') {
+      const P = scr;
+      ctx.strokeStyle = 'rgba(8,16,34,.55)'; ctx.lineWidth = 1;
+      for (let u=1;u<8;u++){ const t=u/8, A=lerp(P[0],P[1],t), B=lerp(P[3],P[2],t); ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.stroke(); }
+      for (let w=1;w<3;w++){ const t=w/3, A=lerp(P[0],P[3],t), B=lerp(P[1],P[2],t); ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.stroke(); }
+      ctx.strokeStyle = 'rgba(198,172,86,.8)'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(P[0][0],P[0][1]); for (let i=1;i<P.length;i++) ctx.lineTo(P[i][0],P[i][1]); ctx.closePath(); ctx.stroke();
+    } else {
+      ctx.strokeStyle = 'rgba(200,220,245,.13)'; ctx.lineWidth = 1; ctx.stroke();
+    }
+  });
+
+  const deg = (r) => ((((r*180/Math.PI) % 360) + 360) % 360);
+  const spin = Math.hypot(SAT.vx, SAT.vy, SAT.vz) * 180/Math.PI;
+  const panelN = mv3(R, [0,1,0]);
+  const sunInc = Math.acos(Math.max(-1,Math.min(1, panelN[0]*SUN[0]+panelN[1]*SUN[1]+panelN[2]*SUN[2]))) * 180/Math.PI;
+  const set = (id,txt,bad) => { const el=$('#'+id); if(!el) return; el.textContent=txt; el.classList.toggle('danger',!!bad); };
+  set('simRoll', deg(SAT.ax).toFixed(0)+'°');
+  set('simPitch', deg(SAT.az).toFixed(0)+'°');
+  set('simYaw', deg(SAT.ay).toFixed(0)+'°');
+  set('simSpin', spin.toFixed(1)+' °/s', p.tumbling);
+  set('simSun', sunInc.toFixed(0)+'°', sunInc > 60 && !p.dead);
+
+  const tag = $('#simTag'), wrap = cv.parentElement;
+  if (wrap) wrap.classList.toggle('tumbling', p.tumbling || p.dead);
+  if (tag) {
+    if (p.dead) { tag.textContent = '● NO SIGNAL — UNCONTROLLED DRIFT'; tag.className = 'maptag danger'; }
+    else if (p.tumbling) { tag.textContent = '● TUMBLING · SUN-TRACK LOST'; tag.className = 'maptag danger'; }
+    else { tag.textContent = '● STABLE · SUN-TRACKING'; tag.className = 'maptag ok'; }
+  }
 }
 
 setInterval(() => { $('#clock').textContent = new Date().toLocaleTimeString(); }, 1000);
