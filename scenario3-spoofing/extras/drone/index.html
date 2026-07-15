@@ -153,7 +153,6 @@
   <div class="sub">④ impersonate DEMOSAT · suppress the ground-station alarm</div>
   <div class="spacer"></div>
   <span id="pill" class="pill">SPOOF INACTIVE</span>
-  <button id="resetBtn" title="clear spoof + reset victim GS">RESET GS</button>
 </header>
 
 <main>
@@ -267,7 +266,6 @@
     var screenState = document.getElementById('screenState');
     var screenNote = document.getElementById('screenNote');
     var hint = document.getElementById('hint');
-    var resetBtn = document.getElementById('resetBtn');
     var fieldsEl = document.getElementById('fields');
     var frameEl = document.getElementById('frame');
     var progEl = document.getElementById('prog');
@@ -366,11 +364,6 @@
     btn.addEventListener('click', function () {
       if (!active && !complete()) return;
       setSpoof(!active);
-    });
-    resetBtn.addEventListener('click', function () {
-      fetch(GS + '/api/reset', { method: 'POST' }).catch(function () {});
-      active = false; forged = {};
-      renderFields(); renderFrame(); renderState();
     });
 
     renderFields(); renderFrame(); renderState();
