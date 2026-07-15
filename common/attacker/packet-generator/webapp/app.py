@@ -287,7 +287,10 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
-        if self.path.split("?")[0] in ("/", "/index.html"):
+        _p = self.path.split("?")[0]
+        # phase deep-links (/1 /2 /3 /4 …) all serve the one app; client-side JS
+        # reads the path and shows that phase, so refresh/deep-link stick to it.
+        if _p in ("/", "/index.html") or (len(_p) > 1 and _p[1:].isdigit()):
             with open(TEMPLATE, "rb") as f:
                 html = f.read()
             if RELOAD:

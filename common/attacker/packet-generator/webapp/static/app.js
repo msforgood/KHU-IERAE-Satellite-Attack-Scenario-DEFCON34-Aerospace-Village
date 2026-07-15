@@ -76,6 +76,9 @@ function initPhases() {
   };
   toBuild.onclick = () => {
     if (toBuild.disabled) return;
+    // delegate to the inline phase router (updates the /2 URL); fall back to a
+    // plain show/hide if the router isn't present.
+    if (window.__gotoPhase) return window.__gotoPhase(2, true);
     $("#briefing").classList.add("hidden");
     $("#builder").classList.remove("hidden");
     window.scrollTo(0, 0);
