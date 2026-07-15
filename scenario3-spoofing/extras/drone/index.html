@@ -56,11 +56,11 @@
   .cap b { color: var(--cyan); }
 
   /* ── top row: compact stage + truth/lie cards ── */
-  /* grows to fill the leftover height (big drone image) but may shrink to 0 so the
-     fixed-height forge + TRANSMIT button below always fit on one screen */
+  /* drone image height = viewport minus (header + forge ≈ 350px) minus 200px more,
+     so it sits ~200px shorter than filling the leftover. Tweak the 550px to taste. */
   .top { display: grid; grid-template-columns: 46% 1fr; gap: 1px;
     background: var(--line); border-bottom: 1px solid var(--line);
-    flex: 1 1 auto; min-height: 0; }
+    flex: 0 0 auto; height: calc(100vh - 550px); min-height: 0; }
   .top > div { background: var(--bg); min-height: 0; }
   /* SVG is absolutely positioned so its intrinsic aspect ratio does NOT set a
      min-height on .top — otherwise .top can't shrink and the header + forge +
