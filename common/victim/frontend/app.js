@@ -26,7 +26,7 @@ function connect() {
       document.body.classList.toggle('sim-on', simEnabled);
       const el = document.querySelector('.simcard');
       if (el) el.classList.toggle('hidden', !simEnabled);
-      if (simEnabled) { sizeSat(); sizeMap(); }
+      requestAnimationFrame(sizeAll);   // layout reflowed → resize every canvas to its box
     }
     else if (m.type === 'state') { state = m.state; onState(); }
     else if (m.type === 'truth') { truthState = m.state; }
@@ -319,7 +319,7 @@ function drawECG(v) {
 }
 
 // ── ORBITAL TRACKING MAP · Blue Marble + sub-satellite point ─────────────────
-const MAP = { W: 0, H: 0, t: 0 };
+const MAP = { W: 0, H: 0, t: 0, rx: 0, ry: 0, rw: 0, rh: 0 };  // rx..rh = 2:1 letterbox rect
 const earthImg = new Image();
 let earthReady = false;
 earthImg.onload = () => { earthReady = true; };
@@ -349,19 +349,23 @@ const GP = { url: null, tlat: null, tlon: null, lat: null, lon: null, trail: [],
 })();
 
 function sizeMap() { const cv = $('#orbit'); const { w, h } = sizeCanvasDPR(cv); MAP.W = w; MAP.H = h; }
-const proj = (lat, lon) => [((lon + 180) / 360) * MAP.W, ((90 - lat) / 180) * MAP.H];
+const proj = (lat, lon) => [MAP.rx + ((lon + 180) / 360) * MAP.rw, MAP.ry + ((90 - lat) / 180) * MAP.rh];
 
 function drawMap(dt, v) {
   const cv = $('#orbit'), ctx = cv.getContext('2d'), W = MAP.W, H = MAP.H;
   MAP.t += dt;
   ctx.clearRect(0, 0, W, H);
-  if (earthReady) { ctx.globalAlpha = 0.92; ctx.drawImage(earthImg, 0, 0, W, H); ctx.globalAlpha = 1; }
-  else { ctx.fillStyle = '#0a1524'; ctx.fillRect(0, 0, W, H); }
-  ctx.fillStyle = 'rgba(4,7,12,.28)'; ctx.fillRect(0, 0, W, H);  // darken for contrast
+  ctx.fillStyle = '#04070c'; ctx.fillRect(0, 0, W, H);           // letterbox background
+  // fit the equirectangular Blue Marble to a centred 2:1 rect so it never distorts
+  const rw = Math.min(W, H * 2), rh = rw / 2, rx = (W - rw) / 2, ry = (H - rh) / 2;
+  MAP.rx = rx; MAP.ry = ry; MAP.rw = rw; MAP.rh = rh;
+  if (earthReady) { ctx.globalAlpha = 0.92; ctx.drawImage(earthImg, rx, ry, rw, rh); ctx.globalAlpha = 1; }
+  else { ctx.fillStyle = '#0a1524'; ctx.fillRect(rx, ry, rw, rh); }
+  ctx.fillStyle = 'rgba(4,7,12,.28)'; ctx.fillRect(rx, ry, rw, rh);  // darken for contrast
   // graticule
   ctx.strokeStyle = 'rgba(120,141,160,.18)'; ctx.lineWidth = 1;
-  for (let lon = -120; lon <= 120; lon += 60) { const [x] = proj(0, lon); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-  for (let lat = -60; lat <= 60; lat += 30) { const [, y] = proj(lat, 0); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  for (let lon = -120; lon <= 120; lon += 60) { const [x] = proj(0, lon); ctx.beginPath(); ctx.moveTo(x, ry); ctx.lineTo(x, ry + rh); ctx.stroke(); }
+  for (let lat = -60; lat <= 60; lat += 30) { const [, y] = proj(lat, 0); ctx.beginPath(); ctx.moveTo(rx, y); ctx.lineTo(rx + rw, y); ctx.stroke(); }
 
   // position + ground-track: live gpredict fix when available, else a procedural LEO
   let lonNow, satLat, track;
@@ -401,7 +405,7 @@ function drawMap(dt, v) {
   const [sx, sy] = proj(satLat, lonNow);
   // coverage footprint
   ctx.strokeStyle = v.critical ? 'rgba(255,59,78,.5)' : 'rgba(57,197,255,.45)';
-  ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(sx, sy, Math.min(W, H) * 0.12, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(sx, sy, Math.min(MAP.rw, MAP.rh) * 0.12, 0, Math.PI * 2); ctx.stroke();
   // blinking marker
   const blink = 0.55 + 0.45 * Math.sin(MAP.t * 6);
   ctx.fillStyle = v.critical ? '#ff3b4e' : '#39c5ff';
@@ -434,9 +438,25 @@ function frame(t) {
   requestAnimationFrame(frame);
 }
 
+// energy graphs are event-driven (not in the rAF loop) → size their bitmaps to the
+// flex box and redraw on layout changes so they fill without stretching.
+function sizeGraphs() {
+  ['powGraph', 'batGraph'].forEach((id) => {
+    const cv = $('#' + id); if (!cv) return;
+    const r = cv.getBoundingClientRect();
+    cv.width = Math.max(1, Math.floor(r.width)); cv.height = Math.max(1, Math.floor(r.height));
+  });
+}
+function redrawGraphs() {
+  const p = g('solar_panel.power') || 0, b = g('battery.level') || 0;
+  drawGraph('powGraph', powHist, 4.2, p < 2 ? '#ff3b4e' : '#33d17a');
+  drawGraph('batGraph', batHist, 100, b < 30 ? '#ff3b4e' : b < 60 ? '#ffb020' : '#39c5ff');
+}
+function sizeAll() { sizeECG(); sizeMap(); sizeSat(); sizeGraphs(); redrawGraphs(); }
+
 function initScopes() {
-  sizeECG(); sizeMap(); sizeSat();
-  window.addEventListener('resize', () => { sizeECG(); sizeMap(); sizeSat(); });
+  sizeECG(); sizeMap(); sizeSat(); sizeGraphs();
+  window.addEventListener('resize', sizeAll);
   requestAnimationFrame(frame);
 }
 
