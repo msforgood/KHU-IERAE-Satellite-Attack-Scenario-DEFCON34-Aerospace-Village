@@ -37,20 +37,20 @@
     border-bottom: 1px solid var(--line); background: var(--panel2); }
   header .t { font-family: var(--mono); font-size: 13px; letter-spacing: .04em; }
   header .t b { color: var(--cyan); }
-  header .sub { color: var(--dim); font-size: 11px; }
+  header .sub { color: var(--dim); font-size: 13px; }
   header .spacer { flex: 1; }
-  .pill { font-family: var(--mono); font-size: 11px; letter-spacing: .1em;
+  .pill { font-family: var(--mono); font-size: 13px; letter-spacing: .1em;
     text-transform: uppercase; padding: 5px 12px; border-radius: 999px;
     border: 1px solid var(--line); color: var(--dim); }
   .pill.on { color: #06251c; background: var(--good); border-color: var(--good);
     box-shadow: 0 0 14px rgba(78,201,138,.5); }
-  button { font-family: var(--mono); font-size: 12px; color: var(--ink);
+  button { font-family: var(--mono); font-size: 13px; color: var(--ink);
     background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
     padding: 6px 13px; cursor: pointer; transition: .15s; }
   button:hover { border-color: var(--cyan); color: var(--cyan); }
 
   main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-  .cap { font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
+  .cap { font-family: var(--mono); font-size: 13px; letter-spacing: .14em;
     text-transform: uppercase; color: var(--dim); padding: 8px 16px;
     border-bottom: 1px solid var(--line); }
   .cap b { color: var(--cyan); }
@@ -101,16 +101,16 @@
     align-content: center; overflow: auto; }
   .card { border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px;
     background: var(--panel); }
-  .card h4 { margin: 0 0 4px; font-family: var(--mono); font-size: 10px;
+  .card h4 { margin: 0 0 4px; font-family: var(--mono); font-size: 13px;
     letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
   .card .big { font-family: var(--mono); font-size: 14px; font-weight: 700; }
   .card.reality { border-color: rgba(255,92,92,.4); }
   .card.reality .big { color: var(--crit); }
   .card.screen .big { color: var(--good); }
-  .card p { margin: 3px 0 0; font-size: 11px; color: var(--dim); line-height: 1.4; }
+  .card p { margin: 3px 0 0; font-size: 13px; color: var(--dim); line-height: 1.4; }
   .card.how { border-color: rgba(53,208,224,.4); }
   .card.how ul { margin: 5px 0 0; padding-left: 15px; }
-  .card.how li { font-size: 11px; color: var(--dim); line-height: 1.4; margin: 3px 0; }
+  .card.how li { font-size: 13px; color: var(--dim); line-height: 1.4; margin: 3px 0; }
   .card.how li b { color: var(--ink); }
   .card.how li i { color: var(--cyan); font-style: normal; }
 
@@ -118,16 +118,16 @@
   .builder { flex: 0 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
     background: var(--line); }
   .builder > .col { background: var(--bg); display: flex; flex-direction: column; min-height: 0; }
-  .forgehint { padding: 8px 16px; color: var(--dim); font-size: 11.5px; line-height: 1.4; }
+  .forgehint { padding: 8px 16px; color: var(--dim); font-size: 13px; line-height: 1.4; }
   .forgehint b { color: var(--ink); }
   .fields { overflow: auto; padding: 4px 14px 12px; }
   .frow { display: grid; grid-template-columns: 92px 1fr auto; align-items: center;
     gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
-  .frow .fl { font-family: var(--mono); font-size: 11px; color: var(--dim);
+  .frow .fl { font-family: var(--mono); font-size: 13px; color: var(--dim);
     text-transform: uppercase; letter-spacing: .08em; }
-  .frow .real { font-family: var(--mono); font-size: 12px; color: var(--crit); }
+  .frow .real { font-family: var(--mono); font-size: 13px; color: var(--crit); }
   .frow .real .x { opacity: .7; }
-  .forgebtn { font-family: var(--mono); font-size: 12px; white-space: nowrap;
+  .forgebtn { font-family: var(--mono); font-size: 13px; white-space: nowrap;
     border-color: rgba(78,201,138,.5); color: var(--good); }
   .forgebtn:hover { background: var(--good); color: #06251c; border-color: var(--good); }
   .frow.done .forgebtn { background: var(--good); color: #06251c; border-color: var(--good);
@@ -136,14 +136,14 @@
 
   .preview { display: flex; flex-direction: column; }
   .pvhead { display: flex; align-items: center; gap: 10px; padding: 10px 16px 4px; }
-  .prog { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+  .prog { font-family: var(--mono); font-size: 13px; color: var(--dim); }
   .prail { flex: 1; height: 6px; border-radius: 4px; background: var(--panel);
     overflow: hidden; }
   .prail > i { display: block; height: 100%; width: 0; background: var(--good);
     transition: width .3s; }
   pre.frame { margin: 6px 16px 10px; overflow: auto; background: var(--panel2);
     border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px;
-    font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--dim);
+    font-family: var(--mono); font-size: 13px; line-height: 1.5; color: var(--dim);
     white-space: pre-wrap; }
   pre.frame .k { color: var(--cyan); }
   pre.frame .v { color: var(--good); }
@@ -160,7 +160,7 @@
     background: var(--panel); color: var(--dim); border-color: var(--line); }
   .bigbtn.stop { color: #2a0d0d; background: var(--warn); border-color: var(--warn);
     box-shadow: 0 0 22px rgba(255,176,32,.35); }
-  .cmphint { color: var(--dim); font-size: 11.5px; margin: 8px 2px 0; font-family: var(--mono); }
+  .cmphint { color: var(--dim); font-size: 13px; margin: 8px 2px 0; font-family: var(--mono); }
   .cmphint code { color: var(--cyan); }
 </style>
 
