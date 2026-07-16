@@ -134,13 +134,14 @@
         </div>
         <div id="satInfoStrip" class="satinfo-strip"></div>
         <div id="trackHintBox" class="trackhint hidden">
-          <div class="th-title">How to track &amp; sync in the GPredict window (below)</div>
+          <div class="th-title">Press each control, then watch for this</div>
           <ol class="th-steps">
-            <li>In <b>Antenna Control</b>, press <b>Track</b>, then <b>Engage</b> so the antenna follows the satellite (azimuth / elevation).</li>
-            <li>In <b>Radio Control</b>, press <b>Track</b>, then <b>Engage</b> so the receiver Doppler-corrects the frequency in real time.</li>
-            <li>In <b>Radio Control</b>, set the <b>Downlink</b> center frequency to match ENIGMA-1 (<b>433.500 MHz</b>).</li>
-            <li>In the <b>VSA</b>, select the <b>antenna</b> whose polarization matches the satellite (RHCP).</li>
-            <li>In the <b>VSA</b>, adjust the <b>Sample rate</b> so the signal shows clearly in the waterfall / spectrum.</li>
+            <li><b>Track satellite</b> → the VSA highlights and the antenna starts moving on its own to follow the satellite.</li>
+            <li><b>Apply</b> (center frequency) → a signal appears in the waterfall.</li>
+            <li><b>Doppler correction</b> → the signal stays centered in the waterfall.</li>
+            <li><b>Record</b> → the received signal is saved to a file.</li>
+            <li><b>Antenna</b> → pick a type; the 3D antenna in the VSA changes to match.</li>
+            <li><b>Sample rate</b> → adjust until the signal looks wide enough in the waterfall.</li>
           </ol>
         </div>
       </section>
@@ -156,7 +157,17 @@
         </div>
       </div>
 
-      <!-- GPredict (left) / VSA (right) -->
+      <!-- Antenna: drives the embedded VSA 3D antenna (above the panes) -->
+      <div class="autoctl">
+        <div class="autoctl-title">📡 Antenna <span class="autoctl-sub">(drives the VSA 3D antenna below)</span></div>
+        <div class="autoctl-row">
+          <label class="autoctl-label" for="antSelect">Antenna</label>
+          <select id="antSelect" class="antsel" title="Choose the antenna type; the 3D antenna in the VSA changes to match"></select>
+          <span id="antStat" class="passstat"></span>
+        </div>
+      </div>
+
+      <!-- GPredict (left) / VSA (right): 1:1 width, equal height -->
       <div class="twopane">
         <div class="embedcard">
           <div class="embedhead"><span class="etitle">🛰 GPREDICT / Orbit tracking</span>
@@ -169,6 +180,56 @@
           <div class="embedbody">
             <iframe id="vsaFrame" class="embedframe" title="VSA" loading="lazy"></iframe>
           </div>
+        </div>
+      </div>
+
+      <!-- One-click GPredict controls: two side-by-side blocks (tracking | frequency) -->
+      <div class="autoctl-grid">
+        <div class="autoctl">
+          <div class="autoctl-title">🛰 Satellite tracking <span class="autoctl-sub">(auto-drives Antenna Control)</span></div>
+          <div class="autoctl-row">
+            <button id="btnTrack" class="passbtn" title="Toggle: starts tracking + engages the antenna; press again to disengage">Track satellite <span class="bsub">Track + Engage (toggle)</span></button>
+            <span id="btnTrackStat" class="passstat"></span>
+          </div>
+        </div>
+        <div class="autoctl">
+          <div class="autoctl-title">📡 Frequency / Doppler <span class="autoctl-sub">(auto-drives Radio Control)</span></div>
+          <div class="autoctl-row">
+            <label class="autoctl-label" for="freqInput">Center frequency</label>
+            <div class="freqwrap">
+              <input id="freqInput" class="freqinput" type="number" step="0.001" min="1" max="999" value="123.45" inputmode="decimal" />
+              <span class="frequnit">MHz</span>
+            </div>
+            <button id="btnFreq" class="passbtn" title="Sets the entered downlink frequency and engages the radio">Apply <span class="bsub">Apply + Engage</span></button>
+            <span id="btnFreqStat" class="passstat"></span>
+          </div>
+          <div class="autoctl-row">
+            <button id="btnDoppler" class="passbtn" title="Toggle: turns Doppler correction on; press again to turn off">📡 Doppler correction <span class="bsub">Radio Track (toggle)</span></button>
+            <span id="btnDopplerStat" class="passstat"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bandwidth / sample rate: drives the VSA waterfall width -->
+      <div class="autoctl">
+        <div class="autoctl-title">📶 Bandwidth <span class="autoctl-sub">(sample rate; drives the VSA waterfall)</span></div>
+        <div class="autoctl-row">
+          <label class="autoctl-label" for="srInput">Sample rate</label>
+          <div class="freqwrap">
+            <input id="srInput" class="freqinput" type="number" step="0.1" min="0.1" max="20" value="1" inputmode="decimal" />
+            <span class="frequnit">MSps</span>
+          </div>
+          <button id="btnSampleRate" class="passbtn" title="Applies the sample rate (bandwidth) to the VSA so the signal looks wide enough in the waterfall">Apply <span class="bsub">bandwidth</span></button>
+          <span id="srStat" class="passstat"></span>
+        </div>
+      </div>
+
+      <!-- Signal recording: triggers the VSA's own IQ recorder (saves the signal playing in the VSA) -->
+      <div class="autoctl recblock">
+        <div class="autoctl-title">⏺ Signal recording <span class="autoctl-sub">(saves the IQ signal playing in the VSA, same as the VSA REC button)</span></div>
+        <div class="autoctl-row">
+          <button id="btnRecord" class="passbtn recbtn" title="Records the IQ signal playing in the VSA and saves it. Click again to stop and save.">⏺ Record</button>
+          <span id="btnRecordStat" class="passstat"></span>
         </div>
       </div>
 
@@ -194,9 +255,11 @@
         <div class="ug-panel">
           <div class="ug-badge">STEP 0 / UPLOAD</div>
           <div class="ug-icon">📡⬇</div>
-          <div class="ug-title">Upload your recorded downlink signal</div>
-          <div class="ug-desc">Upload the <code>.cf32</code> (complex float32 IQ) you received and recorded
-            in the PHASE 3 VSA. When the upload finishes, the <b>spectrum and waterfall analysis</b> below opens.</div>
+          <div class="ug-title">Load your recorded downlink signal</div>
+          <div class="ug-desc">The signal you recorded in the PHASE 3 VSA was saved on the server. Press the
+            button to load it; the <b>spectrum and waterfall analysis</b> below opens.</div>
+          <button id="useRecordingBtn" class="bigbtn ug-usebtn">⬆ Use the signal recorded in Phase 3</button>
+          <div class="ug-or-row">or upload a <code>.cf32</code> file manually</div>
           <label id="ugDrop" class="ug-drop" for="ugFile">
             <input id="ugFile" type="file" accept=".cf32,.iq,.raw,.c64,.dat,application/octet-stream" hidden>
             <div class="ug-drop-ico">⬆</div>
@@ -292,6 +355,12 @@
           <div id="hintBox" class="hintbox hidden"></div>
           <div class="traynote">💡 Click a block to select it, then click a slot. Click a filled slot to send it back to the tray.</div>
         </div>
+      </div>
+
+      <!-- block role description: sits between the puzzle window and the Signal-transform / Block-reference area; updates when you click any block above -->
+      <div id="blockInfo" class="blockinfo">
+        <div class="blockinfo-title">📘 Block reference</div>
+        <div id="blockInfoBody" class="blockinfo-body">Click any block (in the tray or on the canvas) to see what it does in the demod chain.</div>
       </div>
 
       <!-- signal-transform preview: each placed block brings a stage to life -->
