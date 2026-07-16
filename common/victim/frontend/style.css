@@ -11,7 +11,7 @@ html,body{height:100%}
    (header/banner fixed, the rest flex-fills) and text scales with viewport height
    so nothing overflows on shorter screens. */
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);
-  font-size:clamp(10px,1.3vh,15px);
+  font-size:clamp(13px,1.4vh,16px);
   height:100vh;display:flex;flex-direction:column;overflow:hidden}
 h2{font-size:1em;letter-spacing:.14em;color:var(--dim);margin:0 0 clamp(4px,.8vh,10px);font-weight:700}
 .hidden{display:none!important}
@@ -29,7 +29,7 @@ h2{font-size:1em;letter-spacing:.14em;color:var(--dim);margin:0 0 clamp(4px,.8vh
 /* status banner */
 .banner{flex:0 0 auto;display:flex;gap:16px;align-items:center;padding:clamp(6px,1.1vh,13px) 22px;
   font-weight:700;font-size:1.2em;letter-spacing:.03em;border-bottom:1px solid var(--line);transition:.3s}
-.banner .bl{font-size:.7em;letter-spacing:.18em;opacity:.7;font-weight:700}
+.banner .bl{font-size:.85em;letter-spacing:.18em;opacity:.7;font-weight:700}
 .banner.nominal{background:rgba(51,209,122,.08);color:var(--ok)}
 .banner.warn{background:rgba(255,176,32,.1);color:var(--warn)}
 .banner.danger{background:rgba(255,59,78,.14);color:#ff8f9a;animation:bpulse 1s infinite}
@@ -41,11 +41,11 @@ h2{font-size:1em;letter-spacing:.14em;color:var(--dim);margin:0 0 clamp(4px,.8vh
   background:linear-gradient(180deg,#0a0f16,#070b11);border:1px solid var(--line);border-radius:10px}
 .vhead{flex:0 0 auto;display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:6px}
 .vtitle{font-size:1em;font-weight:800;letter-spacing:.12em;color:#cfe8ff}
-.vtitle .vsub{color:var(--dim);font-weight:600;letter-spacing:.08em;font-size:.78em}
+.vtitle .vsub{color:var(--dim);font-weight:600;letter-spacing:.08em;font-size:.85em}
 .vmeta{display:flex;gap:20px;align-items:center}
 .vbox{display:flex;align-items:baseline;gap:6px}
 .vbpm{font-size:2.1em;font-weight:800;color:#eaf2fb;font-variant-numeric:tabular-nums;line-height:1}
-.vunit{font-size:.78em;color:var(--dim);letter-spacing:.14em;font-weight:700}
+.vunit{font-size:.85em;color:var(--dim);letter-spacing:.14em;font-weight:700}
 .vstate{font-size:.9em;font-weight:800;letter-spacing:.06em;padding:5px 12px;border-radius:7px}
 .vstate.ok{color:var(--ok);background:rgba(51,209,122,.12)}
 .vstate.warn{color:var(--warn);background:rgba(255,176,32,.14)}
@@ -78,7 +78,7 @@ h2{font-size:1em;letter-spacing:.14em;color:var(--dim);margin:0 0 clamp(4px,.8vh
 .field .fr{display:flex;gap:9px;align-items:center;text-align:right}
 .field .val{font-weight:700;color:#eaf2fb;font-size:1.12em}
 .val.nominal{color:#eaf2fb}.val.warn{color:var(--warn)}.val.danger{color:var(--danger)}
-.tag{font-size:.72em;padding:3px 8px;border-radius:5px;letter-spacing:.05em;font-weight:700;white-space:nowrap}
+.tag{font-size:.85em;padding:3px 8px;border-radius:5px;letter-spacing:.05em;font-weight:700;white-space:nowrap}
 .tag.nominal{background:rgba(51,209,122,.15);color:var(--ok)}
 .tag.warn{background:rgba(255,176,32,.15);color:var(--warn)}
 .tag.danger{background:rgba(255,59,78,.18);color:var(--danger)}
@@ -98,7 +98,7 @@ h2{font-size:1em;letter-spacing:.14em;color:var(--dim);margin:0 0 clamp(4px,.8vh
 /* UPLINK ACTIVITY log fills + scrolls internally */
 .log{flex:1 1 0;min-height:0;display:flex;flex-direction:column;gap:6px;overflow:auto;font-size:.85em}
 .logitem{padding:8px 10px;border-left:4px solid var(--danger);background:var(--panel2);border-radius:0 6px 6px 0}
-.logitem .lt{color:var(--dim);font-size:.82em}
+.logitem .lt{color:var(--dim);font-size:.85em}
 .logitem .lc{color:#ff9aa5;font-weight:700}
 
 /* ── SPACECRAFT SIMULATOR · ground-truth 3D attitude ── */
@@ -106,14 +106,14 @@ h2{font-size:1em;letter-spacing:.14em;color:var(--dim);margin:0 0 clamp(4px,.8vh
   background:radial-gradient(120% 140% at 50% 0%,#0b1420 0%,#05080e 70%);border:1px solid var(--line);border-radius:10px}
 .simhead{flex:0 0 auto;display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:8px}
 .simtitle{font-size:1em;font-weight:800;letter-spacing:.1em;color:#cfe8ff}
-.simtitle .simsub{color:var(--dim);font-weight:600;letter-spacing:.05em;font-size:.75em}
+.simtitle .simsub{color:var(--dim);font-weight:600;letter-spacing:.05em;font-size:.85em}
 .simwrap{flex:1 1 0;min-height:0;position:relative;border:1px solid var(--line);border-radius:10px;
   overflow:hidden;background:#02040a;box-shadow:inset 0 0 60px rgba(0,0,0,.7)}
 #satsim{position:absolute;inset:0;display:block;width:100%;height:100%}
 .simreadout{position:absolute;top:10px;left:10px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
 .sim-r{display:flex;justify-content:space-between;gap:14px;min-width:clamp(140px,13vw,190px);
   background:rgba(5,9,14,.66);border:1px solid rgba(29,41,55,.7);border-radius:7px;padding:5px 10px;backdrop-filter:blur(2px)}
-.sim-r span{color:var(--dim);font-size:.78em;letter-spacing:.08em;font-weight:700}
+.sim-r span{color:var(--dim);font-size:.85em;letter-spacing:.08em;font-weight:700}
 .sim-r b{color:#eaf2fb;font-size:.95em;font-variant-numeric:tabular-nums;letter-spacing:.02em}
 .sim-r b.danger{color:#ff6a78}
 .simwrap.tumbling{border-color:var(--danger);box-shadow:inset 0 0 60px rgba(120,0,10,.5),0 0 0 1px rgba(255,59,78,.4)}
@@ -126,7 +126,7 @@ h2{font-size:1em;letter-spacing:.14em;color:var(--dim);margin:0 0 clamp(4px,.8vh
 .mapwrap{flex:1 1 0;min-height:0;position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#04070c}
 #orbit{position:absolute;inset:0;display:block;width:100%;height:100%}
 .mapoverlay{position:absolute;top:8px;left:8px;display:flex;gap:8px;pointer-events:none}
-.maptag{font-size:.8em;font-weight:800;letter-spacing:.05em;padding:4px 9px;border-radius:6px;
+.maptag{font-size:.85em;font-weight:800;letter-spacing:.05em;padding:4px 9px;border-radius:6px;
   background:rgba(5,9,14,.72);backdrop-filter:blur(2px);white-space:nowrap}
 .maptag.ok{color:var(--ok)} .maptag.warn{color:var(--warn)}
 .maptag.danger{color:#ff6a78;animation:tblink .7s steps(1) infinite}
