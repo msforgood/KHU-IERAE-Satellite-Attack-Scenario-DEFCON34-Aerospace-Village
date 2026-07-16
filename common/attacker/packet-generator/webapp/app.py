@@ -22,7 +22,6 @@ import json
 import time
 import base64
 import threading
-import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import numpy as np
@@ -68,7 +67,8 @@ _VSA_MIME = {
     ".map": "application/json", ".txt": "text/plain; charset=utf-8",
 }
 PORT = int(os.environ.get("PORT", "8000"))
-# 피해 지상국(:4540). generate 시 cf32를 방문자마다 굽지 않고 여기 /api/inject로 공격 경보만 발사.
+# 피해 지상국(:4540). 공격은 phase③ TRANSMIT에서 targeting 콘솔이 직접 여기 /api/inject로
+# 발사한다(GENERATE는 GS를 건드리지 않음). 이 값은 콘솔에 넘겨줄 GS base로 안내 로그에 쓰인다.
 GS_URL = os.environ.get("GS_URL", "http://localhost:4540").rstrip("/")
 
 # ── Dev live-reload (opt-in: DEV_RELOAD=1 or --reload) ───────────────────────
@@ -218,18 +218,9 @@ def validate(body):
     }
 
 
-def send_gs_alert(command, params):
-    """Fire the attack at the victim ground station (:4540 /api/inject) instead of
-    writing a per-visitor cf32. The generate button is client-gated to the correct
-    attack, so we assume the command here is valid and just raise the alarm."""
-    payload_bytes, _ = codec.build_payload(command, params or {})
-    body = json.dumps({
-        "command": command,
-        "payload": [f"0x{b:02x}" for b in payload_bytes],
-    }).encode()
-    req = urllib.request.Request(GS_URL + "/api/inject", data=body,
-                                 headers={"Content-Type": "application/json"}, method="POST")
-    urllib.request.urlopen(req, timeout=2).read()
+# NOTE: the attack is fired at phase③ TRANSMIT, straight from the targeting console in
+# the browser (console → POST <gs>/api/inject). The builder deliberately does NOT alert
+# the GS from GENERATE, so the victim alarm stays quiet until the participant uplinks.
 
 
 def do_build(body, save):
@@ -260,14 +251,10 @@ def do_build(body, save):
     if save:
         if not all_valid:
             return {"ok": False, "error": "Uplink incomplete — all systems must be configured", "validation": v, "allValid": False}
-        # No per-visitor cf32 build/write/download (disk + browser load). Fire the attack
-        # straight at the victim GS (:4540); the UI shows a click-through cf32 artifact.
-        try:
-            send_gs_alert(command, body.get("params", {}))
-            resp["alertSent"] = True
-        except Exception as e:
-            resp["alertSent"] = False
-            resp["alertError"] = str(e)
+        # GENERATE only produces the uplink IQ artifact — it must NOT alert the GS here.
+        # The attack is fired later, at phase③ TRANSMIT (console → GS /api/inject), so the
+        # victim alarm stays quiet until the participant actually uplinks during the pass.
+        # (No per-visitor cf32 build/write; the UI shows a click-through cf32 artifact.)
         resp["saved"] = {"filename": "attack.cf32"}
     return resp
 
@@ -363,7 +350,7 @@ def main():
     print(f"  scenario: {sc.get('id')} · {sc.get('name')} · {sc.get('phaseCount')} phases")
     if sc.get("extras"):
         print(f"  extra phases: {', '.join(e.get('label', e.get('id', '?')) for e in sc['extras'])}  (EXTRA_DIR={EXTRA_DIR or '—'})")
-    print(f"  attack target: {GS_URL}/api/inject  (GENERATE fires the alert here)")
+    print(f"  attack target: {GS_URL}/api/inject  (phase③ TRANSMIT fires the alert; GENERATE stays quiet)")
     if RELOAD:
         print("  live-reload: ON (edits auto-refresh the browser / restart the server)")
         threading.Thread(target=_watcher, daemon=True).start()
