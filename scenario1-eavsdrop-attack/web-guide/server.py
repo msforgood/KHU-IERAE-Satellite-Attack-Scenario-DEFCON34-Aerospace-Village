@@ -228,13 +228,17 @@ VSA_IQ_SHIM = """
         for (i = 0; i < __recBuf.length; i++) { all.set(__recBuf[i], off); off += __recBuf[i].length; }
         __recBuf = [];
         var name = filename || ('vsa_recording_' + Date.now() + '.cf32');
-        function dl(blob, fn) { var u = URL.createObjectURL(blob); var a = document.createElement('a');
-          a.href = u; a.download = fn; document.body.appendChild(a); a.click(); a.remove();
-          setTimeout(function(){ URL.revokeObjectURL(u); }, 6000); }
-        dl(new Blob([all], {type:'application/octet-stream'}), name);                          // IQ (cf32)
-        try { if (meta) dl(new Blob([JSON.stringify(meta, null, 2)], {type:'application/json'}),
-                          name.replace(/\\.cf32$/, '') + '.sigmf-meta.json'); } catch(e){}      // metadata
-        return '\\u2b07 Downloaded: ' + name + ' (' + all.length + ' B, cf32) - browser Downloads folder';
+        // Save straight to the fixed server path (gnuradio-web/upload/uploaded.cf32) so Phase 4
+        // can pick it up with a single button (no manual download / re-upload).
+        var sr = (meta && meta.sampleRate) ? meta.sampleRate : 50000;
+        try {
+          var r = await fetch('/api/upload?name=' + encodeURIComponent(name) + '&sampleRate=' + sr,
+                              { method: 'POST', headers: {'Content-Type':'application/octet-stream'}, body: all });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return '\\u2705 Saved to server (' + all.length + ' B, cf32) - ready for Phase 4';
+        } catch (e) {
+          return '\\u2717 Save failed: ' + e.message;
+        }
       },
       onQTHUpdated: () => {}, decodeUplink: async () => ({}),
       chooseUplinkFile: async () => null, getUplinkFlag: async () => null,
@@ -471,6 +475,26 @@ class Handler(BaseHTTPRequestHandler):
             target = GPREDICT_CONTROL_URL.rstrip("/") + path.replace("/api", "")
             try:
                 with urllib.request.urlopen(target, timeout=8) as r:
+                    return self._send(r.status, "application/json; charset=utf-8", r.read())
+            except Exception as e:
+                return self._json({"ok": False, "error": f"gpredict control unreachable: {e}"}, 502)
+
+        # proxy to gpredict-web GUI automation (Phase-3 track / engage / doppler / set downlink freq).
+        # The query string is forwarded (radio-set-downlink needs ?hz=), and the timeout is longer
+        # because setting the frequency clicks the digit knob several times.
+        if path in ("/api/rotor-track-engage", "/api/radio-engage", "/api/radio-track",
+                    "/api/radio-apply", "/api/radio-set-downlink", "/api/gpredict-status"):
+            import urllib.request
+            from urllib.parse import urlparse
+            target = GPREDICT_CONTROL_URL.rstrip("/") + path.replace("/api", "")
+            q = urlparse(self.path).query
+            if q:
+                target += "?" + q
+            # radio-apply drives the downlink knob (turn Doppler off, disengage, click digits,
+            # re-engage, verify) which can take a while; the others are quick toggles/status.
+            tmo = 90 if path == "/api/radio-apply" else 20
+            try:
+                with urllib.request.urlopen(target, timeout=tmo) as r:
                     return self._send(r.status, "application/json; charset=utf-8", r.read())
             except Exception as e:
                 return self._json({"ok": False, "error": f"gpredict control unreachable: {e}"}, 502)
