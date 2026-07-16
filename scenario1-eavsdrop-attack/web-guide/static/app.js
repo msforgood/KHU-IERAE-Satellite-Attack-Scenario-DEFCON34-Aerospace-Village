@@ -35,9 +35,16 @@ setInterval(() => {
 }, 1000);
 
 // ── stepper ──
+// The stepper shows 4 phases (mission/target are intro, result is the outro; all screens stay).
+const STEPPER = [
+  { id: 'track',     label: 'Track' },
+  { id: 'analyze',   label: 'Analyze' },
+  { id: 'puzzle',    label: 'Puzzle' },
+  { id: 'flowgraph', label: 'Execute' },
+];
 function buildStepper() {
   const nav = $('#stepper'); nav.innerHTML = '';
-  PHASES.forEach((p, i) => {
+  STEPPER.forEach((p, i) => {
     const item = el('div', 'stepitem'); item.dataset.id = p.id;
     item.append(el('span', 'sn', String(i + 1)), el('span', 'sl', p.label));
     item.addEventListener('click', () => { if (canGo(p.id)) show(p.id); });
@@ -45,12 +52,11 @@ function buildStepper() {
   });
   renderPhaseTags();
 }
-// Render phase-tag labels ("PHASE n / NAME") from the PHASES order, so inserting a
-// phase (e.g. a signal-analysis step after PHASE 4) auto-renumbers every tag.
+// Renumber the phase-tag labels ("PHASE n / NAME") for the 4 stepper phases.
 function renderPhaseTags() {
-  PHASES.forEach((p, i) => {
+  STEPPER.forEach((p, i) => {
     const t = $(`#p-${p.id} .phasetag[data-tag]`);
-    if (t) t.textContent = `PHASE ${i + 1} / ${t.dataset.tag}`;
+    if (t) t.textContent = `PHASE ${i + 1} / ${p.label.toUpperCase()}`;
   });
 }
 function canGo(id) {
@@ -60,11 +66,12 @@ function canGo(id) {
   return false;
 }
 function refreshStepper() {
-  const curIdx = PHASES.findIndex((p) => p.id === state.phase);
-  PHASES.forEach((p, i) => {
+  const order = STEPPER.map((p) => p.id);
+  const curIdx = order.indexOf(state.phase);
+  STEPPER.forEach((p, i) => {
     const item = $(`.stepitem[data-id="${p.id}"]`); if (!item) return;
     item.classList.toggle('active', p.id === state.phase);
-    item.classList.toggle('done', i < curIdx && state.reached[p.id]);
+    item.classList.toggle('done', curIdx > -1 && i < curIdx && state.reached[p.id]);
     item.classList.toggle('locked', !canGo(p.id));
   });
 }
@@ -181,6 +188,19 @@ function novncEmbedUrl(url) {
   return url;
 }
 let embedsMounted = false;
+// Make the VSA card exactly as tall as the Gpredict card. Gpredict's height comes from its
+// main-window aspect (natural, no black bars); the VSA follows so the two panes line up.
+let _syncBound = false;
+function syncEmbedHeights() {
+  const apply = () => {
+    const gp = $('#gpredictSlot');
+    const vsaBody = $('#vsaFrame') && $('#vsaFrame').parentElement;
+    if (gp && vsaBody && gp.offsetHeight) vsaBody.style.height = gp.offsetHeight + 'px';
+  };
+  requestAnimationFrame(apply);
+  setTimeout(apply, 250);
+  if (!_syncBound) { window.addEventListener('resize', apply); _syncBound = true; }
+}
 function mountEmbeds() {
   if (embedsMounted) return;
   embedsMounted = true;
@@ -189,15 +209,170 @@ function mountEmbeds() {
   // GPredict - real noVNC embed if configured, else a polar-tracking preview.
   const slot = $('#gpredictSlot');
   if (state.cfg.gpredictUrl) {
+    // Wrap the iframe in a clip box so only the main window band shows; the slot then takes
+    // that band's natural height and the VSA card is synced to match it (syncEmbedHeights).
+    const clip = el('div', 'gpclip');
     const f = el('iframe', 'embedframe'); f.title = 'GPredict';
     f.allow = 'clipboard-read; clipboard-write';
-    f.src = novncEmbedUrl(state.cfg.gpredictUrl); slot.append(f);
+    f.src = novncEmbedUrl(state.cfg.gpredictUrl); clip.append(f); slot.append(clip);
   } else {
     makeGpredictView(slot);
   }
+  syncEmbedHeights();
   wireResetPass();
+  wireAutoControls();
+  wireRecord();
+  wireVsaControls();
+  startGpredictStatusPoll();
   startOffsetPoll();
   startRemainingCountdown();
+}
+
+// Phase-3 record button: triggers the VSA's own IQ recorder inside the embedded VSA
+// iframe (same origin), so it saves exactly what the VSA REC button would.
+function wireRecord() {
+  const btn = $('#btnRecord'), stat = $('#btnRecordStat');
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = '1';
+  btn.addEventListener('click', () => {
+    const frame = $('#vsaFrame');
+    let vbtn = null;
+    try { vbtn = frame && frame.contentDocument && frame.contentDocument.getElementById('btn-record-iq'); } catch (e) {}
+    if (!vbtn) { stat.className = 'passstat err'; stat.textContent = '✗ VSA not ready yet'; return; }
+    vbtn.click();   // toggle the VSA recorder
+    const recording = vbtn.classList.contains('recording');
+    btn.classList.toggle('recording', recording);
+    btn.textContent = recording ? '■ Stop & save' : '⏺ Record';
+    stat.className = 'passstat ok';
+    stat.textContent = recording ? '● Recording the VSA signal…' : '✓ Saved on the server (ready for Phase 4)';
+  });
+}
+
+// Phase-3 antenna + sample-rate controls: drive the VSA's own inputs inside the iframe
+// (same origin), since the VSA's left panel is hidden.
+function vsaEl(id) {
+  const f = $('#vsaFrame');
+  try { return f && f.contentDocument ? f.contentDocument.getElementById(id) : null; } catch (e) { return null; }
+}
+function wireVsaControls() {
+  const antSel = $('#antSelect'), antStat = $('#antStat');
+  const srInput = $('#srInput'), srBtn = $('#btnSampleRate'), srStat = $('#srStat');
+  // copy the VSA's antenna options into our dropdown once the iframe is ready
+  const fill = setInterval(() => {
+    const vsel = vsaEl('ctrl-type');
+    if (vsel && !antSel.dataset.filled) {
+      antSel.innerHTML = vsel.innerHTML;
+      antSel.value = vsel.value;
+      antSel.dataset.filled = '1';
+      const sr = vsaEl('ctrl-samplerate'); if (sr && sr.value) srInput.value = sr.value;
+      clearInterval(fill);
+    }
+  }, 500);
+  setTimeout(() => clearInterval(fill), 10000);
+
+  if (antSel && !antSel.dataset.wired) {
+    antSel.dataset.wired = '1';
+    antSel.addEventListener('change', () => {
+      const vsel = vsaEl('ctrl-type');
+      if (!vsel) { antStat.className = 'passstat err'; antStat.textContent = '✗ VSA not ready'; return; }
+      vsel.value = antSel.value;
+      vsel.dispatchEvent(new Event('change', { bubbles: true }));
+      antStat.className = 'passstat ok';
+      antStat.textContent = `✓ ${(antSel.options[antSel.selectedIndex] || {}).text || antSel.value}`;
+    });
+  }
+  if (srBtn && !srBtn.dataset.wired) {
+    srBtn.dataset.wired = '1';
+    srBtn.addEventListener('click', () => {
+      const vin = vsaEl('ctrl-samplerate');
+      if (!vin) { srStat.className = 'passstat err'; srStat.textContent = '✗ VSA not ready'; return; }
+      const v = parseFloat(srInput.value);
+      if (!isFinite(v) || v <= 0) { srStat.className = 'passstat err'; srStat.textContent = '✗ invalid'; return; }
+      vin.value = String(v);
+      vin.dispatchEvent(new Event('change', { bubbles: true }));
+      srStat.className = 'passstat ok';
+      srStat.textContent = `✓ ${v} MSps`;
+    });
+  }
+}
+
+// Phase-3 one-click GPredict controls. Each button drives the Antenna/Radio Control via
+// the /api proxy -> control.py (xdotool), and the REAL applied state (engaged / tracking,
+// read from the bridge at :4535) is polled and shown, so the buttons are not blind toggles.
+let gpStatusTimer = null;
+
+function applyBtnState(btnId, statId, active, partial, text) {
+  const stat = $('#' + statId);
+  if (stat && stat.dataset.busy) return;   // an action is running on this button; don't fight it
+  const btn = $('#' + btnId);
+  if (btn) { btn.classList.toggle('applied', !!active); btn.classList.toggle('partial', !active && !!partial); }
+  if (stat) {
+    stat.className = 'passstat ' + (active ? 'ok' : (partial ? 'warn' : 'dim'));
+    stat.textContent = text;
+  }
+}
+
+function reflectGpredictStatus(st) {
+  if (!st || !st.ok) return;
+  // The Track button engages + tracks; rotorEngaged is the rock-solid applied signal (the rotor
+  // position command is throttled by the deg-threshold, so rotorTracking alone would flicker).
+  applyBtnState('btnTrack', 'btnTrackStat', st.rotorEngaged, false,
+    st.rotorEngaged ? '● tracking (engaged)' : 'not engaged');
+  const mhz = st.downlinkHz ? (st.downlinkHz / 1e6).toFixed(3) : '—';
+  applyBtnState('btnFreq', 'btnFreqStat', st.radioEngaged, false,
+    st.radioEngaged ? `● engaged, downlink ${mhz} MHz` : `not engaged (set: ${mhz} MHz)`);
+  applyBtnState('btnDoppler', 'btnDopplerStat', st.radioTracking, false,
+    st.radioTracking ? '● Doppler correction on' : 'Doppler correction off');
+}
+
+async function pollGpredictStatus() {
+  if (state.phase !== 'track') return;
+  try {
+    const r = await fetch('/api/gpredict-status');
+    reflectGpredictStatus(await r.json());
+  } catch { /* bridge/control unreachable -> keep last shown state */ }
+}
+
+function startGpredictStatusPoll() {
+  if (gpStatusTimer) return;
+  pollGpredictStatus();
+  gpStatusTimer = setInterval(pollGpredictStatus, 2500);
+}
+
+function wireAutoControls() {
+  async function post(url) {
+    const r = await fetch(url);
+    const j = await r.json().catch(() => ({ ok: false, error: 'bad response' }));
+    if (!j.ok) throw new Error(j.error || 'failed');
+    return j;
+  }
+  function wire(id, statId, handler) {
+    const btn = $('#' + id);
+    if (!btn || btn.dataset.wired) return;
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', async () => {
+      const stat = $('#' + statId);
+      btn.disabled = true;
+      if (stat) { stat.dataset.busy = '1'; stat.className = 'passstat'; stat.textContent = 'working…'; }
+      let err = null;
+      try { await handler(); } catch (e) { err = e; }
+      if (err && stat) { stat.className = 'passstat err'; stat.textContent = `✗ ${err.message}`; }
+      // let gpredict settle, then reflect the real resulting state (unless the call errored)
+      setTimeout(() => {
+        btn.disabled = false;
+        if (stat) delete stat.dataset.busy;
+        if (!err) pollGpredictStatus();
+      }, 1200);
+    });
+  }
+
+  wire('btnTrack', 'btnTrackStat', () => post('/api/rotor-track-engage'));
+  wire('btnDoppler', 'btnDopplerStat', () => post('/api/radio-track'));
+  wire('btnFreq', 'btnFreqStat', async () => {
+    const mhz = parseFloat($('#freqInput').value);
+    if (!isFinite(mhz) || mhz <= 0) throw new Error('invalid frequency value');
+    await post(`/api/radio-apply?hz=${Math.round(mhz * 1e6)}`);   // toggle: sets freq + engages, or disengages
+  });
 }
 
 function wireResetPass() {
@@ -389,14 +564,22 @@ function makeGpredictView(container) {
 // PHASE 5 - flowgraph puzzle (blocks/slots/wires match enigma1_decoder.grc)
 // ─────────────────────────────────────────────────────────────────────────────
 const BLOCKS = {
-  file_source: { cat: 'src',  phase: 'SOURCE',   title: 'File Source',                sub: 'enigma34_downlink.cf32' },
-  throttle:    { cat: 'flow', phase: 'FLOW',     title: 'Throttle',                   sub: 'Sample Rate: 96k' },
-  fir:         { cat: 'dsp',  phase: 'FILTER',   title: 'Freq Xlating FIR Filter',    sub: 'Decim 1 / low_pass' },
-  fsk:         { cat: 'dsp',  phase: 'DEMOD',    title: 'FSK Demodulator',            sub: '9.6k baud' },
-  waterfall:   { cat: 'sink', phase: 'SINK',     title: 'QT GUI Waterfall Sink',      sub: '433.5 MHz', disabled: true },
-  deframer:    { cat: 'dsp',  phase: 'DEFRAME',  title: 'AX.25 Deframer',             sub: 'G3RUH: True' },
-  reassembler: { cat: 'sink', phase: 'SINK',     title: 'ENIGMA-1 Image Reassembler', sub: '→ png' },
-  msgdebug:    { cat: 'sink', phase: 'SINK',     title: 'Message Debug',              sub: 'Print PDU: On' },
+  file_source: { cat: 'src',  phase: 'SOURCE',   title: 'File Source',                sub: 'enigma34_downlink.cf32',
+    desc: 'Reads the recorded IQ samples (your captured .cf32 file) from disk and streams them into the flowgraph as the raw signal to process. This is where the whole demod chain starts.' },
+  throttle:    { cat: 'flow', phase: 'FLOW',     title: 'Throttle',                   sub: 'Sample Rate: 96k',
+    desc: 'Paces the sample stream to the set sample rate so a recorded file plays back at realistic speed instead of as fast as the CPU can run. Only needed for file sources, not live radios.' },
+  fir:         { cat: 'dsp',  phase: 'FILTER',   title: 'Freq Xlating FIR Filter',    sub: 'Decim 1 / low_pass',
+    desc: 'Shifts ENIGMA-1\'s channel down to baseband (frequency translation) and low-pass filters it, isolating the signal of interest and rejecting everything outside its bandwidth.' },
+  fsk:         { cat: 'dsp',  phase: 'DEMOD',    title: 'FSK Demodulator',            sub: '9.6k baud',
+    desc: 'Recovers the digital bits from the frequency-shift-keyed carrier by tracking the shift between the two tones (mark and space) at the 9.6k baud symbol rate.' },
+  waterfall:   { cat: 'sink', phase: 'SINK',     title: 'QT GUI Waterfall Sink',      sub: '433.5 MHz', disabled: true,
+    desc: 'A display-only sink that shows the live spectrum and waterfall so you can see the signal in frequency and time. It does not change the decoded data (disabled in this chain).' },
+  deframer:    { cat: 'dsp',  phase: 'DEFRAME',  title: 'AX.25 Deframer',             sub: 'G3RUH: True',
+    desc: 'Turns the demodulated bitstream into AX.25 frames. It undoes the G3RUH scrambling, finds frame boundaries, and checks each packet for errors before passing it on.' },
+  reassembler: { cat: 'sink', phase: 'SINK',     title: 'ENIGMA-1 Image Reassembler', sub: '→ png',
+    desc: 'Collects the decoded packets in order and rebuilds the downlinked image, writing the finished picture out as a PNG. This is the payload you are trying to recover.' },
+  msgdebug:    { cat: 'sink', phase: 'SINK',     title: 'Message Debug',              sub: 'Print PDU: On',
+    desc: 'Prints each decoded packet (PDU) to the console so you can read the raw message contents. A debugging sink that helps confirm the frames are being decoded correctly.' },
 };
 const SLOTS = [
   { id: 'file_source', x: 24,   y: 172, w: 168, h: 78 },
@@ -422,12 +605,31 @@ function blockCardHTML(id) {
     <div class="bp">${b.phase}${b.disabled ? ' / disabled' : ''}</div>
     <div class="bt">${b.title}</div><div class="bs">${b.sub}</div></div>`;
 }
+// Show a block's role description in the panel below the puzzle (all blocks clickable).
+function showBlockInfo(id) {
+  const b = BLOCKS[id]; if (!b) return;
+  const box = $('#blockInfo'), body = $('#blockInfoBody');
+  if (!box || !body) return;
+  box.classList.add('active');
+  body.innerHTML = `<div class="bi-head">
+      <span class="bi-phase cat-${b.cat}">${b.phase}${b.disabled ? ' / disabled' : ''}</span>
+      <span class="bi-title">${b.title}</span>
+      <span class="bi-sub">${b.sub}</span>
+    </div>
+    <div class="bi-desc">${b.desc || ''}</div>`;
+}
+function resetBlockInfo() {
+  const box = $('#blockInfo'), body = $('#blockInfoBody');
+  if (box) box.classList.remove('active');
+  if (body) body.textContent = 'Click any block (in the tray or on the canvas) to see what it does in the demod chain.';
+}
 function initPuzzle() {
   puzzle.placement = { file_source: 'file_source' };   // the first block (File Source) starts fixed in place
   puzzle.selected = null;
   puzzle.tray = shuffle(Object.keys(BLOCKS).filter((id) => id !== 'file_source'));
   state.puzzleSolved = false;
   const hb = $('#hintBox'); if (hb) { hb.classList.add('hidden'); hb.innerHTML = ''; }
+  resetBlockInfo();
   renderSlots(); renderTray(); drawWires(); updatePuzzleState();
 }
 function renderSlots() {
@@ -443,7 +645,7 @@ function renderSlots() {
       if (s.id === 'file_source') { d.classList.add('fixed'); d.insertAdjacentHTML('beforeend', '<div class="slotlock">🔒 fixed</div>'); }
     }
     else { d.innerHTML = `<div class="ghostname">${BLOCKS[s.id].phase}</div>`; if (puzzle.selected) d.classList.add('selectable'); }
-    d.addEventListener('click', () => onSlotClick(s.id));
+    d.addEventListener('click', () => { const p = puzzle.placement[s.id]; if (p) showBlockInfo(p); onSlotClick(s.id); });
     layer.append(d);
   });
 }
@@ -454,7 +656,7 @@ function renderTray() {
     const b = BLOCKS[id];
     const chip = el('div', `traychip cat-${b.cat}${puzzle.selected === id ? ' selected' : ''}`);
     chip.innerHTML = `<div class="bp">${b.phase}${b.disabled ? ' / disabled' : ''}</div><div class="bt">${b.title}</div><div class="bs">${b.sub}</div>`;
-    chip.addEventListener('click', () => { puzzle.selected = puzzle.selected === id ? null : id; renderTray(); renderSlots(); });
+    chip.addEventListener('click', () => { showBlockInfo(id); puzzle.selected = puzzle.selected === id ? null : id; renderTray(); renderSlots(); });
     tray.append(chip);
   });
 }
@@ -597,6 +799,31 @@ function syncAnalyzeGate() {
   body.classList.toggle('hidden', !state.recUploaded);
   const btn = $('#toPuzzle');
   if (btn) { btn.disabled = !state.recUploaded; btn.textContent = (state.recUploaded ? '' : '🔒 ') + 'Build the demod flowgraph →'; }
+}
+// PHASE 4 one-button: use the capture the VSA saved to the server in PHASE 3 (no file picker).
+function wireUseRecording() {
+  const btn = $('#useRecordingBtn'), info = $('#ugInfo');
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = '1';
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      const u = await (await fetch('/api/upload', { cache: 'no-store' })).json();
+      if (!u || !u.exists || !u.size) throw new Error('no Phase 3 recording found - record the signal in Phase 3 first');
+      state.recUploaded = true; state.recFileObj = null;   // analysis reads the file from the server
+      state.recFile = { name: u.name || 'uploaded.cf32', size: u.size, samples: u.samples || Math.floor(u.size / 8) };
+      BLOCKS.file_source.sub = u.name || 'uploaded.cf32';
+      if (u.sampleRate) AN.fs = u.sampleRate;
+      if (info) {
+        info.classList.remove('hidden', 'ug-err'); info.classList.add('ug-ok');
+        info.innerHTML = `✅ Using the Phase 3 recording (${fmtBytes(u.size)}) / opening the spectrum + waterfall…`;
+      }
+      setTimeout(revealAnalyzeBody, 700);
+    } catch (e) {
+      if (info) { info.classList.remove('hidden', 'ug-ok'); info.classList.add('ug-err'); info.textContent = `✗ ${e.message}`; }
+      btn.disabled = false;
+    }
+  });
 }
 // ─────────────────────────────────────────────────────────────────────────────
 // PHASE 4 - signal analysis: spectrum (PSD) + waterfall (spectrogram) on the uploaded IQ.
@@ -1230,7 +1457,7 @@ function drawReassemble() {
 
 // ── boot ──
 async function boot() {
-  buildStepper(); wireNav(); wirePuzzle(); initPuzzle(); wireUploadGate(); wireAnalyzeControls();
+  buildStepper(); wireNav(); wirePuzzle(); initPuzzle(); wireUploadGate(); wireUseRecording(); wireAnalyzeControls();
   try {
     const [cfg, sat, qth] = await Promise.all([
       fetch('/api/config').then((r) => r.json()),
