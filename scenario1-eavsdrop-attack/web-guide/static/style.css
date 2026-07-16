@@ -139,13 +139,57 @@ code{background:#0a121c;border:1px solid var(--line);border-radius:5px;padding:1
 .remain-val.los{color:var(--dim)} .remain-val.warn{color:var(--amber)}
 .remain-state{font-size:13px;color:var(--dim);min-width:84px}
 
-.twopane{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.18fr);gap:14px}
+.autoctl-grid{display:grid;grid-template-columns:minmax(240px,1fr) minmax(0,1.7fr);gap:14px;margin-bottom:14px;align-items:stretch}
+.autoctl-grid .autoctl{margin-bottom:0;height:100%}
+@media(max-width:1000px){.autoctl-grid{grid-template-columns:1fr}}
+.autoctl{display:flex;flex-direction:column;gap:12px;margin-bottom:14px;padding:15px 18px;
+  border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.autoctl-title{font-size:17px;font-weight:700;letter-spacing:.04em;color:#eaf2fb}
+.autoctl-sub{font-weight:400;color:var(--dim);font-size:13px}
+.autoctl-row{display:flex;align-items:center;gap:13px;flex-wrap:wrap}
+.autoctl-label{font-size:15px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+/* compact controls (scoped to this panel so other buttons keep their size) */
+.autoctl .passbtn{padding:12px 22px;font-size:17px;border-radius:9px}
+.autoctl .passbtn .bsub{font-weight:400;font-size:12px;opacity:.75;margin-left:7px}
+.autoctl .passstat{font-size:14px}
+.freqwrap{display:flex;align-items:center;gap:9px}
+.freqinput{width:190px;padding:11px 14px;border:1px solid var(--line);border-radius:9px;background:#070c12;
+  color:#eaf2fb;font-family:var(--mono);font-size:24px;font-weight:700;text-align:right}
+.freqinput:focus{outline:none;border-color:var(--accent)}
+.frequnit{font-family:var(--mono);color:var(--dim);font-size:17px}
+.antsel{padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#070c12;color:#eaf2fb;
+  font-family:var(--mono);font-size:15px;font-weight:700;min-width:180px;cursor:pointer}
+.antsel:focus{outline:none;border-color:var(--accent)}
+.ug-usebtn{margin:8px auto 4px;display:block}
+.ug-or-row{font-size:13px;color:var(--dim);margin:4px 0 12px}
+.bsub{font-weight:400;font-size:15px;opacity:.75;margin-left:7px}
+/* Phase 3 record button (red, pulses while recording) */
+.recbtn{background:rgba(255,90,90,.12);border-color:#ff5a5a;color:#ff8a8a}
+.recbtn:hover{background:rgba(255,90,90,.22)}
+.recbtn.recording{background:#e23b3b;border-color:#e23b3b;color:#fff;animation:recpulse 1.2s ease-in-out infinite}
+@keyframes recpulse{0%,100%{opacity:1}50%{opacity:.6}}
+/* live applied-state reflection: green when actually applied in gpredict, amber when engaged-not-tracking */
+.autoctl .passbtn.applied{background:rgba(76,175,80,.18);border-color:#4caf50;color:#8ff0a4}
+.autoctl .passbtn.partial{background:rgba(255,152,0,.14);border-color:#ff9800;color:#ffc27a}
+.passstat.dim{color:var(--dim)} .passstat.warn{color:var(--amber)}
+
+.twopane{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .embedcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
 .embedhead{display:flex;justify-content:space-between;align-items:center;padding:12px 15px;border-bottom:1px solid var(--line);background:var(--panel2)}
 .etitle{font-weight:700;letter-spacing:.04em;color:#eaf2fb;font-size:17px}
 .ehint{font-size:14px;color:var(--dim)}
-.embedbody{position:relative;height:900px;background:#000}
+/* Gpredict and the VSA are 1:1 width and share one (taller) fixed card height so they line up. */
+.embedbody{position:relative;height:560px;background:#000}
 .embedframe{width:100%;height:100%;border:0;background:#000;display:block}
+/* Gpredict embed shows only the main window: the Antenna/Radio Control windows stay open
+   (needed for the button automation) but are clipped out of the noVNC view. The iframe keeps
+   the full framebuffer aspect (1280x1440); .gpclip clips to the top main-window band. The main
+   window is wide/short (marker on the left, data panel on the right) so it can't fill a tall
+   narrow card without cropping content - it is centered (letterboxed) in the taller card. */
+#gpredictSlot{height:560px;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center}
+.gpclip{width:100%;aspect-ratio:1280 / 590;overflow:hidden}
+.gpclip .embedframe{width:100%;height:auto;aspect-ratio:1280 / 1440;display:block}
+.twopane{align-items:start}
 
 /* GPredict polar-preview fallback (no Docker) */
 .gpvwrap{padding:0}
@@ -283,6 +327,17 @@ select.aninput option{background:#0f1620;color:#eaf2fb}
 .sig-arrow.lit{color:var(--ok)}
 @media(max-width:1000px){.sigflow-row{flex-wrap:wrap}.sigstage{min-width:44%}.sig-arrow{display:none}}
 
+/* Phase 5 block role description (updates on block click) */
+.blockinfo{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 18px;min-height:92px}
+.blockinfo-title{font-size:13px;letter-spacing:.06em;color:var(--dim);text-transform:uppercase;margin-bottom:10px}
+.blockinfo-body{font-size:15px;color:var(--dim);line-height:1.55}
+.bi-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:9px}
+.bi-phase{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.07em;color:#eaf2fb;
+  padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.05);border-left-width:3px;border-left-style:solid}
+.bi-title{font-size:19px;font-weight:700;color:#eaf2fb}
+.bi-sub{font-family:var(--mono);font-size:13px;color:var(--dim)}
+.bi-desc{font-size:16px;line-height:1.6;color:#cdd8e6}
+
 /* ═══════════ PHASE 6 / FLOWGRAPH═══════════ */
 .varsrow{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
 .varchip{padding:8px 13px;border:1px solid var(--line);border-radius:7px;background:var(--panel2);font-size:15px;color:var(--dim)}
@@ -341,5 +396,5 @@ select.aninput option{background:#0f1620;color:#eaf2fb}
 /* keep GPredict(left)/VSA(right) side-by-side per the layout down to ~1000px */
 @media(max-width:1000px){
   .twopane{grid-template-columns:1fr}
-  .embedbody{height:720px}
+  .embedbody{height:560px}
 }
