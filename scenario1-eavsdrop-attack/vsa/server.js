@@ -10,7 +10,7 @@
  */
 
 const net  = require("net");
-// const http = require("http");
+const http = require("http");
 // const fs   = require("fs");
 // const path = require("path");
 const { WebSocketServer } = require("ws");
@@ -21,6 +21,8 @@ const { WebSocketServer } = require("ws");
 let az = 131;
 let el = 47;
 let gpredictConnected = false;
+let lastPosChangeTs  = 0;   // when az/el last actually changed (rotor tracking = a recent change)
+let lastFreqChangeTs = 0;   // when the rig frequency last actually changed (radio Doppler tracking = a recent change)
 // Set of open rotctld/rigctld sockets. Status is decided by "connection count > 0".
 // (With a single boolean, there was a bug where closing one socket dropped the status to false even if other connections were still alive.)
 const rotClients = new Set();
@@ -82,6 +84,7 @@ const tcpServer = net.createServer((sock) => {
         const parts = normalised.split(/\s+/);
         az = Math.min(360, Math.max(0, parseFloat(parts[1]) || 0));
         el = Math.min(90, Math.max(0, parseFloat(parts[2]) || 0));
+        lastPosChangeTs = Date.now();   // gpredict only SETS position (P) while tracking; a recent P = tracking on
         broadcastPosition();
         sock.write("RPRT 0\n");
         console.log(`[rotctld] → AZ=${az.toFixed(1)}° EL=${el.toFixed(1)}°`);
@@ -164,6 +167,35 @@ tcpServer.listen(4533, "0.0.0.0", () => {
 //   console.log("[tle]     HTTP TLE feed on http://localhost:4535/tle.txt");
 //   console.log("          → Add this URL as 'my_link' in GPredict TLE sources");
 // });
+
+// ── HTTP status endpoint (:4535) ──────────────────────────────────────────────
+// The web-guide polls this to reflect gpredict's REAL applied state on its buttons:
+//   engaged  = a rotctld/rigctld client is actually connected
+//   tracking = az/el (rotor) or frequency (radio Doppler) actually changed recently
+const statusServer = http.createServer((req, res) => {
+  if ((req.url || "").split("?")[0] === "/status") {
+    const now = Date.now();
+    const body = JSON.stringify({
+      rotorEngaged:  rotClients.size > 0,
+      radioEngaged:  rigClients.size > 0,
+      // rotor P is throttled by gpredict's position threshold (deg), so it can be many seconds
+      // between set-position commands even while tracking -> use a generous window to avoid flicker.
+      // gpredict only sends a set command when the tracked value moves enough, and that can be
+      // slow at low frequencies / slow parts of a pass, so use generous windows to avoid flicker.
+      rotorTracking: rotClients.size > 0 && (now - lastPosChangeTs)  < 60000,
+      radioTracking: rigClients.size > 0 && (now - lastFreqChangeTs) < 60000,
+      az, el, freqHz: rigFreq,
+    });
+    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+    res.end(body);
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
+});
+statusServer.listen(4535, "0.0.0.0", () => {
+  console.log("[status]  HTTP status on http://localhost:4535/status");
+});
 
 // ── WebSocket server (browser talks here) ─────────────────────────────────────
 const wss = new WebSocketServer({ port: 4534 });
@@ -268,6 +300,7 @@ const rigServer = net.createServer((sock) => {
         const freq = parseFloat(normalised.slice(2).trim());
         if (!isNaN(freq)) {
           rigFreq = freq;
+          lastFreqChangeTs = Date.now();   // gpredict only SETS freq (F) while Doppler-tracking; a recent F = tracking on
           broadcast({ type: "frequency", freqHz: freq });
           console.log(`[rigctld] → FREQ=${freq} Hz`);
         }
