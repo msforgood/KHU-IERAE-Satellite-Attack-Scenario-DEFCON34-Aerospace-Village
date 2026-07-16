@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ENIGMA-1 · Orbit Maneuver Uplink</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="sat-ico">🛰</span>
+      <div>
+        <div class="title">ENIGMA-1&nbsp;//&nbsp;ORBIT MANEUVER UPLINK</div>
+        <div class="sub">CCSDS Telecommand over OOK · constellation attack console (monitor 1)</div>
+      </div>
+    </div>
+    <div class="linkinfo"><span>UPLINK 450.100 MHz</span><span class="dot"></span><span>TT&amp;C</span></div>
+  </header>
+
+  <!-- ═══════════ INTRO · MISSION BRIEFING ═══════════ -->
+  <section id="intro" class="phase intro">
+    <div class="introwrap">
+      <div class="phasetag">MISSION BRIEFING</div>
+      <h1 class="brieftitle">Constellation Chaos — abusing an orbit-maneuver command</h1>
+      <div class="introgrid">
+        <div class="scene">
+          <svg viewBox="0 0 420 300" class="orbscene" aria-label="Crossing orbits">
+            <defs><radialGradient id="eG" cx="42%" cy="38%" r="65%">
+              <stop offset="0%" stop-color="#1c4a6e"/><stop offset="70%" stop-color="#0f2b45"/><stop offset="100%" stop-color="#081826"/></radialGradient></defs>
+            <circle cx="210" cy="150" r="58" fill="url(#eG)" stroke="#3a5f7d"/>
+            <ellipse cx="210" cy="150" rx="128" ry="48" fill="none" stroke="#eaf2ff" stroke-width="1.8" opacity="0.8" transform="rotate(8 210 150)"/>
+            <ellipse cx="210" cy="150" rx="128" ry="48" fill="none" stroke="#ffb020" stroke-width="1.8" opacity="0.8" transform="rotate(68 210 150)"/>
+            <ellipse cx="210" cy="150" rx="128" ry="48" fill="none" stroke="#7fe0ff" stroke-width="1.8" opacity="0.8" transform="rotate(-56 210 150)"/>
+            <circle cx="84" cy="140" r="4.5" fill="#eaf2ff"/><circle cx="300" cy="112" r="4.5" fill="#ffb020"/><circle cx="292" cy="196" r="4.5" fill="#7fe0ff"/>
+            <g class="burst"><circle cx="330" cy="150" r="10" fill="none" stroke="#ff3b4e" stroke-width="2"/><circle cx="330" cy="150" r="4" fill="#ffd23f"/></g>
+          </svg>
+        </div>
+        <div class="brieftext">
+          <div class="bsec"><h3>① The satellites</h3><p><b>ENIGMA-1</b> flies near the <b>AURORA</b> satellites, each at a different <b>altitude</b> or <b>inclination</b>. Their paths cross.</p></div>
+          <div class="bsec"><h3>② Your attack</h3><p>You send <b>orbit_maneuver</b> — a <b>legitimate</b> orbit-adjustment command — but abuse its values to swing ENIGMA-1's orbit onto a neighbour. <span class="hl">A legitimate command becomes an attack when it is abused.</span></p></div>
+          <div class="bsec"><h3>③ Why one satellite endangers many</h3><p>A collision throws off <b>debris</b> that keeps orbiting and can strike the other satellites — one satellite's problem <b>cascades</b> across the constellation.</p></div>
+          <div class="bsec"><h3>④ How you do it</h3><p><b>1.</b> plan the orbit, <b>2.</b> build the CCSDS packet, <b>3.</b> uplink it through the VSA, <b>4.</b> watch monitor 2.</p></div>
+        </div>
+      </div>
+      <button id="toPlan" class="bigbtn">START THE ATTACK →</button>
+    </div>
+  </section>
+
+  <!-- phase stepper -->
+  <div class="phasebar hidden" id="phasebar">
+    <div class="pstep active" data-p="1"><span class="pnum">1</span> PLAN ORBIT</div>
+    <div class="pstep" data-p="2"><span class="pnum">2</span> BUILD PACKET</div>
+    <div class="pstep" data-p="3"><span class="pnum">3</span> UPLINK</div>
+    <div class="pstep" data-p="4"><span class="pnum">4</span> OBSERVE</div>
+  </div>
+
+  <!-- ═══════════ PHASE 1 · PLAN ORBIT ═══════════ -->
+  <section id="phase1" class="phase hidden">
+    <div class="objbar">
+      <span class="phasetag">PHASE 1 · PLAN</span>
+      <span>Click a satellite to read its orbit. Fire ENIGMA-1's <b>ALTITUDE / UP-DOWN</b> thrusters to bend
+        its path onto an <b>AURORA</b> satellite until the planner reads <b class="rz">COLLISION COURSE</b>.</span>
+    </div>
+    <div class="planwrap">
+        <section class="panel simcol">
+          <h2>ORBIT PLANNER <span class="simhint">drag = rotate · wheel = zoom (Earth-centred) · click a satellite</span></h2>
+          <canvas id="planSim" class="plansim"></canvas>
+          <div class="simlegend">
+            <span><i class="lg-atk"></i> ENIGMA-1 (your satellite, thick orbit)</span>
+            <span><i class="lg-nbr"></i> AURORA satellites</span>
+            <span><i class="lg-pred"></i> predicted path (dashed)</span>
+          </div>
+        </section>
+        <aside class="panel satpanel">
+          <h2>SATELLITE</h2>
+          <div id="satInfo" class="satinfo"></div>
+          <button id="hintBtn" class="hintbtn">💡 Hint: show the target satellite orbit</button>
+        </aside>
+      <section class="panel plancontrols">
+        <div class="pclabel">THRUSTERS <span class="simhint">fire gas from each thruster to bend the orbit · type a value or use −/+</span></div>
+        <div id="thrustPad" class="thrustrow"></div>
+        <div class="planfoot">
+          <div id="planStatus" class="planstatus idle">Fire the thrusters to preview ENIGMA-1's new path.</div>
+          <button id="toPhase2" class="bigbtn" disabled>CONFIRM MANEUVER &amp; BUILD PACKET →</button>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ═══════════ PHASE 2 · BUILD PACKET ═══════════ -->
+  <section id="phase2" class="phase hidden">
+    <div class="objbar">
+      <span class="phasetag">PHASE 2 · BUILD</span>
+      <span>Assemble a valid uplink: match the <b>TARGET INTEL</b> and complete all
+        <b>4 steps</b>. The command value is the burn you planned in phase 1. Only a
+        complete, correct CCSDS frame can be generated into an IQ file.</span>
+    </div>
+    <div class="p2top">
+      <div class="planrecap" id="planRecap"></div>
+      <div class="buildguide" id="buildGuide"></div>
+    </div>
+    <main class="grid">
+      <section class="panel intel">
+        <h2>TARGET INTEL</h2>
+        <div id="dossier2" class="dossier"></div>
+        <div class="burnrecap" id="burnRecap"></div>
+        <div class="progresswrap">
+          <div class="prow"><span>UPLINK ASSEMBLY</span><span id="progText">0 / 4</span></div>
+          <div class="prail"><i id="progFill"></i></div>
+          <div class="phint" id="progHint">Complete all 4 systems to arm the uplink.</div>
+        </div>
+      </section>
+      <section class="panel steps"><div id="stepList"></div></section>
+      <section class="panel wire">
+        <h2>CCSDS PACKET · <span id="frameProg">0 / 5 fields</span></h2>
+        <div id="breakdown" class="breakdown"></div>
+        <div class="metaline" id="frameMeta"></div>
+        <h2>OOK UPLINK SIGNAL</h2>
+        <canvas id="wave" width="600" height="100"></canvas>
+        <div id="waveHint" class="wavehint">RF not configured — complete Step 4.</div>
+        <button id="genBtn" class="genbtn locked" disabled>🔒 UPLINK LOCKED — 0/4 CONFIGURED</button>
+        <button id="toPhase3" class="bigbtn hidden" disabled>PROCEED TO UPLINK →</button>
+      </section>
+    </main>
+    <div class="phasenav"><button id="backTo1" class="navback">← re-plan (phase 1)</button></div>
+  </section>
+
+  <!-- ═══════════ PHASE 3 · UPLINK ═══════════ -->
+  <section id="phase3" class="phase hidden">
+    <div class="objbar">
+      <span class="phasetag">PHASE 3 · UPLINK</span>
+      <span>Transmit the generated IQ file to <b>ENIGMA-1</b> over the 450.100 MHz uplink.
+        The VSA plays the waveform, the satellite decodes the command, and executes the burn.</span>
+    </div>
+    <div class="uplinkwrap uplinkwrap2">
+      <section class="panel vsapanel">
+        <h2>VSA · OpenVSA software radio <span class="simhint">antenna rotator + uplink transmit</span></h2>
+        <div class="vsaframewrap">
+          <iframe id="vsaFrame" class="vsaframe" src="/vsa/index.html" title="OpenVSA software radio"></iframe>
+        </div>
+      </section>
+      <section class="panel gpredictpanel">
+        <h2>GPREDICT · tracking ENIGMA-1 from LAS VEGAS GS <span class="simhint">real gpredict over noVNC (:6080)</span></h2>
+        <div class="gpframewrap">
+          <iframe id="gpredictFrame" class="gpredictframe" src="http://localhost:6080/vnc.html?autoconnect=1&resize=remote" allow="fullscreen"></iframe>
+          <div id="gpFallback" class="gpfallback hidden">gpredict container not running. Start it with
+            <code>attacker/gpredict-web/run.sh</code> (builds + runs on :6080), then reopen this phase.</div>
+        </div>
+        <div class="gpctl">
+          <button id="engageTrack" class="resetpassbtn engagebtn" title="While the satellite is passing overhead, press this to turn on gpredict antenna tracking (az/el) together with radio Doppler correction">🛰 Enable antenna + Doppler tracking</button>
+          <button id="resetPass" class="resetpassbtn" title="If the satellite has already passed, reset its position to just before the next pass">↺ Reset satellite position (next pass)</button>
+          <span id="passStatus" class="passstatus"></span>
+        </div>
+      </section>
+      <div class="panel uplinkcard">
+        <h2>VSA ↔ GPREDICT LINK</h2>
+        <div class="linkdiag">
+          <div class="linknode" id="lnVsa"><div class="lnicon">📡</div><div class="lnname">VSA</div><div class="lnsub">software radio</div></div>
+          <div class="linkwire" id="lnWire"><span class="lnbeam"></span></div>
+          <div class="linknode" id="lnGp"><div class="lnicon">🛰</div><div class="lnname">GPredict</div><div class="lnsub">tracking ENIGMA-1</div></div>
+        </div>
+        <div class="linksteps" id="linkSteps">
+          <div class="lstep"><span class="lsdot"></span>Select VSA UPLINK mode</div>
+          <div class="lstep"><span class="lsdot"></span>Select target satellite ENIGMA-1</div>
+          <div class="lstep"><span class="lsdot"></span>Connect antenna (Helix) + power amplifier (UHF 20W)</div>
+          <div class="lstep"><span class="lsdot"></span>Track ENIGMA-1 in GPredict, set uplink 449.5 MHz</div>
+          <div class="lstep"><span class="lsdot"></span>Register uplink IQ, ready to transmit</div>
+        </div>
+        <h2 class="mt">UPLINK PACKAGE</h2>
+        <div id="uplinkSummary" class="uplinksummary"></div>
+        <button id="uplinkBtn" class="uplinkbtn" disabled>⚡ TRANSMIT UPLINK → ENIGMA-1</button>
+        <div id="uplinkResult" class="result hidden"></div>
+      </div>
+    </div>
+    <div class="phasenav"><button id="backTo2" class="navback">← back to build</button></div>
+  </section>
+
+  <!-- ═══════════ PHASE 4 · OBSERVE ═══════════ -->
+  <section id="phase4" class="phase hidden">
+    <div class="objbar">
+      <span class="phasetag">PHASE 4 · OBSERVE</span>
+      <span>Watch <b>monitor 2</b>: the satellite simulation plays the maneuver and the
+        ground station reports the result.</span>
+    </div>
+    <div class="observewrap">
+      <div class="panel observecard">
+        <div id="observeResult" class="observeresult">Uplink transmitted — computing time to impact…</div>
+        <div class="observebtns">
+          <button id="retryBtn" class="bigbtn hidden">↺ RESET &amp; RE-PLAN</button>
+        </div>
+        <div class="observenote" id="observeNote">Watch monitor 2: the maneuver plays out and the debris video confirms the strike.</div>
+      </div>
+    </div>
+  </section>
+
+  <div id="tooltip" class="tooltip hidden"></div>
+  <script src="/sim/kepler.js"></script>
+  <script src="/sim/vendor/three.min.js"></script>
+  <script src="/sim/vendor/OrbitControls.js"></script>
+  <script src="/sim/sim.js"></script>
+  <script src="/sim/scenario.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
