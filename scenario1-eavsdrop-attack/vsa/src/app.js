@@ -44,6 +44,16 @@ createRotatorScene({
 // Connect to the rotctld bridge server (falls back gracefully if not running)
 connectRotctld(store);
 
+// Apply the default antenna on load so it is shown/confirmed immediately, without the
+// user having to pick one first (some antenna wiring only ran on a change event).
+requestAnimationFrame(() => {
+  const t = document.querySelector("#ctrl-type");
+  if (t) {
+    t.value = store.getState().antennaType;
+    t.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+});
+
 // Load ground station location from GPredict's .qth files on startup
 if (window.electronAPI) {
   window.electronAPI.getQTH().then(stations => {
