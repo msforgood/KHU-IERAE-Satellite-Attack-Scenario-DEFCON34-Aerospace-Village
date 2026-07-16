@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AURORA · Ground Station (monitor 2)</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="sat">📡</span>
+      <div>
+        <div class="title">GROUND STATION&nbsp;//&nbsp;AURORA CONSTELLATION</div>
+        <div class="sub">victim · monitor 2 · <span id="clock">--:--:--</span></div>
+      </div>
+    </div>
+    <div class="conn"><span id="connDot" class="dot off"></span><span id="connText">CONNECTING…</span></div>
+  </header>
+
+  <div id="statusBanner" class="banner nominal">
+    <span class="bl">CONSTELLATION STATUS</span>
+    <span id="bannerText">NOMINAL — all satellites separated and station-keeping</span>
+  </div>
+
+  <main class="mon2">
+    <!-- TOP: split — satellite sim (left) + telemetry beacon graphs (right) -->
+    <section class="simtop">
+    <section class="simstage">
+      <div class="simhead">
+        <h2>ORBIT VIEW <span class="simhint">Earth-centred · locked onto ENIGMA-1 · wheel = zoom · drag = rotate</span></h2>
+        <div id="simbar" class="simbar">Awaiting uplink…</div>
+      </div>
+      <canvas id="playSim" class="playsim"></canvas>
+      <div class="simlegend">
+        <span><i class="lg-atk"></i> ENIGMA-1</span>
+        <span><i class="lg-nbr"></i> AURORA constellation</span>
+      </div>
+      <!-- debris-cascade video overlay (plays on collision) -->
+      <div id="videoOverlay" class="videooverlay hidden">
+        <video id="collisionVideo" src="/assets/orbit_demo.mp4" muted playsinline preload="auto"></video>
+        <div class="vcap">⚠ IMPACT - debris cascade across the AURORA constellation</div>
+      </div>
+    </section>
+      <aside class="hbpanel">
+        <div class="hbhead"><h2>TT&amp;C TELEMETRY</h2><span id="hbStatus" class="hbstatus live">LIVE</span></div>
+        <div class="hbchan"><div class="hblabel">BEACON <span id="hbDot" class="hbdot"></span></div>
+          <canvas id="hbEcg0" class="hbecg" width="440" height="150"></canvas></div>
+        <div class="hbchan"><div class="hblabel">ATTITUDE RATE (deg/s)</div>
+          <canvas id="hbEcg1" class="hbecg" width="440" height="150"></canvas></div>
+        <div class="hbchan"><div class="hblabel">POWER BUS (V)</div>
+          <canvas id="hbEcg2" class="hbecg" width="440" height="150"></canvas></div>
+        <div class="hbchan"><div class="hblabel">DOWNLINK (dBm)</div>
+          <canvas id="hbEcg3" class="hbecg" width="440" height="150"></canvas></div>
+      </aside>
+    </section>
+
+    <!-- BOTTOM: ground-station dashboard -->
+    <section class="dash">
+      <div class="card">
+        <div class="stitle">ENIGMA-1 · ORBIT</div>
+        <div class="field"><span class="fl">Altitude</span>
+          <span class="fr"><span id="mAlt" class="val nominal">600 km</span></span></div>
+        <div class="field"><span class="fl">Inclination</span>
+          <span class="fr"><span id="mInc" class="val nominal">50°</span></span></div>
+        <div class="field"><span class="fl">RAAN</span>
+          <span class="fr"><span id="mRaan" class="val nominal">25°</span></span></div>
+        <div class="field"><span class="fl">Status</span>
+          <span class="fr"><span id="orbitTag" class="tag nominal">STATION-KEEPING</span></span></div>
+      </div>
+
+      <div class="card">
+        <div class="stitle">AURORA · CONSTELLATION</div>
+        <div class="field"><span class="fl">Members</span>
+          <span class="fr"><span id="cMembers" class="val">– </span></span></div>
+        <div class="field"><span class="fl">Operational</span>
+          <span class="fr"><span id="cAlive" class="val nominal">– </span>
+            <div class="bar"><i id="cBar" style="width:100%"></i></div></span></div>
+        <div class="field"><span class="fl">Closest approach</span>
+          <span class="fr"><span id="cClosest" class="val">– </span></span></div>
+        <div class="field"><span class="fl">Threat level</span>
+          <span class="fr"><span id="threatTag" class="tag nominal">NONE</span></span></div>
+      </div>
+
+      <div class="card">
+        <div class="stitle">UPLINK ACTIVITY</div>
+        <div id="log" class="log"><div class="logempty">No commands received.</div></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- full-screen alarm -->
+  <div id="alarm" class="alarm hidden">
+    <div class="alarmbox">
+      <div class="atitle" id="alarmTitle">⚠ CONSTELLATION COLLISION</div>
+      <div class="adesc" id="alarmDesc">Unauthorized orbit maneuver — ENIGMA-1 struck a constellation member. Debris cascade in progress.</div>
+    </div>
+  </div>
+
+  <script src="/sim/kepler.js"></script>
+  <script src="/sim/vendor/three.min.js"></script>
+  <script src="/sim/vendor/OrbitControls.js"></script>
+  <script src="/sim/sim.js"></script>
+  <script src="/sim/scenario.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

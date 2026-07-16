@@ -1,0 +1,137 @@
+:root{
+  --bg:#080b11; --panel:#0e141d; --panel2:#131c28; --line:#1d2937;
+  --ink:#cfdae7; --dim:#7c8da0; --accent:#39c5ff;
+  --ok:#33d17a; --warn:#ffb020; --danger:#ff3b4e;
+  --mono:'SFMono-Regular',ui-monospace,'Cascadia Code','Consolas',monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:18px}
+h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 14px;font-weight:700}
+.hidden{display:none!important}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;
+  padding:16px 24px;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{display:flex;gap:14px;align-items:center}
+.sat{font-size:34px}
+.title{font-weight:700;letter-spacing:.05em;color:#eaf2fb;font-size:22px}
+.sub{font-size:15px;color:var(--dim)}
+.conn{display:flex;gap:10px;align-items:center;font-size:16px;color:var(--dim)}
+.dot{width:11px;height:11px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.dot.off{background:var(--danger);box-shadow:0 0 8px var(--danger)}
+
+/* status banner */
+.banner{display:flex;gap:18px;align-items:center;padding:18px 24px;font-weight:700;font-size:19px;
+  letter-spacing:.03em;border-bottom:1px solid var(--line);transition:.3s}
+.banner .bl{font-size:13px;letter-spacing:.18em;opacity:.7;font-weight:700}
+.banner.nominal{background:rgba(51,209,122,.08);color:var(--ok)}
+.banner.warn{background:rgba(255,176,32,.1);color:var(--warn)}
+.banner.danger{background:rgba(255,59,78,.14);color:#ff8f9a;animation:bpulse 1s infinite}
+@keyframes bpulse{50%{background:rgba(255,59,78,.28)}}
+
+.grid{display:grid;grid-template-columns:1fr 440px;gap:18px;padding:18px}
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-content:start}
+.side{display:flex;flex-direction:column;gap:18px}
+.card,.section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
+.section.attacked{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger),0 0 24px rgba(255,59,78,.15)}
+.section .stitle{font-size:15px;letter-spacing:.14em;color:var(--accent);margin-bottom:16px;font-weight:700}
+
+.field{display:flex;justify-content:space-between;align-items:center;padding:10px 0;
+  border-bottom:1px solid rgba(29,41,55,.5)}
+.field:last-child{border-bottom:none}
+.field .fl{color:var(--dim);font-size:16px}
+.field .fr{display:flex;gap:10px;align-items:center;text-align:right}
+.field .val{font-weight:700;color:#eaf2fb;font-size:21px}
+.val.nominal{color:#eaf2fb}.val.warn{color:var(--warn)}.val.danger{color:var(--danger)}
+.tag{font-size:13px;padding:3px 9px;border-radius:5px;letter-spacing:.05em;font-weight:700}
+.tag.nominal{background:rgba(51,209,122,.15);color:var(--ok)}
+.tag.warn{background:rgba(255,176,32,.15);color:var(--warn)}
+.tag.danger{background:rgba(255,59,78,.18);color:var(--danger)}
+.tag.blink{animation:tblink .7s steps(1) infinite}
+@keyframes tblink{50%{opacity:.35}}
+
+.bar{width:150px;height:12px;border-radius:6px;background:#0a121c;overflow:hidden;border:1px solid var(--line)}
+.bar > i{display:block;height:100%;background:var(--ok);transition:.4s,background .4s}
+.bar.warn > i{background:var(--warn)} .bar.danger > i{background:var(--danger)}
+
+/* side */
+.metric{display:flex;justify-content:space-between;font-size:16px;color:var(--dim);margin:8px 0 5px}
+.metric .mv{color:#eaf2fb;font-weight:700}
+.metric .mv.danger{color:var(--danger)}
+canvas{width:100%;height:90px;background:#070c12;border:1px solid var(--line);border-radius:6px;margin-bottom:12px}
+.log{display:flex;flex-direction:column;gap:8px;max-height:300px;overflow:auto;font-size:15px}
+.logitem{padding:10px 12px;border-left:4px solid var(--danger);background:var(--panel2);border-radius:0 6px 6px 0}
+.logitem .lt{color:var(--dim);font-size:13px}
+.logitem .lc{color:#ff9aa5;font-weight:700}
+
+/* alarm overlay */
+.alarm{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(120,0,10,.28);z-index:40;pointer-events:none;animation:aflash 1.1s infinite}
+@keyframes aflash{50%{background:rgba(120,0,10,.5)}}
+.alarmbox{border:2px solid var(--danger);background:#12060a;border-radius:14px;padding:32px 52px;
+  text-align:center;box-shadow:0 0 60px rgba(255,59,78,.5)}
+.atitle{font-size:40px;font-weight:800;color:var(--danger);letter-spacing:.04em}
+.adesc{margin-top:12px;color:#ff9aa5;font-size:19px;max-width:620px}
+
+@media(max-width:1000px){.grid{grid-template-columns:1fr}.panels{grid-template-columns:1fr}}
+
+/* ═══════════ SCENARIO 4 · monitor 2 (sim on top, dashboard below) ═══════════ */
+.mon2{display:flex;flex-direction:column;gap:16px;padding:16px}
+.simstage{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px 16px}
+.simhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.simhead h2{margin:0}
+.simhint{font-size:12px;letter-spacing:.02em;color:var(--dim);font-weight:400;text-transform:none}
+.simbar{font-size:15px;color:var(--dim);letter-spacing:.02em}
+.simbar.warn{color:var(--warn)} .simbar.danger{color:#ff8f9a;font-weight:700}
+.playsim{display:block;width:100%;height:54vh;min-height:380px;background:#05090f;
+  border:1px solid var(--line);border-radius:10px;cursor:grab}
+.playsim:active{cursor:grabbing}
+.simlegend{display:flex;gap:18px;margin:10px 2px 0;font-size:13px;color:var(--dim)}
+.simlegend i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.simlegend .lg-atk{background:#eaf2ff;box-shadow:0 0 0 1.5px #39c5ff}
+.simlegend .lg-nbr{background:var(--warn)}
+
+/* debris video popup (modal, plays on collision) */
+.videooverlay{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+  background:rgba(4,2,4,.82);animation:vfadein .25s ease-out}
+@keyframes vfadein{from{opacity:0}to{opacity:1}}
+.videooverlay video{width:min(78vw,1100px);max-height:76vh;background:#000;border:2px solid var(--danger);
+  border-radius:12px;box-shadow:0 0 60px rgba(255,59,78,.5)}
+.videooverlay .vcap{position:absolute;bottom:8%;left:0;right:0;text-align:center;font-weight:800;font-size:22px;
+  color:#ff9aa5;letter-spacing:.03em;text-shadow:0 2px 12px rgba(0,0,0,.9)}
+
+/* page-wide red blink alert while a collision is active */
+body.collision{animation:pageblink 0.9s steps(1) infinite}
+@keyframes pageblink{50%{box-shadow:inset 0 0 0 8px rgba(255,59,78,.65)}}
+body.collision::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:55;
+  box-shadow:inset 0 0 120px rgba(255,59,78,.35);animation:pageblink 0.9s steps(1) infinite}
+
+/* dashboard grid */
+.dash{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.card .stitle{font-size:15px;letter-spacing:.14em;color:var(--accent);margin-bottom:14px;font-weight:700}
+.field .fr .bar{margin-left:10px}
+.logempty{color:var(--dim);font-size:15px;font-style:italic}
+.logitem.info{border-left-color:var(--accent)}
+.logitem.info .lc{color:#eaf2fb}
+.logitem .ld{color:var(--dim);font-size:13px;margin-top:3px}
+/* TT&C heartbeat / telemetry beacon */
+.hbdot{width:12px;height:12px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.hbdot.beat{animation:hbpump .9s ease-out}
+@keyframes hbpump{0%{transform:scale(1);opacity:1}28%{transform:scale(1.9);opacity:.55}100%{transform:scale(1);opacity:1}}
+.hbdot.dead{background:var(--danger);box-shadow:0 0 8px var(--danger);animation:none}
+.hbecg{display:block;width:100%;flex:1 1 0;min-height:0;background:#070c12;border:1px solid var(--line);border-radius:6px}
+/* top split: sim (left, 2/3) + telemetry beacon panel (right, 1/3) */
+/* stretch so the beacon panel is exactly as tall as the sim, and the channels fill it */
+.simtop{display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:stretch}
+.hbpanel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+  display:flex;flex-direction:column;gap:12px;min-height:0}
+.hbhead{display:flex;justify-content:space-between;align-items:center;flex:0 0 auto}
+.hbhead h2{margin:0}
+.hbstatus{font-size:13px;font-weight:700;padding:3px 10px;border-radius:5px;letter-spacing:.05em}
+.hbstatus.live{background:rgba(51,209,122,.15);color:var(--ok)}
+.hbstatus.dead{background:rgba(255,59,78,.18);color:var(--danger);animation:tblink .7s steps(1) infinite}
+.hbchan{display:flex;flex-direction:column;gap:5px;flex:1 1 0;min-height:0}
+.hblabel{font-size:12px;letter-spacing:.08em;color:var(--dim);display:flex;align-items:center;gap:8px;flex:0 0 auto}
+@media(max-width:1100px){.simtop{grid-template-columns:1fr;align-items:start}.hbecg{flex:none;height:120px}}
+
+@media(max-width:1100px){.dash{grid-template-columns:1fr}}
+
