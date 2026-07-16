@@ -93,37 +93,45 @@
           <!-- briefing text -->
           <div class="brieftext">
             <div class="bsec">
-              <h3>① The target</h3>
+              <h3>① The target — DEMOSAT</h3>
               <p>
-                <b>DEMOSAT</b> is a small satellite that stays alive by keeping its solar panels pointed at the sun. Its
-                attitude is held steady by reaction wheels.
+                <b>DEMOSAT</b> is a small satellite that stays alive by keeping its <b>solar panels pointed at the
+                sun</b>. Its attitude is held steady by <b>reaction wheels</b> — spin them wrong and it can no longer
+                face the sun.
               </p>
             </div>
             <div class="bsec">
-              <h3>② Your attack</h3>
+              <h3>② The uplink — you reach it only by radio (RF)</h3>
               <p>
-                You will send <b>adcs_torque</b> — a <b>legitimate</b> reaction-wheel command — but with an
+                The satellite is in orbit — you can't plug in a cable. The <b>only</b> way to command it is
+                <b>over the air by radio (RF, radio-frequency)</b>: the ground station transmits on the <b>uplink</b>
+                and the satellite's receiver decodes it.
+                <span class="hl">No physical access — everything travels as radio waves.</span>
+              </p>
+            </div>
+            <div class="bsec">
+              <h3>③ The attack — a legitimate command, abused</h3>
+              <p>
+                You send <b>adcs_torque</b> — a <b>real</b> reaction-wheel command — but with an
                 <b>abused value (999 mNm)</b>. The wheels overspin, the satellite <b>tumbles</b>, the panels lose the
-                sun, and <b>power generation collapses</b>.
+                sun, and <b>power collapses</b>.
                 <span class="hl">A legitimate command becomes an attack when it is abused.</span>
               </p>
             </div>
             <div class="bsec">
-              <h3>③ How the command reaches the satellite — RF</h3>
+              <h3>④ The command is a packet — CCSDS</h3>
               <p>
-                The satellite is in orbit — you can't plug a cable into it. The <b>only</b> way to reach it is
-                <b>over the air by radio (RF, radio-frequency)</b>: the ground station transmits your command as radio
-                waves on the <b>uplink</b>, and the satellite's receiver decodes them. So your text command has to
-                become an actual <b>radio signal</b> first.
+                The satellite doesn't read plain text. Your command must be wrapped in a <b>standardized space packet
+                (CCSDS)</b> — an address (<b>APID</b>) plus the command fields. Assemble it correctly, or the satellite
+                ignores it.
               </p>
             </div>
             <div class="bsec">
-              <h3>④ Turning the signal into an IQ file</h3>
+              <h3>⑤ Sending it — SDR &amp; the IQ file</h3>
               <p>
-                We transmit that RF with a <b>software-defined radio (SDR)</b>, which doesn't take a command — it plays
-                back a <b>digitized waveform</b>. An <b>IQ file</b> is exactly that: the radio signal stored as a stream
-                of <b>I/Q samples</b> the SDR sends over the air. So you'll <b>assemble the command</b>, then
-                <b>GENERATE</b> turns it into the IQ file you uplink through the VSA.
+                A <b>software-defined radio (SDR)</b> doesn't take a command — it plays back a <b>digitized
+                waveform</b>. An <b>IQ file</b> is that radio signal stored as a stream of <b>I/Q samples</b>.
+                <b>GENERATE</b> turns your packet into the IQ file you uplink to the satellite during its pass.
               </p>
             </div>
           </div>
