@@ -89,6 +89,32 @@ free_port() {
   [ -n "$pids" ] && { echo "$pids" | xargs kill -9 2>/dev/null || true; sleep 1; }
 }
 
+# gpredict(③ 조준)는 Docker 컨테이너로만 뜨기 때문에 데몬이 꺼져 있으면 화면이 안 열린다.
+# 그래서 여기서 데몬을 자동 기동하고 올라올 때까지 기다린다. Docker CLI 자체가 없으면(미설치)
+# 조용히 실패(1) → 호출부가 gpredict 없이 진행. 성공 0 / 실패 1. 최대 DOCKER_WAIT(기본 90)초 대기.
+ensure_docker() {
+  have docker || return 1
+  docker info >/dev/null 2>&1 && return 0     # 이미 떠 있으면 끝
+  say "Docker 데몬이 꺼져 있음 → 자동 기동 시도 (gpredict ③ 조준용)"
+  case "$(uname)" in
+    Darwin) open -a Docker >/dev/null 2>&1 || { c_warn "Docker Desktop 실행 실패 — 수동으로 켜세요"; return 1; } ;;
+    Linux)
+      # Docker Desktop(리눅스) → systemctl --user, 아니면 native dockerd(sudo 필요할 수 있음). 베스트에포트.
+      systemctl --user start docker-desktop >/dev/null 2>&1 \
+        || sudo -n systemctl start docker >/dev/null 2>&1 \
+        || { c_warn "Docker 자동 기동 실패 — 'sudo systemctl start docker' 후 다시 실행"; return 1; } ;;
+    *) c_warn "이 OS에선 Docker 자동 기동 미지원 — 수동으로 켜세요"; return 1 ;;
+  esac
+  local wait="${DOCKER_WAIT:-90}" i
+  printf "\033[33m  … Docker 데몬 대기(최대 %ss)\033[0m" "$wait"
+  for i in $(seq 1 "$wait"); do
+    if docker info >/dev/null 2>&1; then printf "\n"; c_ok "Docker 데몬 준비됨 (${i}s)"; return 0; fi
+    printf "."; sleep 1
+  done
+  printf "\n"; c_warn "Docker 데몬이 ${wait}s 내 안 떴습니다 — gpredict(③) 없이 진행. 데몬 뜬 뒤 './start-attacker.sh up' 재실행."
+  return 1
+}
+
 # gpredict 는 Docker 컨테이너(noVNC :GP_PORT + 시간제어 :CTRL_PORT)로 뜬다. 이전 실행이
 # 비정상 종료(강제 kill·절전·크래시)되면 컨테이너가 남아 포트를 물고, 다음 실행의 컨테이너가
 # "Bind for 0.0.0.0:$CTRL_PORT failed: port is already allocated" 로 기동 실패 → ③ gpredict
@@ -133,7 +159,7 @@ install() {
 
   # ③ gpredict — Docker 이미지 빌드 (선택; ③ 위성 조준 화면)
   echo "[3/3] gpredict Docker 이미지 빌드 → $GP_IMG (선택)"
-  if have docker; then
+  if ensure_docker; then
     ( cd gpredict-web && docker build -t "$GP_IMG" . ) \
       && c_ok "gpredict 이미지 준비됨" \
       || c_warn "gpredict 이미지 빌드 실패 — ③ 조준 화면 없이도 나머지는 동작"
@@ -199,7 +225,8 @@ up() {
 
   # ── preflight: 이전 실행이 남긴 좀비가 포트를 물고 있으면 정리(bind 실패 사고 예방) ──
   free_port "$BUILDER_PORT" "Command Builder"
-  free_gpredict   # 잔존 gpredict 컨테이너가 :GP_PORT/:CTRL_PORT 를 물고 있으면 내린다(③ 화면 안 뜨는 사고 예방)
+  local DOCKER_OK=0; ensure_docker && DOCKER_OK=1   # 꺼져 있으면 Docker 데몬 자동 기동+대기(③ gpredict용)
+  [ "$DOCKER_OK" = 1 ] && free_gpredict   # 잔존 gpredict 컨테이너가 :GP_PORT/:CTRL_PORT 물면 내림(③ 사고 예방)
 
   # ① Command Builder (:BUILDER_PORT) — 시나리오 config/extras 를 함께 전달(④+ 페이즈)
   mkdir -p "$UPLINK_OUT_DIR"
@@ -210,7 +237,7 @@ up() {
 
   # ③ gpredict web (:GP_PORT) + 시간제어(:CTRL_PORT) — Docker, 선택
   local GP=""
-  if have docker; then
+  if [ "$DOCKER_OK" = 1 ]; then
     ( cd gpredict-web && WEB_PORT="$GP_PORT" CTRL_PORT="$CTRL_PORT" IMG="$GP_IMG" ./run.sh ) >/tmp/demosat-gpredict.log 2>&1 &
     pids+=($!)
     GP="http://localhost:$GP_PORT/vnc.html?autoconnect=1&resize=remote"
