@@ -296,10 +296,12 @@ export function createControls({ container, store, antennaTypes }) {
     }
 
     // "Load generated IQ file" only starts pulsing (iq-cta) once STEP 1's ENGAGE has
-    // filled every uplink value — target satellite + uplink freq + antenna type — and
-    // no IQ file is loaded yet. Skip while a load is in flight (.loading owns the look).
+    // filled every uplink value AND finished aiming — target satellite + uplink freq +
+    // antenna type + azimuth + ELEVATION (the last step, which sets engageAimComplete) —
+    // and no IQ file is loaded yet. Skip while a load is in flight (.loading owns look).
     const freqOk = parseFloat(uplinkFreqEl.value) > 0;
-    const ready = !!(sat && sat.uplink) && freqOk && !!uplinkTypeEl.value && !uplinkFilePath;
+    const ready = !!(sat && sat.uplink) && freqOk && !!uplinkTypeEl.value &&
+      !uplinkFilePath && !!store.getState().engageAimComplete;
     if (!btnLoadUplink.classList.contains("loading")) {
       btnLoadUplink.classList.toggle("iq-cta", ready);
     }

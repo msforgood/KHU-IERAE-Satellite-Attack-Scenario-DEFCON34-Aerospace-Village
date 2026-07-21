@@ -52,7 +52,9 @@ window.addEventListener("message", (e) => {
   store.setState((s) => ({
     ...s,
     ...(Number.isFinite(m.azimuth)   ? { azimuth: m.azimuth }         : {}),
-    ...(Number.isFinite(m.elevation) ? { elevation: m.elevation }     : {}),
+    // elevation is the LAST value STEP 1's ENGAGE sends → mark the aim complete so the
+    // "Load generated IQ file" CTA only starts pulsing after the FULL aim, not earlier.
+    ...(Number.isFinite(m.elevation) ? { elevation: m.elevation, engageAimComplete: true } : {}),
     ...(m.targetSat                  ? { targetSat: m.targetSat }      : {}),
     ...(m.antennaType                ? { antennaType: m.antennaType }  : {}),
   }));
@@ -69,6 +71,13 @@ window.addEventListener("message", (e) => {
   if (Number.isFinite(m.uplinkFreq)) {
     const f = document.querySelector("#ctrl-uplink-freq");
     if (f) { f.value = m.uplinkFreq; f.dispatchEvent(new Event("change")); }
+  }
+  // Elevation lands LAST and isn't tied to an uplink input, so nothing would otherwise
+  // re-run the uplink panel. Nudge it now that engageAimComplete is set, so the
+  // load-IQ CTA re-evaluates and only starts pulsing after the full aim is done.
+  if (Number.isFinite(m.elevation)) {
+    const ut = document.querySelector("#ctrl-type-uplink");
+    if (ut) ut.dispatchEvent(new Event("change"));
   }
 });
 
