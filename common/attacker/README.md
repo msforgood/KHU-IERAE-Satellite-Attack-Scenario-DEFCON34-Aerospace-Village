@@ -5,7 +5,7 @@ single web page — **no reimplementation**:
 
 - **gpredict** (native GTK, forked from [csete/gpredict]) — satellite tracking on the
   virtual DEMOSAT TLE. Shown in the browser by streaming its window over **noVNC**.
-- **OpenVSA** (Electron/web, forked from [whal-e3/OpenVSA]) — the VSA that exposes
+- **OpenVSA** (Electron/web, forked from [whal-e3/OpenVSA]) — the Virtual Antenna that exposes
   `rotctld :4533` (gpredict points here), a rotator view, and forwards the uplink to the
   ground station (`:4536`). Pre-patched with our `demosat` plugin + opcode/payload forward.
 

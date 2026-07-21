@@ -10,14 +10,14 @@ ground station dashboard alarms and the physical solar panel spins. No real RF �
 uplink is software-simulated.
 
 Scope we build = ① Python packet generator, ② victim GS web UI. OpenVSA (the attacker
-VSA tool) is reused with its core untouched. Command structure = CCSDS TC frame + OOK
+Virtual Antenna tool) is reused with its core untouched. Command structure = CCSDS TC frame + OOK
 physical layer.
 
 ## Decisions
 | Item | Decision |
 |---|---|
-| VSA (attacker tool) | OpenVSA (github whal-e3/OpenVSA), used as-is, core untouched |
-| VSA→GS transport | Software-simulated (WebSocket) — no real RF/HackRF |
+| Virtual Antenna (attacker tool) | OpenVSA (github whal-e3/OpenVSA), used as-is, core untouched |
+| Virtual Antenna→GS transport | Software-simulated (WebSocket) — no real RF/HackRF |
 | Command structure | CCSDS TC frame + OOK; we author a satellite plugin (protocol + decoder) |
 | OpenVSA forward patch | Adopt a small patch to include opcode/payload (to show the torque value on the dashboard) |
 | Build order | Build the GS first (mock injection); OpenVSA integration later |

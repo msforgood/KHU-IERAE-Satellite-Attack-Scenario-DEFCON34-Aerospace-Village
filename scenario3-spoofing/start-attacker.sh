@@ -242,7 +242,7 @@ up() {
     pids+=($!)
     GP="http://localhost:$GP_PORT/vnc.html?autoconnect=1&resize=remote"
     # 컨테이너가 포트 바인딩에 실패하면(잔존 컨테이너 등) 로그에 남기고 계속 —
-    # 다른 화면(①②③ VSA)은 gpredict 없이도 동작.
+    # 다른 화면(①②③ Virtual Antenna)은 gpredict 없이도 동작.
     for _ in $(seq 1 30); do
       curl -fsS "http://localhost:$GP_PORT/vnc.html" >/dev/null 2>&1 && break
       grep -q "already allocated\|address already in use" /tmp/demosat-gpredict.log 2>/dev/null && {

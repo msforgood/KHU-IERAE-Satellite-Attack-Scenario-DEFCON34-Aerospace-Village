@@ -43,7 +43,7 @@ bytes change: address the wrong bird and it's a different message.
 ## Transmit and watch
 
 ```
-  Load attack.cf32 into the VSA → align the antenna to the satellite → TRANSMIT.
+  Load attack.cf32 into the Virtual Antenna → align the antenna to the satellite → TRANSMIT.
   Now watch the ground station screen — and the satellite.
   The solar panel loses the sun and spins out of control.
   Power collapses. The ground station screams ENERGY SUPPLY CRITICAL.

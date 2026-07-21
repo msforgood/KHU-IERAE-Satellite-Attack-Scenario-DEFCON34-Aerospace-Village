@@ -21,7 +21,7 @@
 
 ```
 ① 명령 조립          ② IQ 생성        ③ 위성 조준              ④ 송신                ⑤ 피해
-Command Builder ─▶ attack.cf32 ─▶ gpredict+VSA로       ─▶ VSA가 IQ 송신     ─▶ victim 지상국
+Command Builder ─▶ attack.cf32 ─▶ gpredict+Virtual Antenna로  ─▶ Virtual Antenna가 IQ 송신 ─▶ victim 지상국
 웹 화면             (IQ 신호파일)     가상 위성 조준·정렬        (uplink 발사)          대시보드 경보
 (4스텝 퍼즐)                         └▶ 🛰️ 안테나 모터           └▶ ☀️ 솔라패널 모터    (웹 화면)
                                         좌↔우 조준 스윕            무한 회전
@@ -31,7 +31,7 @@ Command Builder ─▶ attack.cf32 ─▶ gpredict+VSA로       ─▶ VSA가 IQ
 | --------------- | ------------------------------------------ | --------------------------------- |
 | **① 명령 조립** | Command Builder 웹 (`:8000`)               | —                                 |
 | **② IQ 생성**   | Command Builder `GENERATE` → `attack.cf32` | —                                 |
-| **③ 위성 조준** | gpredict + OpenVSA(VSA)                    | 🛰️ **안테나 스텝모터** 좌↔우 스윕 |
+| **③ 위성 조준** | gpredict + OpenVSA(Virtual Antenna)        | 🛰️ **안테나 스텝모터** 좌↔우 스윕 |
 | **④ 송신**      | OpenVSA `TRANSMIT`                         | ☀️ **솔라패널 서보** 무한 회전    |
 | **⑤ 피해**      | victim 지상국 대시보드 (`:4540`)           | (①③④ 모터 상태 지속)              |
 
@@ -41,7 +41,7 @@ Command Builder ─▶ attack.cf32 ─▶ gpredict+VSA로       ─▶ VSA가 IQ
 [노트북 — 전부 localhost]                              [USB 시리얼]
   · Command Builder 웹     :8000  ─ ① 명령/② IQ           ┌─▶ 🛰️ 안테나 (스텝 28BYJ-48)
   · gpredict ── rotctld ──▶ OpenVSA :4533 ─ ③ 조준         │
-  · OpenVSA(VSA) ─ ④ TRANSMIT ─ forward ▶ :4536 ┐         │   bridge.js
+  · OpenVSA(Virtual Antenna) ─ ④ TRANSMIT ─ forward ▶ :4536 ┐  │   bridge.js
   · 지상국(GS)  대시보드 :4540 / 업링크수신 :4536 ◀┘ ─ ⑤ ──┴─▶ ☀️ 솔라패널 (서보)
 ```
 
@@ -56,7 +56,7 @@ Command Builder ─▶ attack.cf32 ─▶ gpredict+VSA로       ─▶ VSA가 IQ
 
 - [ ] **Node.js 20 이상** — 지상국 서버 + 시리얼 브릿지 구동
 - [ ] **Python 3 + numpy** — Command Builder 웹앱 구동
-- [ ] **OpenVSA** (공격자 VSA 도구) 소스 — ④ 송신
+- [ ] **OpenVSA** (공격자 Virtual Antenna 도구) 소스 — ④ 송신
 - [ ] **Docker Desktop** — gpredict(위성 추적/조준, ③)를 컨테이너로 격리 실행(호스트 설치 불필요)
 - [ ] 최신 브라우저 (Chrome / Edge / Firefox) — 전체화면(F11)
 
@@ -231,7 +231,7 @@ cd attacker/packet-generator/webapp && UPLINK_OUT_DIR=~/uplink python3 app.py   
 ### ③ 위성 조준 — 3화면 콘솔(gpredict + OpenVSA) → 🛰️ 안테나 스윕
 
 터미널 B가 출력한 **3화면 URL**을 엽니다 (`http://localhost:8090/?gs=…&gp=…`). 한 웹 화면에
-**gpredict(위성 추적)** 와 **OpenVSA(VSA)** 가 나란히 임베드됩니다.
+**gpredict(위성 추적)** 와 **OpenVSA(Virtual Antenna)** 가 나란히 임베드됩니다.
 
 1. 콘솔의 gpredict 창 → `Antenna Control` → Target **DEMOSAT** → Rotator **OpenVSA** → **Engage**.
    gpredict가 az/el을 rotctld(`4533`)로 흘려 **OpenVSA 안테나가 위성을 향해 슬루**합니다.

@@ -25,13 +25,13 @@ panel spins out of control. No real RF — the uplink is software-simulated.
 [Attacker laptop]                                     [Victim Windows PC]
   · Command Builder web UI  http://localhost:8000        · GS dashboard  http://GS:4540
   · gpredict (virtual TLE → az/el) ─rotctld─┐            · GS backend  :4536 (uplink in)
-  · OpenVSA (VSA)  rotctld :4533 / rigctld :4532 ◀┘             │
+  · OpenVSA (Virtual Antenna)  rotctld :4533 / rigctld :4532 ◀┘             │
       forward (decoded cmd) → ws://GS:4536 ────────────────────┘
       └─(pointing az/el)─▶ serial bridge → Arduino antenna stepper + solar-panel servo
 ```
 
 Full sequence: **① build IQ → ② point the antenna at the virtual satellite with
-gpredict (the antenna motor physically slews) → ③ confirm alignment → ④ VSA transmits
+gpredict (the antenna motor physically slews) → ③ confirm alignment → ④ Virtual Antenna transmits
 the IQ → ⑤ solar panel spins, GS alarms.** Software-simulated: gpredict drives the
 rotator over rotctld; OpenVSA validates the uplink (antenna alignment, frequency, link
 margin) and forwards the decoded command to the GS. `GS` = the victim PC's LAN IP.
@@ -59,12 +59,12 @@ node server.js
 ```
 Open `http://localhost:4540` full-screen on the audience-facing monitor.
 
-**② OpenVSA (attacker VSA)** — use the forked, pre-integrated copy in `attacker/openvsa`
+**② OpenVSA (attacker Virtual Antenna)** — use the forked, pre-integrated copy in `attacker/openvsa`
 (demosat plugin + forward patch already applied):
 ```
 cd attacker/openvsa
 UPLINK_DEST=ws://<GS>:4536 node server.js      # forward target = victim GS
-npm start                                        # Electron VSA UI (separate process)
+npm start                                        # Electron Virtual Antenna UI (separate process)
 ```
 `attacker/openvsa/satellites/demosat/` is the single source of truth for the satellite
 config + CCSDS codec (the victim GS and Command Builder load/import from here too).

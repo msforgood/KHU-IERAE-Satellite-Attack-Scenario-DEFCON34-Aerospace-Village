@@ -45,7 +45,7 @@
 ## 전송하고 관찰하기
 
 ```
-  attack.cf32를 VSA에 로드 → 안테나를 위성에 정렬 → TRANSMIT.
+  attack.cf32를 Virtual Antenna에 로드 → 안테나를 위성에 정렬 → TRANSMIT.
   이제 지상국 화면과 위성을 보라.
   태양광 패널이 태양을 잃고 통제 불능으로 회전한다.
   전력이 붕괴하고, 지상국이 ENERGY SUPPLY CRITICAL을 외친다.
