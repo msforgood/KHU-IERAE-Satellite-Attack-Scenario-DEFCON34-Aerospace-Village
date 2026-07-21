@@ -139,7 +139,7 @@ COMMAND_UI = {
         "blurb": "A legitimate attitude-control torque command. Abuse the value and the satellite spins out of control.",
         "fields": [{"key": "torque", "type": "slider", "min": -1000, "max": 1000, "default": 999,
                     "unit": "mNm", "safeAbsMax": 500}],
-        "effect": "Spins the satellite out of control → its solar panels can't face the sun → power collapses → energy alarm",
+        "effect": "Spins the satellite out of control → its solar panels can't face the sun → power collapses",
     },
     "solar_panel": {
         "subsystem": "POWER", "title": "Solar Panel Angle",

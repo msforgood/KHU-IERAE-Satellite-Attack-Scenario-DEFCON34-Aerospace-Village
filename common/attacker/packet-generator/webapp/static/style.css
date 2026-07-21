@@ -53,7 +53,7 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-wei
 /* collapsible steps — completed ones fold to a one-line recap */
 .step:not(.locked) > .shead{cursor:pointer}
 .step.collapsed > .shead{margin-bottom:0}
-.step.collapsed .sbody,.step.collapsed .sprompt{display:none}
+.step.collapsed .sbody{display:none}
 .ssum{font-size:14px;color:var(--dim);font-family:var(--mono);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
 .step:not(.collapsed) .ssum{display:none}
@@ -126,6 +126,8 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-wei
 .cbcmd{flex:1;min-width:120px;font-family:var(--mono);font-size:18px;font-weight:800;padding:9px 11px;
   border-radius:7px;background:#fff;color:#0a0e14;border:2px solid #0b7a3f;box-shadow:0 0 0 2px rgba(11,122,63,.4)}
 .cbpicktag{flex:1;font-weight:800;color:#04121a;font-size:15px;letter-spacing:.02em}
+/* full name of the subsystem acronym, shown one line under the "choose a command" tag */
+.cbsubfull{display:block;margin-top:3px;font-weight:600;font-size:12.5px;letter-spacing:0;opacity:.72}
 .cbchg{background:rgba(0,0,0,.28);color:#fff;border:none;border-radius:7px;padding:0 11px;height:30px;
   font-size:13px;font-weight:700;cursor:pointer;flex:none;white-space:nowrap}
 .cbchg:hover{background:rgba(0,0,0,.45)}
@@ -203,7 +205,7 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-wei
 
 /* ═══════════ PHASE A · BRIEFING ═══════════ */
 .phase{}
-.briefwrap{max-width:1180px;margin:0 auto;padding:26px 20px 40px}
+.briefwrap{max-width:none;margin:0;padding:26px 32px 40px}
 .phasetag{display:inline-block;font-size:14px;font-weight:800;letter-spacing:.14em;color:var(--accent);
   border:1px solid var(--accent);border-radius:6px;padding:5px 12px;margin-bottom:16px}
 .brieftitle{font-size:30px;color:#eaf2fb;margin:0 0 26px;font-weight:700;letter-spacing:.02em}
@@ -214,8 +216,9 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-wei
 .satscene{width:100%;height:auto;display:block}
 :root{--dur:10s}
 .sat{transform-box:fill-box;transform-origin:center;animation:tumble var(--dur) linear infinite}
-.panel{fill:#12324a;stroke:#39c5ff;stroke-width:2}
-.pgrid{stroke:#0a2033;stroke-width:1.5}
+/* (removed dead .panel/.pgrid SVG solar-panel styles — the drawn satellite is now
+   sat.png. The .panel stroke:#39c5ff leaked into <section class="panel"> and its SVG,
+   giving the phase-2 sun a sky-blue outline via CSS stroke inheritance.) */
 .rays{animation:raysfade var(--dur) ease-in-out infinite}
 .cmdflash{opacity:0;animation:cmdpop var(--dur) ease-out infinite}
 @keyframes tumble{0%,22%{transform:rotate(0)}100%{transform:rotate(720deg)}}

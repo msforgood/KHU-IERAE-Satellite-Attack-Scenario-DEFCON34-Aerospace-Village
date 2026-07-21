@@ -173,13 +173,8 @@ const collapseOverride = {};
 
 // ── render the step cards ───────────────────────────────────────────────────
 const STEP_DEFS = [
-  [
-    1,
-    "COMPOSE COMMAND",
-    "Click a subsystem block to reveal its commands, click the command you think is right, then type the value into the block.",
-    bodyCompose,
-  ],
-  [2, "RF CONFIG", "The SDR auto-detects the RF parameters off the intercepted carrier — no input needed.", bodyRF],
+  [1, "COMPOSE COMMAND", bodyCompose],
+  [2, "RF CONFIG", bodyRF],
 ];
 function renderSteps() {
   const wrap = $("#stepList");
@@ -187,18 +182,18 @@ function renderSteps() {
   const u = stepUnlocked(),
     done = stepComplete(),
     active = activeStep();
-  STEP_DEFS.forEach(([n, title, prompt, fn]) => {
+  STEP_DEFS.forEach(([n, title, fn]) => {
     // Auto-collapse a completed step once you've moved past it; a manual click wins.
     // Never collapse the compose step (1) — it re-renders on every keystroke, so folding
     // it mid-typing would hide the block — nor the RF step (2), which auto-fills and has
     // nothing to hide.
     let collapsed = u[n] && done[n] && n !== active && n !== 1 && n !== 2;
     if (n !== 2 && collapseOverride[n] !== undefined) collapsed = collapseOverride[n];
-    wrap.appendChild(stepCard(n, title, prompt, fn, u[n], collapsed));
+    wrap.appendChild(stepCard(n, title, fn, u[n], collapsed));
   });
   refreshPills();
 }
-function stepCard(n, title, prompt, bodyFn, unlocked, collapsed) {
+function stepCard(n, title, bodyFn, unlocked, collapsed) {
   const card = el("div", "step" + (unlocked ? "" : " locked") + (collapsed ? " collapsed" : ""));
   card.dataset.step = n;
   card.innerHTML = `<div class="shead"><span class="snum">${n}</span>
@@ -206,7 +201,7 @@ function stepCard(n, title, prompt, bodyFn, unlocked, collapsed) {
       <span class="ssum">${collapsed ? stepSummary(n) : ""}</span>
       <span class="pill"></span>
       ${unlocked && n !== 2 ? `<span class="chev">${collapsed ? "▸" : "▾"}</span>` : ""}</div>
-    <div class="sbody"></div><div class="sprompt">${prompt}</div>`;
+    <div class="sbody"></div>`;
   const body = card.querySelector(".sbody");
   if (unlocked) bodyFn(body);
   else body.innerHTML = `<div class="lockmsg">🔒 Finish composing the command first</div>`;
@@ -254,8 +249,7 @@ function refreshPills() {
     btn.className = "genbtn locked";
     btn.textContent =
       ok === NSTEPS ? "🔒 UPLINK LOCKED — COMMAND HAS NO EFFECT" : `🔒 UPLINK LOCKED — ${ok}/${NSTEPS} CONFIGURED`;
-    $("#progHint").textContent =
-      ok === NSTEPS ? "This command won't disrupt the satellite — try another." : "Complete both systems to arm the uplink.";
+    $("#progHint").textContent = ok === NSTEPS ? "This command won't disrupt the satellite — try another." : "";
   }
 }
 
@@ -391,6 +385,14 @@ function changeCommand() {
   rebuild();
 }
 
+// what each subsystem acronym stands for — shown next to "choose a command" so a
+// visitor who's never seen satellite jargon knows what they're aiming the uplink at.
+const SUB_FULL = {
+  ADCS: "Attitude Determination & Control — the satellite's orientation / reaction wheels",
+  COMM: "Communications — the radio, antenna gimbal & transponder",
+  OBC: "On-Board Computer — the flight computer that runs everything",
+};
+
 // render the script from state: a subsystem block shows its command list until a
 // command is picked; once picked it becomes a scratch block with typed value slots.
 function renderBlock(zone) {
@@ -411,7 +413,9 @@ function renderBlock(zone) {
       <div class="cblock sub-${sub}">
         <div class="cbrow">
           <span class="cbkw">send</span>
-          <span class="cbpicktag">${sub} — choose a command</span>
+          <span class="cbpicktag">${sub} — choose a command${
+            SUB_FULL[sub] ? `<span class="cbsubfull">${SUB_FULL[sub]}</span>` : ""
+          }</span>
           <button class="cbx" title="remove block">✕</button>
         </div>
         <div class="cbpicklist"></div>
@@ -419,11 +423,7 @@ function renderBlock(zone) {
       </div>`;
     const list = zone.querySelector(".cbpicklist");
     cmds.forEach((c) => {
-      const item = el(
-        "button",
-        "cmdpick",
-        `<code>${c.command}</code><span class="cmddesc">${c.effect}</span>`,
-      );
+      const item = el("button", "cmdpick", `<code>${c.command}</code><span class="cmddesc">${c.effect}</span>`);
       item.onclick = () => pickCommand(c.command);
       list.appendChild(item);
     });
@@ -706,9 +706,10 @@ async function build() {
       hint.classList.add("hidden");
     } else {
       drawWave([]);
-      hint.textContent = st[2] === "ok"
-        ? "▶ Press GENERATE to render the uplink signal."
-        : "⚠ RF mismatch: the satellite receiver won't decode this command.";
+      hint.textContent =
+        st[2] === "ok"
+          ? "▶ Press GENERATE to render the uplink signal."
+          : "⚠ RF mismatch: the satellite receiver won't decode this command.";
       hint.classList.remove("hidden");
     }
     $("#frameMeta").textContent = bd
@@ -807,15 +808,21 @@ function drawWave(w) {
 // Draw only the first `k` samples, but keep each sample's x mapped over the FULL
 // width — so the trace grows in from the left, giving the left→right sweep.
 function drawWaveUpTo(w, k) {
-  const cv = $("#wave"), ctx = cv.getContext("2d"), W = cv.width, H = cv.height;
+  const cv = $("#wave"),
+    ctx = cv.getContext("2d"),
+    W = cv.width,
+    H = cv.height;
   ctx.clearRect(0, 0, W, H);
   if (!w || w.length < 2 || k < 1) return;
-  const n = Math.min(k, w.length), pad = 10, h = H - 2 * pad;
+  const n = Math.min(k, w.length),
+    pad = 10,
+    h = H - 2 * pad;
   ctx.strokeStyle = "#39c5ff";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   for (let i = 0; i < n; i++) {
-    const x = (i / (w.length - 1)) * W, y = H - pad - w[i] * h;
+    const x = (i / (w.length - 1)) * W,
+      y = H - pad - w[i] * h;
     i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
   }
   ctx.stroke();
@@ -827,15 +834,23 @@ function drawWaveUpTo(w, k) {
 let waveAnim = null;
 function animateWave(w, done) {
   cancelAnimationFrame(waveAnim);
-  if (!w || w.length < 2) { drawWave(w || []); done && done(); return; }
+  if (!w || w.length < 2) {
+    drawWave(w || []);
+    done && done();
+    return;
+  }
   const DUR = 900;
   let start = null;
   function frame(t) {
     if (start == null) start = t;
     const p = Math.min(1, (t - start) / DUR);
     drawWaveUpTo(w, Math.max(1, Math.floor(p * w.length)));
-    if (p < 1) { waveAnim = requestAnimationFrame(frame); }
-    else { drawWave(w); done && done(); }
+    if (p < 1) {
+      waveAnim = requestAnimationFrame(frame);
+    } else {
+      drawWave(w);
+      done && done();
+    }
   }
   waveAnim = requestAnimationFrame(frame);
 }
