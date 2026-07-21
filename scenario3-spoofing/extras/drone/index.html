@@ -28,145 +28,518 @@
     --warn: #ffb020;
     --mono: ui-monospace, "SF Mono", Menlo, monospace;
   }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  body { display: flex; flex-direction: column; }
+  * {
+    box-sizing: border-box;
+  }
+  html,
+  body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font:
+      14px/1.5 system-ui,
+      -apple-system,
+      "Segoe UI",
+      sans-serif;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+  }
 
-  header { display: flex; align-items: center; gap: 14px; padding: 10px 18px;
-    border-bottom: 1px solid var(--line); background: var(--panel2); }
-  header .t { font-family: var(--mono); font-size: 13px; letter-spacing: .04em; }
-  header .t b { color: var(--cyan); }
-  header .sub { color: var(--dim); font-size: 13px; }
-  header .spacer { flex: 1; }
-  .pill { font-family: var(--mono); font-size: 13px; letter-spacing: .1em;
-    text-transform: uppercase; padding: 5px 12px; border-radius: 999px;
-    border: 1px solid var(--line); color: var(--dim); }
-  .pill.on { color: #06251c; background: var(--good); border-color: var(--good);
-    box-shadow: 0 0 14px rgba(78,201,138,.5); }
-  button { font-family: var(--mono); font-size: 13px; color: var(--ink);
-    background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
-    padding: 6px 13px; cursor: pointer; transition: .15s; }
-  button:hover { border-color: var(--cyan); color: var(--cyan); }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel2);
+  }
+  header .t {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+  }
+  header .t b {
+    color: var(--cyan);
+  }
+  header .sub {
+    color: var(--dim);
+    font-size: 13px;
+  }
+  header .spacer {
+    flex: 1;
+  }
+  .pill {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    color: var(--dim);
+  }
+  .pill.on {
+    color: #06251c;
+    background: var(--good);
+    border-color: var(--good);
+    box-shadow: 0 0 14px rgba(78, 201, 138, 0.5);
+  }
+  button {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 6px 13px;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  button:hover {
+    border-color: var(--cyan);
+    color: var(--cyan);
+  }
 
-  main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-  .cap { font-family: var(--mono); font-size: 13px; letter-spacing: .14em;
-    text-transform: uppercase; color: var(--dim); padding: 8px 16px;
-    border-bottom: 1px solid var(--line); }
-  .cap b { color: var(--cyan); }
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .cap {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--dim);
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .cap b {
+    color: var(--cyan);
+  }
 
-  /* ── top row: compact stage + truth/lie cards ── */
-  /* drone image height = viewport minus (header + forge ≈ 350px) minus 200px more,
-     so it sits ~200px shorter than filling the leftover. Tweak the 550px to taste. */
-  .top { display: grid; grid-template-columns: 46% 1fr; gap: 1px;
-    background: var(--line); border-bottom: 1px solid var(--line);
-    flex: 0 0 auto; height: calc(100vh - 550px); min-height: 0; }
-  .top > div { background: var(--bg); min-height: 0; }
+  /* ── top row: drone stage + truth/lie cards ── */
+  /* Grow to fill ALL space above the forge builder, so the drone stage is as tall
+     as possible and there's no dead space under the spoof button. The builder below
+     is content-sized, so it's pushed to the bottom of the viewport. On short screens
+     min-height:0 lets the stage shrink instead of pushing the builder off-screen. */
+  .top {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 1px;
+    background: var(--line);
+    border-bottom: 1px solid var(--line);
+    flex: 1 1 0;
+    min-height: 0;
+  }
+  .top > div {
+    background: var(--bg);
+    min-height: 0;
+  }
   /* SVG is absolutely positioned so its intrinsic aspect ratio does NOT set a
      min-height on .top — otherwise .top can't shrink and the header + forge +
      button get pushed off short screens. Now .top freely shrinks to fit. */
-  .stage { position: relative; overflow: hidden; height: 100%; min-height: 0; }
-  .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-  .truthsat { transform-box: fill-box; transform-origin: center;
-    animation: tumble 3s linear infinite; }
-  @keyframes tumble { to { transform: rotate(360deg); } }
-  .beam { opacity: 0; }
-  .beam line { stroke: var(--good); stroke-width: 2; stroke-dasharray: 6 10; opacity: .55; }
-  .pkt { fill: var(--good); opacity: 0; }
-  body.spoofing .beam { opacity: 1; }
-  body.spoofing .beam line { animation: dash 1s linear infinite; }
-  body.spoofing .pkt { opacity: 1; animation: fly 1.6s linear infinite; }
-  .pkt.p2 { animation-delay: .53s; }
-  .pkt.p3 { animation-delay: 1.06s; }
-  @keyframes dash { to { stroke-dashoffset: -32; } }
-  @keyframes fly {
-    0% { transform: translate(0,0); opacity: 0; }
-    12% { opacity: 1; } 88% { opacity: 1; }
-    100% { transform: translate(214px,150px); opacity: 0; }
+  .stage {
+    position: relative;
+    overflow: hidden;
+    height: 100%;
+    min-height: 0;
   }
-  .gsglow { opacity: 0; transition: opacity .5s; }
-  .gsglow.red { opacity: 1; }
-  body.spoofing .gsglow.red { opacity: 0; }
-  body.spoofing .gsglow.green { opacity: 1; }
-  .alarmring { animation: pulse 1s ease-in-out infinite; }
-  @keyframes pulse { 0%,100% { opacity:.35 } 50% { opacity:.9 } }
+  .stage svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .truthsat {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: tumble 3s linear infinite;
+  }
+  @keyframes tumble {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  /* on spoof start the rogue drone climbs a little and edges toward the GS */
+  .drone {
+    transition: transform 0.8s ease;
+  }
+  body.spoofing .drone {
+    transform: translate(12px, -18px);
+  }
+  .beam {
+    opacity: 0;
+  }
+  .beam line {
+    stroke: var(--good);
+    stroke-width: 2;
+    stroke-dasharray: 6 10;
+    opacity: 0.55;
+  }
+  .pkt {
+    fill: var(--good);
+    opacity: 0;
+  }
+  body.spoofing .beam {
+    opacity: 1;
+  }
+  body.spoofing .beam line {
+    animation: dash 1s linear infinite;
+  }
+  body.spoofing .pkt {
+    opacity: 1;
+    animation: fly 1.6s linear infinite;
+  }
+  .pkt.p2 {
+    animation-delay: 0.53s;
+  }
+  .pkt.p3 {
+    animation-delay: 1.06s;
+  }
+  @keyframes dash {
+    to {
+      stroke-dashoffset: -32;
+    }
+  }
+  @keyframes fly {
+    0% {
+      transform: translate(0, 0);
+      opacity: 0;
+    }
+    12% {
+      opacity: 1;
+    }
+    88% {
+      opacity: 1;
+    }
+    100% {
+      transform: translate(205px, 12px);
+      opacity: 0;
+    }
+  }
+  .gsglow {
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+  .gsglow.red {
+    opacity: 1;
+  }
+  body.spoofing .gsglow.red {
+    opacity: 0;
+    animation: none; /* stop the alarm pulse once the GS reads nominal */
+  }
+  body.spoofing .gsglow.green {
+    animation: pulse 1s ease-in-out infinite; /* green blinks under the GS when spoofed */
+  }
+  .alarmring {
+    animation: pulse 1s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 0.9;
+    }
+  }
   /* the REAL satellite's beacon: it's ~550 km up, so its signal reaches the GS faint
      and garbled — the drone's close, strong signal drowns it out (the near-far trick). */
-  .realbeam line { stroke: #e0556a; stroke-width: 1; stroke-dasharray: 2 7; opacity: .3; }
-  .svgnote { fill: #8497a8; font: 9px var(--mono); }
-  .svgnote.freq { fill: var(--cyan); opacity: .9; }
-  .svgnote.weak { fill: #e0556a; opacity: .6; }
+  .realbeam line {
+    stroke: #e0556a;
+    stroke-width: 1;
+    stroke-dasharray: 2 7;
+    opacity: 0.3;
+  }
+  .svgnote {
+    fill: #8497a8;
+    font: 9px var(--mono);
+  }
+  .svgnote.freq {
+    fill: var(--cyan);
+    opacity: 0.9;
+  }
+  .svgnote.weak {
+    fill: #e0556a;
+    opacity: 0.6;
+  }
 
-  .cards { padding: 10px 14px; display: grid; grid-template-rows: auto auto; gap: 8px;
-    align-content: center; overflow: auto; }
-  .card { border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px;
-    background: var(--panel); }
-  .card h4 { margin: 0 0 4px; font-family: var(--mono); font-size: 13px;
-    letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
-  .card .big { font-family: var(--mono); font-size: 14px; font-weight: 700; }
-  .card.reality { border-color: rgba(255,92,92,.4); }
-  .card.reality .big { color: var(--crit); }
-  .card.screen .big { color: var(--good); }
-  .card p { margin: 3px 0 0; font-size: 13px; color: var(--dim); line-height: 1.4; }
-  .card.how { border-color: rgba(53,208,224,.4); }
-  .card.how ul { margin: 5px 0 0; padding-left: 15px; }
-  .card.how li { font-size: 13px; color: var(--dim); line-height: 1.4; margin: 3px 0; }
-  .card.how li b { color: var(--ink); }
-  .card.how li i { color: var(--cyan); font-style: normal; }
+  .cards {
+    padding: 10px 14px;
+    display: grid;
+    grid-template-rows: auto auto;
+    gap: 8px;
+    /* top-aligned (not centered): the enlarged card text can be taller than the
+       column, and centering would clip the first card's header. Overflow scrolls. */
+    align-content: start;
+    overflow: auto;
+  }
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 9px 12px;
+    background: var(--panel);
+  }
+  .card h4 {
+    margin: 0 0 5px;
+    font-family: var(--mono);
+    font-size: 14px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .card .big {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .card.reality {
+    border-color: rgba(255, 92, 92, 0.4);
+  }
+  .card.reality .big {
+    color: var(--crit);
+  }
+  .card.screen .big {
+    color: var(--good);
+  }
+  .card p {
+    margin: 4px 0 0;
+    font-size: 15px;
+    color: var(--dim);
+    line-height: 1.5;
+  }
+  .card.how {
+    border-color: rgba(53, 208, 224, 0.4);
+  }
+  .card.how ul {
+    margin: 5px 0 0;
+    padding-left: 15px;
+  }
+  .card.how li {
+    font-size: 15px;
+    color: var(--dim);
+    line-height: 1.5;
+    margin: 4px 0;
+  }
+  .card.how li b {
+    color: var(--ink);
+  }
+  .card.how li i {
+    color: var(--cyan);
+    font-style: normal;
+  }
+  /* plain-language decoder for the dBm / dB numbers on the stage */
+  .card.how .gloss {
+    margin: 8px 0 0;
+    padding-top: 7px;
+    border-top: 1px dashed rgba(53, 208, 224, 0.28);
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 3px 10px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .card.how .gloss dt {
+    font-family: var(--mono);
+    color: var(--cyan);
+    white-space: nowrap;
+  }
+  .card.how .gloss dd {
+    margin: 0;
+    color: var(--dim);
+  }
+  .card.how .gloss dd b {
+    color: var(--ink);
+    font-weight: 600;
+  }
 
   /* ── beacon forge builder — only as tall as its content (5 rows + button) ── */
-  .builder { flex: 0 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
-    background: var(--line); }
-  .builder > .col { background: var(--bg); display: flex; flex-direction: column; min-height: 0; }
-  .forgehint { padding: 8px 16px; color: var(--dim); font-size: 13px; line-height: 1.4; }
-  .forgehint b { color: var(--ink); }
-  .fields { overflow: auto; padding: 4px 14px 12px; }
-  .frow { display: grid; grid-template-columns: 92px 1fr auto; align-items: center;
-    gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
-  .frow .fl { font-family: var(--mono); font-size: 13px; color: var(--dim);
-    text-transform: uppercase; letter-spacing: .08em; }
-  .frow .real { font-family: var(--mono); font-size: 13px; color: var(--crit); }
-  .frow .real .x { opacity: .7; }
-  .forgebtn { font-family: var(--mono); font-size: 13px; white-space: nowrap;
-    border-color: rgba(78,201,138,.5); color: var(--good); }
-  .forgebtn:hover { background: var(--good); color: #06251c; border-color: var(--good); }
-  .frow.done .forgebtn { background: var(--good); color: #06251c; border-color: var(--good);
-    pointer-events: none; }
-  .frow.done .real { color: var(--dim); text-decoration: line-through; opacity: .5; }
+  .builder {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--line);
+  }
+  .builder > .col {
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .forgehint {
+    padding: 8px 16px;
+    color: var(--dim);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .forgehint b {
+    color: var(--ink);
+  }
+  .fields {
+    overflow: auto;
+    padding: 4px 14px 12px;
+  }
+  .frow {
+    display: grid;
+    grid-template-columns: 92px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .frow .fl {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .frow .real {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--crit);
+  }
+  .frow .real .x {
+    opacity: 0.7;
+  }
+  .forgebtn {
+    font-family: var(--mono);
+    font-size: 13px;
+    white-space: nowrap;
+    border-color: rgba(78, 201, 138, 0.5);
+    color: var(--good);
+  }
+  .forgebtn:hover {
+    background: var(--good);
+    color: #06251c;
+    border-color: var(--good);
+  }
+  .frow.done .forgebtn {
+    background: var(--good);
+    color: #06251c;
+    border-color: var(--good);
+    pointer-events: none;
+  }
+  .frow.done .real {
+    color: var(--dim);
+    text-decoration: line-through;
+    opacity: 0.5;
+  }
 
-  .preview { display: flex; flex-direction: column; }
-  .pvhead { display: flex; align-items: center; gap: 10px; padding: 10px 16px 4px; }
-  .prog { font-family: var(--mono); font-size: 13px; color: var(--dim); }
-  .prail { flex: 1; height: 6px; border-radius: 4px; background: var(--panel);
-    overflow: hidden; }
-  .prail > i { display: block; height: 100%; width: 0; background: var(--good);
-    transition: width .3s; }
-  pre.frame { margin: 6px 16px 10px; overflow: auto; background: var(--panel2);
-    border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px;
-    font-family: var(--mono); font-size: 13px; line-height: 1.5; color: var(--dim);
-    white-space: pre-wrap; }
-  pre.frame .k { color: var(--cyan); }
-  pre.frame .v { color: var(--good); }
-  pre.frame .pend { color: #46566a; }
-  pre.frame .crc { color: var(--warn); }
+  .preview {
+    display: flex;
+    flex-direction: column;
+  }
+  .pvhead {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px 4px;
+  }
+  .prog {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--dim);
+  }
+  .prail {
+    flex: 1;
+    height: 6px;
+    border-radius: 4px;
+    background: var(--panel);
+    overflow: hidden;
+  }
+  .prail > i {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: var(--good);
+    transition: width 0.3s;
+  }
+  pre.frame {
+    margin: 6px 16px 10px;
+    overflow: auto;
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 10px 12px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--dim);
+    white-space: pre-wrap;
+  }
+  pre.frame .k {
+    color: var(--cyan);
+  }
+  pre.frame .v {
+    color: var(--good);
+  }
+  pre.frame .pend {
+    color: #46566a;
+  }
+  pre.frame .crc {
+    color: var(--warn);
+  }
 
-  .deck { flex: 0 0 auto; border-top: 1px solid var(--line); background: var(--panel2); padding: 11px 16px; }
-  .bigbtn { width: 100%; font-family: var(--mono); font-size: 15px; font-weight: 700;
-    letter-spacing: .06em; padding: 13px; border-radius: 10px; cursor: pointer;
-    color: #06251c; background: var(--good); border: 1px solid var(--good);
-    box-shadow: 0 0 22px rgba(78,201,138,.35); transition: .15s; }
-  .bigbtn:hover { filter: brightness(1.08); }
-  .bigbtn:disabled { opacity: .4; cursor: not-allowed; box-shadow: none;
-    background: var(--panel); color: var(--dim); border-color: var(--line); }
-  .bigbtn.stop { color: #2a0d0d; background: var(--warn); border-color: var(--warn);
-    box-shadow: 0 0 22px rgba(255,176,32,.35); }
-  .cmphint { color: var(--dim); font-size: 13px; margin: 8px 2px 0; font-family: var(--mono); }
-  .cmphint code { color: var(--cyan); }
+  .deck {
+    flex: 0 0 auto;
+    border-top: 1px solid var(--line);
+    background: var(--panel2);
+    padding: 11px 16px;
+  }
+  .bigbtn {
+    width: 100%;
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 13px;
+    border-radius: 10px;
+    cursor: pointer;
+    color: #06251c;
+    background: var(--good);
+    border: 1px solid var(--good);
+    box-shadow: 0 0 22px rgba(78, 201, 138, 0.35);
+    transition: 0.15s;
+  }
+  .bigbtn:hover {
+    filter: brightness(1.08);
+  }
+  .bigbtn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+    background: var(--panel);
+    color: var(--dim);
+    border-color: var(--line);
+  }
+  .bigbtn.stop {
+    color: #2a0d0d;
+    background: var(--warn);
+    border-color: var(--warn);
+    box-shadow: 0 0 22px rgba(255, 176, 32, 0.35);
+  }
+  .cmphint {
+    color: var(--dim);
+    font-size: 13px;
+    margin: 8px 2px 0;
+    font-family: var(--mono);
+  }
+  .cmphint code {
+    color: var(--cyan);
+  }
 </style>
 
 <header>
   <div class="t"><b>DRONE C2</b> // SATELLITE BEACON SPOOF</div>
-  <div class="sub">④ impersonate DEMOSAT · suppress the ground-station alarm</div>
+  <div class="sub">④ impersonate DEMOSAT</div>
   <div class="spacer"></div>
   <span id="pill" class="pill">SPOOF INACTIVE</span>
 </header>
@@ -175,93 +548,145 @@
   <!-- ── top: compact attack stage + truth/lie cards ── -->
   <div class="top">
     <div class="stage">
-      <svg viewBox="0 0 420 320" aria-label="Drone spoofing the ground station">
+      <!-- Near-far GEOMETRY (side elevation, altitude axis broken to scale):
+           the real satellite is 550 km up so its beacon lands faint at the GS;
+           the drone hovers ~200 m away so the SAME 437 MHz beacon lands far
+           stronger (≈ +69 dB) and the GS capture-locks onto it. -->
+      <svg
+        viewBox="0 0 420 320"
+        aria-label="Near-far geometry: a distant 550 km satellite versus a close 200 m drone, both beaconing the ground station"
+      >
         <defs>
           <radialGradient id="gGood" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#8affc9"/><stop offset="100%" stop-color="#4ec98a"/>
+            <stop offset="0%" stop-color="#8affc9" />
+            <stop offset="100%" stop-color="#4ec98a" />
           </radialGradient>
         </defs>
-        <!-- real satellite: keeps tumbling (the truth) -->
-        <g class="truthsat">
-          <rect x="150" y="26" width="46" height="16" rx="2" fill="#1c2a38" stroke="#e0556a" stroke-width="1.5"/>
-          <rect x="224" y="26" width="46" height="16" rx="2" fill="#1c2a38" stroke="#e0556a" stroke-width="1.5"/>
-          <rect x="196" y="18" width="28" height="32" rx="4" fill="#20303f" stroke="#e0556a" stroke-width="2"/>
-          <line x1="210" y1="18" x2="210" y2="6" stroke="#e0556a" stroke-width="2"/>
-          <circle cx="210" cy="5" r="2.5" fill="#ff5c5c"/>
+
+        <!-- ══ near-far explainer callout (top-left) ══ -->
+        <g>
+          <rect
+            x="8"
+            y="14"
+            width="198"
+            height="70"
+            rx="6"
+            fill="#35d0e0"
+            fill-opacity="0.06"
+            stroke="#35d0e0"
+            stroke-opacity="0.4"
+            stroke-width="1"
+          />
+          <text x="18" y="32" fill="#35d0e0" font-size="10" font-family="monospace">NEAR-FAR TRICK</text>
+          <text x="18" y="48" class="svgnote" fill="#e6edf3">drone ≈ 2750× closer than the sat</text>
+          <text x="18" y="61" class="svgnote" fill="#e6edf3">→ ≈ +69 dB stronger at the GS</text>
+          <text x="18" y="74" class="svgnote" fill="#4ec98a">→ GS capture-locks the drone</text>
         </g>
-        <text x="210" y="66" text-anchor="middle" fill="#ff6a78" font-size="11"
-              font-family="monospace">↻ DEMOSAT · STILL TUMBLING</text>
-        <text x="210" y="80" text-anchor="middle" class="svgnote">▲ ~550 km up · reaches GS faint</text>
-        <!-- the real, far-away beacon: a thin weak line the drone will drown out -->
+
+        <!-- ══ SPACE zone: the real satellite, 550 km up (still tumbling — sat.png).
+             Kept small & centered so the 360° tumble stays inside the viewBox top. ══ -->
+        <image
+          class="truthsat"
+          href="../sat.png"
+          x="273"
+          y="18"
+          width="65"
+          height="44"
+          preserveAspectRatio="xMidYMid meet"
+        />
+        <text x="306" y="87" text-anchor="middle" fill="#ff6a78" font-size="11" font-family="monospace">
+          ↻ DEMOSAT · 550 km up
+        </text>
+
+        <!-- ══ broken altitude axis: everything below is ground scale (metres) ══ -->
+        <g stroke="#2a3a4a" stroke-width="1.2" fill="none" opacity="0.7">
+          <polyline
+            points="0,98 26,92 52,98 78,92 104,98 130,92 156,98 182,92 208,98 234,92 260,98 286,92 312,98 338,92 364,98 390,92 416,98 420,96"
+          />
+          <polyline
+            points="0,108 26,102 52,108 78,102 104,108 130,102 156,108 182,102 208,108 234,102 260,108 286,102 312,108 338,102 364,108 390,102 416,108 420,106"
+          />
+        </g>
+        <text x="8" y="126" class="svgnote">⌇ altitude axis broken ⌇</text>
+
+        <!-- the real, far-away beacon: a long thin weak line the drone drowns out -->
         <g class="realbeam">
-          <line x1="212" y1="54" x2="314" y2="266"/>
-          <text x="300" y="182" text-anchor="end" class="svgnote weak">real beacon · weak</text>
+          <line x1="306" y1="58" x2="338" y2="250" />
+          <text x="300" y="158" text-anchor="end" class="svgnote weak">real beacon · weak</text>
+          <text x="300" y="170" text-anchor="end" class="svgnote weak">≈ -95 dBm · path loss ~140 dB</text>
         </g>
-        <!-- attacker drone -->
-        <g>
-          <ellipse cx="70" cy="150" rx="34" ry="9" fill="#16202c" stroke="#35d0e0" stroke-width="1.5"/>
-          <rect x="60" y="140" width="20" height="12" rx="3" fill="#20303f" stroke="#35d0e0" stroke-width="1.5"/>
-          <line x1="36" y1="146" x2="18" y2="138" stroke="#35d0e0" stroke-width="2"/>
-          <line x1="104" y1="146" x2="122" y2="138" stroke="#35d0e0" stroke-width="2"/>
-          <circle cx="18" cy="137" r="4" fill="none" stroke="#35d0e0" stroke-width="1.5"/>
-          <circle cx="122" cy="137" r="4" fill="none" stroke="#35d0e0" stroke-width="1.5"/>
-          <circle cx="70" cy="146" r="3" fill="#35d0e0"/>
+
+        <!-- ══ GROUND zone: the drone hovers ~200 m up, close to the GS ══ -->
+        <!-- attacker drone (real photo). On spoof start it climbs a bit and edges toward the GS. -->
+        <g class="drone">
+          <image href="drone.png" x="42" y="212" width="88" height="56" preserveAspectRatio="xMidYMid meet" />
+          <text x="86" y="278" text-anchor="middle" fill="#35d0e0" font-size="11" font-family="monospace">
+            ROGUE DRONE
+          </text>
+          <text x="86" y="290" text-anchor="middle" class="svgnote" fill="#35d0e0" opacity="0.8">hover ~200 m</text>
         </g>
-        <text x="70" y="182" text-anchor="middle" fill="#35d0e0" font-size="11"
-              font-family="monospace">🛸 ROGUE DRONE</text>
-        <text x="70" y="196" text-anchor="middle" fill="#8497a8" font-size="9"
-              font-family="monospace">TX AS "SAT-200"</text>
-        <text x="70" y="210" text-anchor="middle" class="svgnote">▼ close-in · strong</text>
-        <!-- forged beacon packets drone → GS -->
+
+        <!-- forged beacon packets drone → GS (short, strong) -->
         <g class="beam">
-          <line x1="96" y1="150" x2="300" y2="286"/>
-          <rect class="pkt"    x="92" y="144" width="30" height="13" rx="2"/>
-          <rect class="pkt p2" x="92" y="144" width="30" height="13" rx="2"/>
-          <rect class="pkt p3" x="92" y="144" width="30" height="13" rx="2"/>
+          <line x1="112" y1="246" x2="322" y2="258" />
+          <rect class="pkt" x="100" y="240" width="30" height="13" rx="2" />
+          <rect class="pkt p2" x="100" y="240" width="30" height="13" rx="2" />
+          <rect class="pkt p3" x="100" y="240" width="30" height="13" rx="2" />
         </g>
-        <text x="96" y="250" class="svgnote freq">↳ 437 MHz · DEMOSAT band</text>
-        <text id="beaconLbl" x="150" y="228" fill="#4ec98a" font-size="10"
-              font-family="monospace" opacity="0">STATUS: ALL NOMINAL ✓</text>
-        <!-- victim ground station -->
+        <text x="120" y="230" class="svgnote freq">↱ 437 MHz · strong ≈ -26 dBm</text>
+        <text id="beaconLbl" x="210" y="287" text-anchor="middle" fill="#4ec98a" font-size="10" font-family="monospace" opacity="0">
+          STATUS: ALL NOMINAL ✓
+        </text>
+        <!-- victim ground station (real photo gs.webp). Glow rings are drawn UNDER the
+             photo so they read as a halo around the dish, not a disc covering it. -->
         <g>
-          <circle class="gsglow red alarmring" cx="322" cy="288" r="30" fill="none"
-                  stroke="#ff5c5c" stroke-width="2"/>
-          <circle class="gsglow green" cx="322" cy="288" r="26" fill="url(#gGood)" opacity="0.18"/>
-          <path d="M300 300 L322 262 L344 300 Z" fill="#16202c" stroke="#5b7186" stroke-width="1.5"/>
-          <line x1="322" y1="262" x2="322" y2="248" stroke="#5b7186" stroke-width="2"/>
-          <ellipse cx="322" cy="246" rx="10" ry="5" fill="none" stroke="#5b7186" stroke-width="1.5"/>
-          <rect x="304" y="300" width="36" height="8" fill="#20303f" stroke="#5b7186" stroke-width="1"/>
+          <circle class="gsglow red alarmring" cx="336" cy="282" r="36" fill="none" stroke="#ff5c5c" stroke-width="2" />
+          <circle class="gsglow green" cx="336" cy="282" r="36" fill="url(#gGood)" />
+          <image href="gs.webp" x="308" y="254" width="56" height="56" preserveAspectRatio="xMidYMid meet" />
         </g>
-        <text x="322" y="240" text-anchor="middle" fill="#8497a8" font-size="11"
-              font-family="monospace">📡 VICTIM GS</text>
+        <text x="336" y="240" text-anchor="middle" fill="#8497a8" font-size="11" font-family="monospace">
+          📡 VICTIM GS
+        </text>
       </svg>
     </div>
     <div class="cards">
       <div class="card reality">
         <h4>Reality (satellite)</h4>
         <div class="big">↻ TUMBLING · POWER COLLAPSING</div>
-        <p>Reaction wheels overspun. Panels off-sun, physical motors still spinning.
-          <b>Nothing about the attack is undone</b> — the drone only lies to the screen.</p>
-      </div>
-      <div class="card screen">
-        <h4>Operator's screen (other display)</h4>
-        <div class="big" id="screenState">— AWAITING —</div>
-        <p id="screenNote">Forge every field of the beacon, then transmit — the dashboard
-          will read NOMINAL and the alarm goes quiet.</p>
+        <p>Reaction wheels overspun. Panels off-sun, physical motors still spinning.</p>
       </div>
       <div class="card how">
         <h4>How the drone pulls it off</h4>
         <ul>
-          <li><b>Flies in close.</b> DEMOSAT is <i>~550 km up</i>, so its beacon reaches the
-            ground station faint. The drone hovers a few hundred metres away — near enough
-            that its signal arrives far stronger.</li>
-          <li><b>Speaks DEMOSAT's language.</b> It transmits on the <i>same downlink frequency
-            (437 MHz)</i> with the same ID (<i>SAT-200</i>) and packet format, so the GS
-            can't tell them apart.</li>
-          <li><b>Drowns out the truth.</b> The GS locks onto the <i>strongest signal</i> on
-            that frequency — the drone's — so the forged "healthy" beacon replaces the real
-            one. No hacking of the GS; just a louder radio.</li>
+          <li>
+            <b>Flies in close.</b> DEMOSAT is <i>~550 km up</i>, so its beacon reaches the ground station faint (<i
+              >≈ -95 dBm</i
+            >). The drone hovers a few hundred metres away — <i>≈ 2750× closer</i>, so the same beacon lands
+            <i>≈ +69 dB stronger</i> (<i>≈ -26 dBm</i>).
+          </li>
+          <li>
+            <b>Speaks DEMOSAT's language.</b> It transmits on the <i>same downlink frequency (437 MHz)</i> with the same
+            ID (<i>DEMOSAT</i>) and packet format, so the GS can't tell them apart.
+          </li>
+          <li>
+            <b>Drowns out the truth.</b> The GS locks onto the <i>strongest signal</i> on that frequency — the drone's —
+            so the forged "healthy" beacon replaces the real one. No hacking of the GS; just a louder radio.
+          </li>
         </ul>
+        <dl class="gloss">
+          <dt>dBm</dt>
+          <dd>How <b>loud a signal arrives</b>. 0 dBm = 1 mW; every -10 means 10× weaker, so lower = fainter.</dd>
+          <dt>-95 dBm</dt>
+          <dd>The real satellite as heard at the GS — <b>faint but readable</b>, well above the noise floor.</dd>
+          <dt>-26 dBm</dt>
+          <dd>
+            The drone as heard at the GS — the <b>same beacon, ~8 million× stronger</b> simply because it is close.
+          </dd>
+          <dt>path loss</dt>
+          <dd>How much a signal <b>fades just from travelling</b>. 140 dB = only 1 part in 10¹⁴ arrives.</dd>
+          <dt>+69 dB</dt>
+          <dd>The <b>gap the drone wins by</b>. Distance ÷ 10 buys 20 dB, and it is 2750× closer.</dd>
+        </dl>
       </div>
     </div>
   </div>
@@ -270,13 +695,13 @@
   <div class="builder">
     <div class="col">
       <div class="cap">① FORGE BEACON · <b>lie on every telemetry field</b></div>
-      <div class="forgehint">To pass as the real satellite, the drone's beacon must claim
-        <b>everything is healthy</b>. Click each field to replace the true (alarming) value
-        with a forged nominal one.</div>
+      <div class="forgehint">
+        To pass as the real satellite, the drone's beacon must claim <b>everything is healthy</b>.
+      </div>
       <div class="fields" id="fields"></div>
     </div>
     <div class="col">
-      <div class="cap">② FORGED BEACON PACKET · <b>SAT-200</b></div>
+      <div class="cap">② FORGED BEACON PACKET</div>
       <div class="preview">
         <div class="pvhead">
           <span class="prog" id="prog">0 / 5 fields forged</span>
@@ -295,69 +720,91 @@
 <script>
   (function () {
     var p = new URLSearchParams(location.search);
-    var GS = (p.get('gs') || 'http://localhost:4540').replace(/\/$/, '');
+    var GS = (p.get("gs") || "http://localhost:4540").replace(/\/$/, "");
 
     var body = document.body;
-    var btn = document.getElementById('spoofBtn');
-    var pill = document.getElementById('pill');
-    var beaconLbl = document.getElementById('beaconLbl');
-    var screenState = document.getElementById('screenState');
-    var screenNote = document.getElementById('screenNote');
-    var hint = document.getElementById('hint');
-    var fieldsEl = document.getElementById('fields');
-    var frameEl = document.getElementById('frame');
-    var progEl = document.getElementById('prog');
-    var pfill = document.getElementById('pfill');
+    var btn = document.getElementById("spoofBtn");
+    var pill = document.getElementById("pill");
+    var beaconLbl = document.getElementById("beaconLbl");
+    var screenState = document.getElementById("screenState");
+    var screenNote = document.getElementById("screenNote");
+    var hint = document.getElementById("hint");
+    var fieldsEl = document.getElementById("fields");
+    var frameEl = document.getElementById("frame");
+    var progEl = document.getElementById("prog");
+    var pfill = document.getElementById("pfill");
 
     // The telemetry fields the operator watches. To suppress the alarm the drone
     // must overwrite EVERY one with a healthy value (matches /api/spoof's beacon).
     var FIELDS = [
-      { key: 'att',  fl: 'Attitude',  real: '↻ TUMBLING',       k: 'adcs.attitude',   v: 'SUN_TRACK' },
-      { key: 'batt', fl: 'Battery',   real: '17% ↓ draining',   k: 'battery.level',   v: '98.0%' },
-      { key: 'pwr',  fl: 'Solar Pwr', real: '0.38 W collapsing', k: 'solar_panel.power', v: '4.15 W' },
-      { key: 'comm', fl: 'Comm Link', real: 'LOW POWER',        k: 'comm.status',     v: 'CONNECTED' },
-      { key: 'stat', fl: 'Status',    real: '⚠ CRITICAL',       k: 'status.word',     v: 'NOMINAL' },
+      { key: "att", fl: "Attitude", real: "↻ TUMBLING", k: "adcs.attitude", v: "SUN_TRACK" },
+      { key: "batt", fl: "Battery", real: "17% ↓ draining", k: "battery.level", v: "98.0%" },
+      { key: "pwr", fl: "Solar Pwr", real: "0.38 W collapsing", k: "solar_panel.power", v: "4.15 W" },
+      { key: "comm", fl: "Comm Link", real: "LOW POWER", k: "comm.status", v: "CONNECTED" },
+      { key: "stat", fl: "Status", real: "⚠ CRITICAL", k: "status.word", v: "NOMINAL" },
     ];
-    var forged = {};            // key → true once forged
-    var active = false;         // spoof transmitting
+    var forged = {}; // key → true once forged
+    var active = false; // spoof transmitting
 
-    function count() { return FIELDS.filter(function (f) { return forged[f.key]; }).length; }
-    function complete() { return count() === FIELDS.length; }
+    function count() {
+      return FIELDS.filter(function (f) {
+        return forged[f.key];
+      }).length;
+    }
+    function complete() {
+      return count() === FIELDS.length;
+    }
 
     // simple visible "CRC" over the forged values, for packet authenticity
     function crc() {
-      var s = 'SAT-200';
-      FIELDS.forEach(function (f) { if (forged[f.key]) s += f.k + f.v; });
+      var s = "DEMOSAT";
+      FIELDS.forEach(function (f) {
+        if (forged[f.key]) s += f.k + f.v;
+      });
       var h = 0x1d0f;
-      for (var i = 0; i < s.length; i++) { h = ((h << 5) - h + s.charCodeAt(i)) & 0xffff; }
-      return '0x' + h.toString(16).toUpperCase().padStart(4, '0');
+      for (var i = 0; i < s.length; i++) {
+        h = ((h << 5) - h + s.charCodeAt(i)) & 0xffff;
+      }
+      return "0x" + h.toString(16).toUpperCase().padStart(4, "0");
     }
 
     function renderFrame() {
-      var lines = ['<span class="k">BEACON</span>  SRC=SAT-200  APID=0x21A  TYPE=TM'];
+      var lines = ['<span class="k">BEACON</span>  SRC=DEMOSAT  APID=0x21A  TYPE=TM'];
       FIELDS.forEach(function (f) {
-        var pad = (f.k + '                  ').slice(0, 18);
-        if (forged[f.key]) lines.push('  <span class="k">' + pad + '</span>= <span class="v">' + f.v + '</span>');
-        else lines.push('  <span class="pend">' + pad + '= —</span>');
+        var pad = (f.k + "                  ").slice(0, 18);
+        if (forged[f.key]) lines.push('  <span class="k">' + pad + '</span>= <span class="v">' + f.v + "</span>");
+        else lines.push('  <span class="pend">' + pad + "= —</span>");
       });
-      lines.push('  <span class="k">' + ('crc                ').slice(0, 18) + '</span>= ' +
-        (complete() ? '<span class="crc">' + crc() + '</span>' : '<span class="pend">—</span>'));
-      frameEl.innerHTML = lines.join('\n');
+      lines.push(
+        '  <span class="k">' +
+          "crc                ".slice(0, 18) +
+          "</span>= " +
+          (complete() ? '<span class="crc">' + crc() + "</span>" : '<span class="pend">—</span>'),
+      );
+      frameEl.innerHTML = lines.join("\n");
     }
 
     function renderFields() {
-      fieldsEl.innerHTML = '';
+      fieldsEl.innerHTML = "";
       FIELDS.forEach(function (f) {
-        var row = document.createElement('div');
-        row.className = 'frow' + (forged[f.key] ? ' done' : '');
+        var row = document.createElement("div");
+        row.className = "frow" + (forged[f.key] ? " done" : "");
         row.innerHTML =
-          '<span class="fl">' + f.fl + '</span>' +
-          '<span class="real"><span class="x">real:</span> ' + f.real + '</span>' +
-          '<button class="forgebtn">forge → ' + f.v + '</button>';
-        row.querySelector('.forgebtn').addEventListener('click', function () {
-          if (active) return;              // can't edit while transmitting
+          '<span class="fl">' +
+          f.fl +
+          "</span>" +
+          '<span class="real"><span class="x">real:</span> ' +
+          f.real +
+          "</span>" +
+          '<button class="forgebtn">forge → ' +
+          f.v +
+          "</button>";
+        row.querySelector(".forgebtn").addEventListener("click", function () {
+          if (active) return; // can't edit while transmitting
           forged[f.key] = true;
-          renderFields(); renderFrame(); renderState();
+          renderFields();
+          renderFrame();
+          renderState();
         });
         fieldsEl.appendChild(row);
       });
@@ -365,54 +812,71 @@
 
     function renderState() {
       var n = count();
-      progEl.textContent = n + ' / ' + FIELDS.length + ' fields forged';
-      pfill.style.width = (n / FIELDS.length * 100) + '%';
+      progEl.textContent = n + " / " + FIELDS.length + " fields forged";
+      pfill.style.width = (n / FIELDS.length) * 100 + "%";
       btn.disabled = active ? false : !complete();
       if (!active) {
         hint.innerHTML = complete()
-          ? 'Beacon armed — <code>POST /api/spoof {on:true}</code> feeds it to the GS dashboard.'
-          : 'Forge all ' + FIELDS.length + ' fields to arm the beacon.';
+          ? "Beacon armed — <code>POST /api/spoof {on:true}</code> feeds it to the GS dashboard."
+          : "Forge all " + FIELDS.length + " fields to arm the beacon.";
       }
-      pill.textContent = active ? 'SPOOF ACTIVE' : 'SPOOF INACTIVE';
-      pill.classList.toggle('on', active);
-      body.classList.toggle('spoofing', active);
-      beaconLbl.setAttribute('opacity', active ? '1' : '0');
-      btn.textContent = active ? '■ STOP SPOOFING' : '▶ TRANSMIT SPOOFED BEACON';
-      btn.classList.toggle('stop', active);
-      screenState.textContent = active ? '🟢 NOMINAL' : '— AWAITING —';
+      pill.textContent = active ? "SPOOF ACTIVE" : "SPOOF INACTIVE";
+      pill.classList.toggle("on", active);
+      body.classList.toggle("spoofing", active);
+      beaconLbl.setAttribute("opacity", active ? "1" : "0");
+      btn.textContent = active ? "■ STOP SPOOFING" : "▶ TRANSMIT SPOOFED BEACON";
+      btn.classList.toggle("stop", active);
+      screenState.textContent = active ? "🟢 NOMINAL" : "— AWAITING —";
       screenNote.textContent = active
-        ? 'The dashboard is being fed the forged beacon: NOMINAL, battery ~98%, SUN-TRACKING, COMM CONNECTED. The alarm is suppressed.'
-        : 'Forge every field of the beacon, then transmit — the dashboard will read NOMINAL and the alarm goes quiet.';
+        ? "The dashboard is being fed the forged beacon: NOMINAL, battery ~98%, SUN-TRACKING, COMM CONNECTED. The alarm is suppressed."
+        : "Forge every field of the beacon, then transmit — the dashboard will read NOMINAL and the alarm goes quiet.";
     }
 
     function setSpoof(on) {
-      return fetch(GS + '/api/spoof', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      return fetch(GS + "/api/spoof", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ on: on }),
-      }).then(function (r) { return r.json(); }).then(function (j) {
-        active = !!(j && j.spoofing);
-        renderState();
-      }).catch(function () {
-        pill.textContent = 'GS UNREACHABLE';
-        hint.innerHTML = 'Could not reach the victim GS at <code>' + GS + '</code> — is it running?';
-      });
+      })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (j) {
+          active = !!(j && j.spoofing);
+          renderState();
+        })
+        .catch(function () {
+          pill.textContent = "GS UNREACHABLE";
+          hint.innerHTML = "Could not reach the victim GS at <code>" + GS + "</code> — is it running?";
+        });
     }
 
-    btn.addEventListener('click', function () {
+    btn.addEventListener("click", function () {
       if (!active && !complete()) return;
       setSpoof(!active);
     });
 
-    renderFields(); renderFrame(); renderState();
+    renderFields();
+    renderFrame();
+    renderState();
 
     // reflect current GS spoof state on load (e.g. after a refresh)
-    fetch(GS + '/api/state').then(function (r) { return r.json(); })
+    fetch(GS + "/api/state")
+      .then(function (r) {
+        return r.json();
+      })
       .then(function (j) {
         active = !!(j && j.spoofing);
-        if (active) FIELDS.forEach(function (f) { forged[f.key] = true; });
-        renderFields(); renderFrame(); renderState();
+        if (active)
+          FIELDS.forEach(function (f) {
+            forged[f.key] = true;
+          });
+        renderFields();
+        renderFrame();
+        renderState();
       })
-      .catch(function () { renderState(); });
+      .catch(function () {
+        renderState();
+      });
   })();
 </script>
