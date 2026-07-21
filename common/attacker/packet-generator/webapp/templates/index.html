@@ -12,8 +12,7 @@
       <div class="brand">
         <img class="sat-ico" src="/static/favicon.svg" alt="skull" width="34" height="34" />
         <div>
-          <div class="title">DEMOSAT&nbsp;//&nbsp;UPLINK COMMAND BUILDER</div>
-          <div class="sub">CCSDS Telecommand over OOK · attacker console</div>
+          <div class="title">ATTACKER CONSOLE</div>
         </div>
       </div>
     </header>
@@ -51,29 +50,19 @@
                 <line x1="112" y1="86" x2="205" y2="150" />
                 <line x1="110" y1="76" x2="200" y2="170" />
               </g>
-              <!-- satellite (tumbles) -->
-              <g class="sat">
-                <!-- left panel -->
-                <rect class="panel" x="150" y="130" width="46" height="60" rx="3" />
-                <line x1="173" y1="130" x2="173" y2="190" class="pgrid" />
-                <line x1="150" y1="150" x2="196" y2="150" class="pgrid" />
-                <line x1="150" y1="170" x2="196" y2="170" class="pgrid" />
-                <!-- right panel -->
-                <rect class="panel" x="264" y="130" width="46" height="60" rx="3" />
-                <line x1="287" y1="130" x2="287" y2="190" class="pgrid" />
-                <line x1="264" y1="150" x2="310" y2="150" class="pgrid" />
-                <line x1="264" y1="170" x2="310" y2="170" class="pgrid" />
-                <!-- body -->
-                <rect x="200" y="132" width="60" height="56" rx="6" fill="#20303f" stroke="#4a6076" stroke-width="2" />
-                <rect x="210" y="144" width="40" height="10" rx="2" fill="#39c5ff" opacity="0.7" />
-                <rect x="210" y="160" width="26" height="6" rx="2" fill="#7c8da0" />
-                <!-- antenna -->
-                <line x1="230" y1="132" x2="230" y2="112" stroke="#7c8da0" stroke-width="2" />
-                <circle cx="230" cy="110" r="3" fill="#39c5ff" />
-              </g>
+              <!-- satellite (tumbles) — real photo sat.png (shared /static asset) -->
+              <image
+                class="sat"
+                href="/static/sat.png"
+                x="157"
+                y="94"
+                width="146"
+                height="99"
+                preserveAspectRatio="xMidYMid meet"
+              />
               <!-- command flash -->
               <g class="cmdflash">
-                <rect x="150" y="238" width="230" height="30" rx="6" fill="#12060a" stroke="#ff3b4e" />
+                <rect x="150" y="238" width="230" height="30" rx="6" fill="#12060a" />
                 <text x="265" y="258" text-anchor="middle" fill="#ff6a78" font-size="15" font-family="monospace">
                   ⚡ UPLINK adcs_torque = 999 mNm
                 </text>
@@ -95,9 +84,9 @@
             <div class="bsec">
               <h3>① The target — DEMOSAT</h3>
               <p>
-                <b>DEMOSAT</b> is a small satellite that stays alive by keeping its <b>solar panels pointed at the
-                sun</b>. Its attitude is held steady by <b>reaction wheels</b> — spin them wrong and it can no longer
-                face the sun.
+                <b>DEMOSAT</b> is a small satellite that stays alive by keeping its
+                <b>solar panels pointed at the sun</b>. Its attitude is held steady by <b>reaction wheels</b> — spin
+                them wrong and it can no longer face the sun.
               </p>
             </div>
             <div class="bsec">
@@ -121,17 +110,18 @@
             <div class="bsec">
               <h3>④ The command is a packet — CCSDS</h3>
               <p>
-                The satellite doesn't read plain text. Your command must be wrapped in a <b>standardized space packet
-                (CCSDS)</b> — an address (<b>APID</b>) plus the command fields. Assemble it correctly, or the satellite
-                ignores it.
+                The satellite doesn't read plain text. Your command must be wrapped in a
+                <b>standardized space packet (CCSDS)</b> — an address (<b>APID</b>) plus the command fields. Assemble it
+                correctly, or the satellite ignores it.
               </p>
             </div>
             <div class="bsec">
               <h3>⑤ Sending it — SDR &amp; the IQ file</h3>
               <p>
-                A <b>software-defined radio (SDR)</b> doesn't take a command — it plays back a <b>digitized
-                waveform</b>. An <b>IQ file</b> is that radio signal stored as a stream of <b>I/Q samples</b>.
-                <b>GENERATE</b> turns your packet into the IQ file you uplink to the satellite during its pass.
+                A <b>software-defined radio (SDR)</b> doesn't take a command — it plays back a
+                <b>digitized waveform</b>. An <b>IQ file</b> is that radio signal stored as a stream of
+                <b>I/Q samples</b>. <b>GENERATE</b> turns your packet into the IQ file you uplink to the satellite
+                during its pass.
               </p>
             </div>
           </div>
@@ -163,7 +153,7 @@
           <div class="progresswrap">
             <div class="prow"><span>UPLINK ASSEMBLY</span><span id="progText">0 / 2</span></div>
             <div class="prail"><i id="progFill"></i></div>
-            <div class="phint" id="progHint">Complete both systems to arm the uplink.</div>
+            <div class="phint" id="progHint"></div>
           </div>
           <div id="stepList"></div>
         </section>
@@ -195,23 +185,18 @@
                 <line x1="112" y1="86" x2="205" y2="150" />
                 <line x1="110" y1="76" x2="200" y2="170" />
               </g>
-              <g class="sat">
-                <rect class="panel" x="150" y="130" width="46" height="60" rx="3" />
-                <line x1="173" y1="130" x2="173" y2="190" class="pgrid" />
-                <line x1="150" y1="150" x2="196" y2="150" class="pgrid" />
-                <line x1="150" y1="170" x2="196" y2="170" class="pgrid" />
-                <rect class="panel" x="264" y="130" width="46" height="60" rx="3" />
-                <line x1="287" y1="130" x2="287" y2="190" class="pgrid" />
-                <line x1="264" y1="150" x2="310" y2="150" class="pgrid" />
-                <line x1="264" y1="170" x2="310" y2="170" class="pgrid" />
-                <rect x="200" y="132" width="60" height="56" rx="6" fill="#20303f" stroke="#4a6076" stroke-width="2" />
-                <rect x="210" y="144" width="40" height="10" rx="2" fill="#39c5ff" opacity="0.7" />
-                <rect x="210" y="160" width="26" height="6" rx="2" fill="#7c8da0" />
-                <line x1="230" y1="132" x2="230" y2="112" stroke="#7c8da0" stroke-width="2" />
-                <circle cx="230" cy="110" r="3" fill="#39c5ff" />
-              </g>
+              <!-- satellite (tumbles) — real photo sat.png (shared /static asset) -->
+              <image
+                class="sat"
+                href="/static/sat.png"
+                x="157"
+                y="94"
+                width="146"
+                height="99"
+                preserveAspectRatio="xMidYMid meet"
+              />
               <g class="cmdflash">
-                <rect x="150" y="238" width="230" height="30" rx="6" fill="#12060a" stroke="#ff3b4e" />
+                <rect x="150" y="238" width="230" height="30" rx="3" fill="#12060a" />
                 <text x="265" y="258" text-anchor="middle" fill="#ff6a78" font-size="15" font-family="monospace">
                   ⚡ UPLINK adcs_torque = 999 mNm
                 </text>
@@ -318,24 +303,35 @@
           PHASES = [
             { el: document.getElementById("briefing") },
             { el: document.getElementById("builder") },
-            { el: phase3, onShow: function () {
+            {
+              el: phase3,
+              onShow: function () {
                 if (!frame.getAttribute("src")) frame.setAttribute("src", CONSOLE_URL);
                 armPass();
-              } },
+              },
+            },
           ];
-          extraSecs.forEach(function (e) { PHASES.push(e); });
+          extraSecs.forEach(function (e) {
+            PHASES.push(e);
+          });
         }
         function showPhase(n, push) {
           if (!PHASES.length) collectPhases();
           n = Math.max(1, Math.min(n, PHASES.length));
-          PHASES.forEach(function (ph, i) { if (ph.el) ph.el.classList.toggle("hidden", i !== n - 1); });
+          PHASES.forEach(function (ph, i) {
+            if (ph.el) ph.el.classList.toggle("hidden", i !== n - 1);
+          });
           if (PHASES[n - 1] && PHASES[n - 1].onShow) PHASES[n - 1].onShow();
           // phases 3+ are full-screen iframes (console/drone) with their own header —
           // hide the outer topbar there so the 100vh iframe == the viewport exactly and
           // the page doesn't overflow (no dead scroll below). Show it for 1-2.
           var tb = document.querySelector(".topbar");
           if (tb) tb.style.display = n >= 3 ? "none" : "";
-          if (push) { try { history.pushState({ phase: n }, "", "/" + n + location.search); } catch (e) {} }
+          if (push) {
+            try {
+              history.pushState({ phase: n }, "", "/" + n + location.search);
+            } catch (e) {}
+          }
           window.scrollTo(0, 0);
         }
         function showPhaseByEl(el, push) {
@@ -347,7 +343,9 @@
           showPhase(m ? parseInt(m[1], 10) : 1, false);
         }
         window.__gotoPhase = showPhase;
-        window.addEventListener("popstate", function () { routeFromUrl(); });
+        window.addEventListener("popstate", function () {
+          routeFromUrl();
+        });
 
         function makeExtraPhase(ex) {
           var host = document.getElementById(ex.enterFrom || "phase3");
@@ -375,16 +373,23 @@
           host.appendChild(btn); // fixed 버튼이지만 host가 hidden이면 함께 숨겨짐
           extraBtns.push(btn);
           var url = ex.path + (ex.path.indexOf("?") >= 0 ? "&" : "?") + "gs=" + encodeURIComponent(GS);
-          extraSecs.push({ el: sec, onShow: function () {
-            if (!f.getAttribute("src")) f.setAttribute("src", url);
-          } });
-          btn.addEventListener("click", function () { showPhaseByEl(sec, true); });
+          extraSecs.push({
+            el: sec,
+            onShow: function () {
+              if (!f.getAttribute("src")) f.setAttribute("src", url);
+            },
+          });
+          btn.addEventListener("click", function () {
+            showPhaseByEl(sec, true);
+          });
         }
         // reveal phase-3-gated extra buttons once the uplink is transmitted
         // (the phase-3 console posts "attack-fired" up to this Command Builder).
         window.addEventListener("message", function (e) {
           if (e.data && e.data.type === "attack-fired")
-            extraBtns.forEach(function (b) { b.style.display = ""; });
+            extraBtns.forEach(function (b) {
+              b.style.display = "";
+            });
         });
         fetch("/api/scenario")
           .then(function (r) {
@@ -405,7 +410,9 @@
               var box = document.querySelector(".brieftext");
               if (b.sections && b.sections.length && box)
                 box.innerHTML = b.sections
-                  .map(function (s) { return '<div class="bsec"><h3>' + s.h + "</h3><p>" + s.p + "</p></div>"; })
+                  .map(function (s) {
+                    return '<div class="bsec"><h3>' + s.h + "</h3><p>" + s.p + "</p></div>";
+                  })
                   .join("");
               var ackEl = document.querySelector(".understand span");
               if (b.ack && ackEl) ackEl.textContent = b.ack;
