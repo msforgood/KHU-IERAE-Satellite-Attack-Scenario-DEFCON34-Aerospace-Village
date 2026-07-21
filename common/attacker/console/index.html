@@ -185,7 +185,9 @@
     position: absolute;
     left: 12px;
     top: 42px;
-    width: min(340px, calc(100% - 24px));
+    width: min(380px, calc(100% - 24px));
+    max-height: calc(100% - 54px);
+    overflow-y: auto;
     z-index: 20;
     background: rgba(15, 21, 29, 0.95);
     border: 1px solid var(--line);
@@ -303,6 +305,97 @@
   }
   #guide ol li.ok::marker {
     content: "✓ ";
+  }
+  /* step-by-step aim: a compact progress checklist + a per-step lesson card so
+     participants learn WHAT each uplink parameter is and WHY it's needed. */
+  #guide .steps {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--dim);
+  }
+  #guide .steps li::before {
+    content: "○ ";
+    color: var(--line);
+  }
+  #guide .steps li.active {
+    color: var(--ink);
+  }
+  #guide .steps li.active::before {
+    content: "▸ ";
+    color: var(--cyan);
+  }
+  #guide .steps li.ok {
+    color: var(--good);
+  }
+  #guide .steps li.ok::before {
+    content: "✓ ";
+    color: var(--good);
+  }
+  #guide .steps li b {
+    color: var(--ink);
+  }
+  #guide .lesson {
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--cyan);
+    border-radius: 9px;
+    padding: 10px 12px;
+    margin: 10px 0 8px;
+    background: rgba(53, 208, 224, 0.05);
+  }
+  #guide .lesson .ltitle {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 5px;
+  }
+  #guide .lesson .lval {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  #guide .lesson .lrow {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--dim);
+    margin: 5px 0;
+    font-weight: 400;
+  }
+  #guide .lesson .lrow b {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  #guide .lesson .ltag {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--cyan);
+    font-weight: 700;
+    margin-right: 4px;
+  }
+  #guide button.next {
+    width: 100%;
+    border-color: var(--cyan);
+    color: var(--cyan);
+    font-size: 13px;
+    padding: 10px;
+    margin-top: 2px;
+  }
+  #guide button.next:hover {
+    background: rgba(53, 208, 224, 0.12);
+  }
+  #guide button.next:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: var(--line);
+    color: var(--dim);
+    background: none;
   }
 </style>
 
@@ -498,53 +591,132 @@
         /* ignore */
       }
     };
-    // Apply one field at a time with a loading beat, so users actually SEE each
-    // VSA field change (target → freq → az → el) instead of it happening at once.
+    // Each uplink parameter is applied ONE STEP AT A TIME. The target satellite
+    // (step 0) auto-locks on ENGAGE; every parameter after it is gated behind a
+    // button and carries a short lesson — what the value is, WHY it's needed, and
+    // WHERE it's used — so participants learn the uplink chain, not just watch it.
     const steps = [
       {
-        load: "Setting target satellite…",
-        done: "Target Satellite: " + white("DEMOSAT"),
+        title: "Target Satellite",
+        value: "DEMOSAT",
         apply: () => sendVSA({ targetSat: "DEMOSAT" }),
+        why: "Picks <b>which spacecraft</b> the uplink is addressed to. gpredict has already locked DEMOSAT's TLE and is computing its live look-angles — every value below is derived from that lock.",
+        use: "Binds the VSA transmit chain to DEMOSAT's ephemeris, so the frequency and pointing angles that follow all refer to this one bird.",
       },
       {
-        load: "Setting uplink frequency…",
-        done: "Uplink Freq (MHz): " + white("433.5 MHz"),
+        title: "Uplink Frequency",
+        value: "433.5 MHz",
         apply: () => sendVSA({ uplinkFreq: 433.5 }),
+        why: "The exact frequency DEMOSAT's <b>command receiver</b> is listening on. Transmit even slightly off and the satellite never demodulates the packet — the command is simply not heard.",
+        use: "Tunes the transmitter's carrier. 433 MHz sits in the UHF telecommand band common to cubesats and amateur satellites.",
       },
       {
-        load: "Setting antenna type…",
-        done: "Antenna Type: " + white("Dish"),
+        title: "Antenna Type",
+        value: "Dish (parabolic)",
         apply: () => sendVSA({ antennaType: "dish" }),
+        why: "Antenna type sets <b>gain and beamwidth</b>. A dish is high-gain / narrow-beam — enough EIRP to close the uplink budget all the way to orbit, and it concentrates the energy on a single bearing.",
+        use: "Switches the rotator model to a dish, which is why the two pointing angles below now matter — a wide whip would radiate everywhere and wouldn't need precise aim.",
       },
       {
-        load: "Setting azimuth…",
-        done: "Azimuth: " + white(fmt(azC) + "°"),
+        title: "Azimuth",
+        value: fmt(azC) + "°",
         // applying the antenna angle → tell the GS the target is acquired so the
         // physical antenna motor moves (exact angle not needed; it just rotates).
         apply: () => {
           sendVSA({ azimuth: azC });
           post("/api/acquire", {}).catch(() => {});
         },
+        why: "The horizontal compass bearing (0°=N, 90°=E, 180°=S). This is DEMOSAT's <b>current azimuth</b> from gpredict's look-angle — a narrow dish must sit on this exact bearing or the satellite falls outside the beam.",
+        use: "Drives the ground-station rotator's pan motor to the satellite's bearing (fires <code>/api/acquire</code>, so the physical antenna actually turns).",
       },
       {
-        load: "Setting elevation…",
-        done: "Elevation: " + white(fmt(elC) + "°"),
+        title: "Elevation",
+        value: fmt(elC) + "°",
         apply: () => sendVSA({ elevation: elC }),
+        why: "The vertical angle above the horizon (0°=horizon, 90°=zenith). Must be positive: DEMOSAT is only reachable by <b>line of sight</b> while it is above the horizon — that's exactly the pass window gpredict counted down to.",
+        use: "Tilts the rotator up to the satellite's elevation, completing the 2-axis aim. With both angles set, the dish beam is now locked on DEMOSAT.",
       },
     ];
-    let acc = "🎯 Aiming at DEMOSAT<br>";
-    for (const st of steps) {
-      setStateHTML(acc + '<span class="spin"></span>' + st.load, "busy");
-      await sleep(1000);
-      st.apply();
-      acc += st.done + "<br>";
-      setStateHTML(acc, "busy");
-      await sleep(400);
+
+    let idx = 0; // index of the step currently awaiting the user
+    const doneVals = []; // captured value text for each completed step
+
+    // progress checklist — done steps show ✓ + value, current shows ▸, rest ○
+    function checklist() {
+      return (
+        '<ol class="steps">' +
+        steps
+          .map((s, i) => {
+            const cls = i < idx ? "ok" : i === idx ? "active" : "";
+            const val = i < idx ? " — <b>" + doneVals[i] + "</b>" : "";
+            return '<li class="' + cls + '">' + s.title + val + "</li>";
+          })
+          .join("") +
+        "</ol>"
+      );
     }
+
+    // render the lesson card for step i and wire its "continue" button
+    function stepPanel(i) {
+      const s = steps[i];
+      const last = i === steps.length - 1;
+      setStateHTML(
+        checklist() +
+          '<div class="lesson">' +
+          '<div class="ltitle">Step ' + (i + 1) + " of " + steps.length + " · " + s.title + "</div>" +
+          '<div class="lval">→ ' + s.value + "</div>" +
+          '<div class="lrow"><span class="ltag">WHY</span>' + s.why + "</div>" +
+          '<div class="lrow"><span class="ltag">USED FOR</span>' + s.use + "</div>" +
+          "</div>" +
+          '<button class="next" id="gNext">' +
+          (last ? "Set elevation &amp; finish aim ✓" : "Set " + s.title.toLowerCase() + " &amp; continue →") +
+          "</button>",
+        "busy",
+      );
+      document.getElementById("gNext").onclick = () => advance(i);
+    }
+
+    // apply step i (with a short loading beat), record it, advance or finish
+    async function advance(i) {
+      const btn = document.getElementById("gNext");
+      if (btn) btn.disabled = true;
+      setStateHTML(
+        checklist() +
+          '<div class="lesson"><div class="lrow"><span class="spin"></span>Applying ' +
+          steps[i].title.toLowerCase() +
+          "…</div></div>",
+        "busy",
+      );
+      await sleep(700);
+      steps[i].apply();
+      doneVals[i] = steps[i].value;
+      idx = i + 1;
+      if (idx < steps.length) stepPanel(idx);
+      else finish();
+    }
+
+    function finish() {
+      setStateHTML(
+        checklist() +
+          '<div class="lesson"><div class="ltitle">✅ Aim complete</div>' +
+          '<div class="lrow">All 5 parameters are set — the dish is on DEMOSAT and the transmit chain is tuned. ' +
+          'Now in <b style="color:var(--ink)">STEP 2</b>, ' +
+          '<b style="color:var(--ink)">load the IQ file</b>, then hit ' +
+          '<b style="color:var(--ink)">TRANSMIT</b> to uplink.</div></div>',
+        "done",
+      );
+      unlockStep2(); // STEP 2 (OpenVSA) is now clickable
+    }
+
+    // STEP 0 (target satellite) locks automatically on ENGAGE; the rest are manual.
     setStateHTML(
-      acc + '<br>🎯 Aim complete — in STEP 2, <b style="color:var(--ink)">load the IQ file</b> then TRANSMIT',
-      "done",
+      '🎯 Locking target…<br><span class="spin"></span>Setting target satellite…',
+      "busy",
     );
-    unlockStep2(); // STEP 2 (OpenVSA) is now clickable
+    await sleep(900);
+    steps[0].apply();
+    doneVals[0] = steps[0].value;
+    idx = 1;
+    stepPanel(1);
   };
 </script>
