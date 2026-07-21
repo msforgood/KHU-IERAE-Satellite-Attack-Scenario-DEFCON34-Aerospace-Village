@@ -1,97 +1,113 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>DEMOSAT · Ground Station</title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="stylesheet" href="/style.css">
-</head>
-<body>
-  <header class="topbar">
-    <div class="brand">
-      <span class="sat">📡</span>
-      <div>
-        <div class="title">GROUND STATION&nbsp;//&nbsp;DEMOSAT TELEMETRY</div>
-        <div class="sub">victim · downlink 401.500 MHz · <span id="clock">--:--:--</span></div>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DEMOSAT · Ground Station</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="sat">📡</span>
+        <div>
+          <div class="title">GROUND STATION</div>
+        </div>
       </div>
+      <div class="conn"><span id="connDot" class="dot off"></span><span id="connText">CONNECTING…</span></div>
+    </header>
+
+    <div id="statusBanner" class="banner nominal">
+      <span class="bl">SYSTEM STATUS</span>
+      <span id="bannerText">NOMINAL — all subsystems operational</span>
     </div>
-    <div class="conn"><span id="connDot" class="dot off"></span><span id="connText">CONNECTING…</span></div>
-  </header>
 
-  <div id="statusBanner" class="banner nominal">
-    <span class="bl">SYSTEM STATUS</span>
-    <span id="bannerText">NOMINAL — all subsystems operational</span>
-  </div>
-
-  <section class="vitals">
-    <div class="vhead">
-      <div class="vtitle">SPACECRAFT VITALS <span class="vsub">· ATTITUDE / ENERGY LIFE-SIGN MONITOR</span></div>
-      <div class="vmeta">
-        <span class="vbox"><span id="bpm" class="vbpm">--</span><span class="vunit">BPM</span></span>
-        <span id="vitState" class="vstate ok">● STABLE RHYTHM</span>
+    <section class="vitals">
+      <div class="vhead">
+        <div class="vtitle">TELEMETRY DOWNLINK</div>
+        <span id="vitState" class="vstate ok">● LINK STABLE</span>
       </div>
-    </div>
-    <canvas id="ecg"></canvas>
-  </section>
-
-  <main class="ground">
-    <!-- Row A: energy/uplink (left) + spacecraft simulator (right, scn3 only) -->
-    <div class="rowA">
-      <div class="leftcol">
-        <div class="card">
-          <h2>ENERGY SUPPLY</h2>
-          <div class="metric"><span>Power Generation</span><span id="powNow" class="mv">– W</span></div>
-          <canvas id="powGraph" width="640" height="120"></canvas>
-          <div class="metric"><span>Battery</span><span id="batNow" class="mv">– %</span></div>
-          <canvas id="batGraph" width="640" height="120"></canvas>
+      <div class="linkstats">
+        <div class="lstat">
+          <span class="lk">Signal-to-Noise Ratio</span><span id="mSnr" class="lv">-- <i>dB</i></span>
         </div>
-        <div class="card">
-          <h2>UPLINK ACTIVITY</h2>
-          <div id="log" class="log"></div>
+        <div class="lstat"><span class="lk">Bit Error Rate</span><span id="mBer" class="lv">--</span></div>
+        <div class="lstat">
+          <span class="lk">PACKET LOSS</span><span id="mLoss" class="lv">-- <i>%</i></span>
+        </div>
+        <div class="lstat">
+          <span class="lk">DOPPLER</span><span id="mDopp" class="lv">-- <i>kHz</i></span>
         </div>
       </div>
-      <section class="simcard hidden">
-        <div class="simhead">
-          <div class="simtitle">SPACECRAFT SIMULATOR <span class="simsub">· PHYSICAL ATTITUDE — GROUND TRUTH</span></div>
-          <span id="simTag" class="maptag ok">● STABLE · SUN-TRACKING</span>
-        </div>
-        <div class="simwrap">
-          <canvas id="satsim"></canvas>
-          <div class="simreadout">
-            <div class="sim-r"><span>ROLL</span><b id="simRoll">0.0°</b></div>
-            <div class="sim-r"><span>PITCH</span><b id="simPitch">0.0°</b></div>
-            <div class="sim-r"><span>YAW</span><b id="simYaw">0.0°</b></div>
-            <div class="sim-r"><span>SPIN RATE</span><b id="simSpin">0.0 °/s</b></div>
-            <div class="sim-r"><span>SUN INCIDENCE</span><b id="simSun">0°</b></div>
+      <div class="lockrow">
+        <!-- <span id="lkCarrier" class="lock ok">● CARRIER</span>
+        <span id="lkSymbol" class="lock ok">● SYMBOL</span>
+        <span id="lkFrame" class="lock ok">● FRAME</span> -->
+        <span class="lspacer"></span>
+        <span class="thr"><span class="thrl">Receive</span><b id="rxRate">--</b><i>kbps</i></span>
+        <span class="thr"><span class="thrl">Transmit</span><b id="txRate">--</b><i>kbps</i></span>
+      </div>
+      <canvas id="linkmon"></canvas>
+    </section>
+
+    <main class="ground">
+      <!-- Row A: energy/uplink (left) + spacecraft simulator (right, scn3 only) -->
+      <div class="rowA">
+        <div class="leftcol">
+          <div class="card">
+            <div class="vtitle">ENERGY SUPPLY</div>
+            <div class="metric"><span>Power Generation</span><span id="powNow" class="mv">– W</span></div>
+            <canvas id="powGraph" width="640" height="120"></canvas>
+            <div class="metric"><span>Battery</span><span id="batNow" class="mv">– %</span></div>
+            <canvas id="batGraph" width="640" height="120"></canvas>
           </div>
         </div>
-      </section>
-    </div>
+        <section class="simcard hidden">
+          <div class="simhead">
+            <div class="simtitle">SPACECRAFT SIMULATOR</div>
+            <span id="simTag" class="maptag ok">● STABLE · SUN-TRACKING</span>
+          </div>
+          <div class="simwrap">
+            <canvas id="satsim"></canvas>
+            <div class="simreadout">
+              <div class="sim-r"><span>ROLL</span><b id="simRoll">0.0°</b></div>
+              <div class="sim-r"><span>PITCH</span><b id="simPitch">0.0°</b></div>
+              <div class="sim-r"><span>YAW</span><b id="simYaw">0.0°</b></div>
+              <div class="sim-r"><span>SPIN RATE</span><b id="simSpin">0.0 °/s</b></div>
+              <div class="sim-r"><span>SUN INCIDENCE</span><b id="simSun">0°</b></div>
+            </div>
+          </div>
+        </section>
+      </div>
 
-    <!-- Row B: orbital map (left) + the four subsystem boxes (right) -->
-    <div class="rowB">
-      <div class="card mapcard">
-        <div class="maphead"><h2>ORBITAL TRACKING · SUB-SATELLITE POINT</h2>
-          <span id="mapCoord" class="mapcoord">--.-° , --.-°</span></div>
-        <div class="mapwrap">
-          <canvas id="orbit"></canvas>
-          <div class="mapoverlay">
-            <span id="mapTag" class="maptag ok">● TRACKING</span>
+      <!-- Row B: orbital map (left) + the four subsystem boxes (right) -->
+      <div class="rowB">
+        <div class="card mapcard">
+          <div class="maphead">
+            <div class="vtitle">ORBITAL TRACKING</div>
+            <span id="mapCoord" class="mapcoord">--.-° , --.-°</span>
+          </div>
+          <div class="mapwrap">
+            <canvas id="orbit"></canvas>
+            <div class="mapoverlay">
+              <span id="mapTag" class="maptag ok">● TRACKING</span>
+            </div>
           </div>
         </div>
+        <section id="panels" class="panels"></section>
       </div>
-      <section id="panels" class="panels"></section>
-    </div>
-  </main>
+    </main>
 
-  <div id="alarm" class="alarm hidden">
-    <div class="alarmbox">
-      <div class="atitle" id="alarmTitle">⚠ ENERGY SUPPLY CRITICAL</div>
-      <div class="adesc" id="alarmDesc">Unauthorized ADCS torque command — satellite tumbling, solar array off-sun.</div>
+    <div id="alarm" class="alarm hidden">
+      <div class="alarmbox">
+        <div class="atitle" id="alarmTitle">⚠ ENERGY SUPPLY CRITICAL</div>
+        <div class="adesc" id="alarmDesc">
+          Unauthorized ADCS torque command — satellite tumbling, solar array off-sun.
+        </div>
+      </div>
     </div>
-  </div>
 
-  <script src="/app.js"></script>
-</body>
+    <script src="/app.js"></script>
+  </body>
 </html>
