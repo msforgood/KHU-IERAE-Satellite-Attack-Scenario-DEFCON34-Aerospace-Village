@@ -2,7 +2,7 @@
 # In-container: preconfigure gpredict (ENIGMA-1 + OpenVSA rotator/radio), run it
 # under libfaketime (so the web "reset to next pass" button can jump its clock),
 # and stream over noVNC. rotctld/rigctld HOST are rewritten to reach the host's
-# scenario-1 VSA (rotctld :4533, rigctld :4532, VSA-DEFCON2026/server.js).
+# scenario-1 Virtual Antenna (rotctld :4533, rigctld :4532, VSA-DEFCON2026/server.js).
 #
 # TLE registration: local /config/enigma1.tle → gpredict DB (satdata/90001.sat) +
 # module, so ENIGMA-1 is trackable on launch. The raw .tle stays under /config so

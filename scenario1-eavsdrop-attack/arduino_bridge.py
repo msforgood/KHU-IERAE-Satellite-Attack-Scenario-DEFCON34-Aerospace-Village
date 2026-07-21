@@ -179,8 +179,8 @@ async def run(ws_url, link, verbose=False):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="VSA WebSocket ↔ Arduino serial bridge")
-    ap.add_argument("--ws", default="ws://localhost:4534", help="VSA 브릿지 WebSocket URL")
+    ap = argparse.ArgumentParser(description="Virtual Antenna WebSocket ↔ Arduino serial bridge")
+    ap.add_argument("--ws", default="ws://localhost:4534", help="Virtual Antenna 브릿지 WebSocket URL")
     ap.add_argument("--port", default=None, help="아두이노 시리얼 포트 (기본: 자동탐지)")
     ap.add_argument("--baud", type=int, default=115200, help="시리얼 보드레이트 (스케치와 일치)")
     ap.add_argument("-v", "--verbose", action="store_true",

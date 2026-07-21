@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# [WSL] ① VSA 브릿지 server.js  (rotctld:4533 · rigctld:4532 · WS:4534)
+# [WSL] ① Virtual Antenna 브릿지 server.js  (rotctld:4533 · rigctld:4532 · WS:4534)
 #   GPredict rotator host=localhost:4533, radio host=localhost:4532.
 #   컨테이너 gpredict 는 host.docker.internal 로 이 서버에 붙는다.
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"

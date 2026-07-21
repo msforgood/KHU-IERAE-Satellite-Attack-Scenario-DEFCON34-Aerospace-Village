@@ -507,7 +507,7 @@ async function handleRecFile(file) {
   const name = file.name, size = file.size;
   const okExt = /\.(cf32|iq|raw|c64|dat)$/i.test(name);
   if (size < 4096 || size % 8 !== 0) {
-    return ugError(`complex float32(IQ) 형식이 아닙니다 — 크기 ${fmtBytes(size)} (8바이트 배수가 아니거나 너무 작음). VSA 에서 녹음한 .cf32 를 올리세요.`);
+    return ugError(`complex float32(IQ) 형식이 아닙니다 — 크기 ${fmtBytes(size)} (8바이트 배수가 아니거나 너무 작음). Virtual Antenna 에서 녹음한 .cf32 를 올리세요.`);
   }
   let ok = true, peak = 0;                              // 앞부분을 float32 로 해석해 실제 IQ 인지 확인
   try {
@@ -516,7 +516,7 @@ async function handleRecFile(file) {
     for (let i = 0; i < f.length; i++) { const v = f[i]; if (!Number.isFinite(v)) { ok = false; break; } const a = Math.abs(v); if (a > peak) peak = a; }
     if (peak === 0 || peak > 1e6) ok = false;   // NaN/Inf 는 위 isFinite 에서 이미 차단; 정규화 안 된 캡처도 허용
   } catch (e) { ok = false; }
-  if (!ok) return ugError('IQ 데이터로 해석되지 않습니다. VSA 에서 녹음한 .cf32(complex float32) 파일인지 확인하세요.');
+  if (!ok) return ugError('IQ 데이터로 해석되지 않습니다. Virtual Antenna 에서 녹음한 .cf32(complex float32) 파일인지 확인하세요.');
   const samples = size / 8, durAt50k = samples / 50000;
   state.recUploaded = true; state.recFile = { name, size, samples };
   BLOCKS.file_source.sub = name.length > 26 ? name.slice(0, 25) + '…' : name;   // 퍼즐 첫 블록 + PHASE5 File Source 라벨

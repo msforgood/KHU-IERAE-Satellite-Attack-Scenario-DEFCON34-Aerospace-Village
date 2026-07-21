@@ -512,7 +512,7 @@ def main():
         except Exception:
             pass
     print(f"ENIGMA-1 Downlink Decoder (Scenario 1) -> http://localhost:{PORT}")
-    print(f"  VSA mounted at  /vsa/   (from {VSA_DIR})")
+    print(f"  Virtual Antenna mounted at  /vsa/   (from {VSA_DIR})")
     print(f"  GPredict embed: {GPREDICT_URL or '(none - placeholder/polar-preview shown)'}")
     print(f"  GNURadio embed: {GNURADIO_URL or '(none - static answer flowgraph rendered)'}")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

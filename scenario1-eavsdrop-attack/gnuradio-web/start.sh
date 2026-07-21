@@ -13,7 +13,7 @@ SRC="${GRC_FILE:-/grc/enigma1_decoder.grc}"
 RUN_GRC=/root/enigma1_decoder.grc
 # Runnable copy: (1) samp_rate 0.05e6 -> $SAMP_RATE to match the mounted File Source
 #     (run.sh passes 96000 for the built-in 96 kSps recording, or e.g. 50000 for a
-#      PHASE-4-uploaded VSA capture), (2) enable the QT GUI Waterfall Sink (shipped
+#      PHASE-4-uploaded Virtual Antenna capture), (2) enable the QT GUI Waterfall Sink (shipped
 #     disabled) so ▶ Run shows a live spectrum window while it decodes.
 SR="${SAMP_RATE:-96000}"
 sed "s/value: 0.05e6/value: ${SR}/; s/state: disabled/state: enabled/" "$SRC" > "$RUN_GRC" 2>/dev/null || cp "$SRC" "$RUN_GRC"

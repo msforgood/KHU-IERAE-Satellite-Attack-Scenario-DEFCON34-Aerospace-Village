@@ -112,7 +112,7 @@ class FakeVSA:
 
 
 async def main():
-    ap = argparse.ArgumentParser(description="Fake VSA WebSocket server (antenna-lock)")
+    ap = argparse.ArgumentParser(description="Fake Virtual Antenna WebSocket server (antenna-lock)")
     ap.add_argument("--port", type=int, default=4534, help="WebSocket 포트 (기본 4534, 실서버와 동일)")
     ap.add_argument("--auto-period", type=float, default=8.0, help="자동 데모 lock/unlock 간격(초)")
     a = ap.parse_args()

@@ -19,7 +19,7 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 # WSL 감지: Docker Desktop의 host.docker.internal 은 Windows 호스트를 가리키는데
-# 지상국(VSA server.js)은 보통 WSL 배포판 안에서 돈다. 그래서 컨테이너가 server.js
+# 지상국(Virtual Antenna server.js)은 보통 WSL 배포판 안에서 돈다. 그래서 컨테이너가 server.js
 # (:4533/:4532)에 닿도록 ROTCTLD_HOST 를 WSL IP 로 자동 설정한다(명시 지정 시 그대로 사용).
 if [ -z "${ROTCTLD_HOST:-}" ] && grep -qi microsoft /proc/version 2>/dev/null; then
   ROTCTLD_HOST="$(hostname -I 2>/dev/null | awk '{print $1}')"

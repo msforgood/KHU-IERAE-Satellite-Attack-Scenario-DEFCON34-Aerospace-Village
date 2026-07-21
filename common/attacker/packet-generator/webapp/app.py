@@ -159,7 +159,7 @@ COMMAND_UI = {
         "subsystem": "ADCS", "title": "Subsystem Control",
         "blurb": "bit0=stabilization, bit1=transponder.",
         "fields": [{"key": "bitmask", "type": "number", "min": 0, "max": 3, "default": 0, "unit": ""}],
-        "effect": "Turns off the satellite's auto-balancing → it starts to tumble",
+        "effect": "Turns off the satellite's auto-balancing",
     },
     "transponder_ctrl": {
         "subsystem": "COMM", "title": "Transponder Control",
