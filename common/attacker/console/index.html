@@ -412,7 +412,7 @@
   </section>
   <section>
     <div class="cap cap--row">
-      <span><span class="stepno">STEP 2</span>📡 OpenVSA — <b>VSA UPLINK / ROTATOR</b></span>
+      <span><span class="stepno">STEP 2</span>📡 <b>VIRTUAL ANTENNA UPLINK / ROTATOR</b></span>
       <span class="spacer"></span>
       <span id="status"></span>
     </div>
@@ -601,7 +601,7 @@
         value: "DEMOSAT",
         apply: () => sendVSA({ targetSat: "DEMOSAT" }),
         why: "Picks <b>which spacecraft</b> the uplink is addressed to. gpredict has already locked DEMOSAT's TLE and is computing its live look-angles — every value below is derived from that lock.",
-        use: "Binds the VSA transmit chain to DEMOSAT's ephemeris, so the frequency and pointing angles that follow all refer to this one bird.",
+        use: "Binds the Virtual Antenna transmit chain to DEMOSAT's ephemeris, so the frequency and pointing angles that follow all refer to this one bird.",
       },
       {
         title: "Uplink Frequency",
