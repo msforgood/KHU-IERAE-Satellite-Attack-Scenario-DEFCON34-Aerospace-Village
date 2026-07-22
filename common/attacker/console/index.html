@@ -412,7 +412,7 @@
   </section>
   <section>
     <div class="cap cap--row">
-      <span><span class="stepno">STEP 2</span>📡 <b>VIRTUAL ANTENNA UPLINK / ROTATOR</b></span>
+      <span><span class="stepno">STEP 2</span>📡 <b>VIRTUAL ANTENNA UPLINK</b></span>
       <span class="spacer"></span>
       <span id="status"></span>
     </div>
@@ -499,7 +499,11 @@
       setStatus("⚡ UPLINK TRANSMITTED · adcs_torque 999 mNm", "var(--crit)");
       // notify the outer Command Builder that the uplink was fired, so a scenario's
       // next-phase entry (e.g. ④ drone spoof) can be revealed only AFTER transmit.
-      try { window.parent.postMessage({ type: "attack-fired" }, "*"); } catch (e) { /* no parent */ }
+      try {
+        window.parent.postMessage({ type: "attack-fired" }, "*");
+      } catch (e) {
+        /* no parent */
+      }
     } catch (e) {
       setStatus("GS connection failed (" + e.message + ")", "var(--crit)");
     }
@@ -537,10 +541,7 @@
       gGo.disabled = false;
     } else {
       gGo.disabled = true;
-      setStateHTML(
-        '<b class="cd">' + Math.ceil(remaining) + "</b>s until the satellite enters range…",
-        "wait",
-      );
+      setStateHTML('<b class="cd">' + Math.ceil(remaining) + "</b>s until the satellite enters range…", "wait");
     }
   }
 
@@ -572,12 +573,15 @@
     if (engaged) return;
     engaged = true;
     gGo.style.display = "none"; // hide the button entirely once clicked
-    let az = 206, el = 31; // fallback = the initial pose
+    let az = 206,
+      el = 31; // fallback = the initial pose
     try {
       const s = await (await fetch(CTRL + "/status")).json();
       if (Number.isFinite(s.azimDeg)) az = s.azimDeg;
       if (Number.isFinite(s.elevDeg)) el = s.elevDeg;
-    } catch (e) { /* keep fallback */ }
+    } catch (e) {
+      /* keep fallback */
+    }
     const azC = Math.max(0, Math.min(360, az));
     const elC = Math.max(0, Math.min(90, el));
     const fmt = (v) => String(parseFloat(v.toFixed(6))); // up to 6 decimals, no trailing zeros
@@ -663,10 +667,22 @@
       setStateHTML(
         checklist() +
           '<div class="lesson">' +
-          '<div class="ltitle">Step ' + (i + 1) + " of " + steps.length + " · " + s.title + "</div>" +
-          '<div class="lval">→ ' + s.value + "</div>" +
-          '<div class="lrow"><span class="ltag">WHY</span>' + s.why + "</div>" +
-          '<div class="lrow"><span class="ltag">USED FOR</span>' + s.use + "</div>" +
+          '<div class="ltitle">Step ' +
+          (i + 1) +
+          " of " +
+          steps.length +
+          " · " +
+          s.title +
+          "</div>" +
+          '<div class="lval">→ ' +
+          s.value +
+          "</div>" +
+          '<div class="lrow"><span class="ltag">WHY</span>' +
+          s.why +
+          "</div>" +
+          '<div class="lrow"><span class="ltag">USED FOR</span>' +
+          s.use +
+          "</div>" +
           "</div>" +
           '<button class="next" id="gNext">' +
           (last ? "Set elevation &amp; finish aim ✓" : "Set " + s.title.toLowerCase() + " &amp; continue →") +
@@ -709,10 +725,7 @@
     }
 
     // STEP 0 (target satellite) locks automatically on ENGAGE; the rest are manual.
-    setStateHTML(
-      '🎯 Locking target…<br><span class="spin"></span>Setting target satellite…',
-      "busy",
-    );
+    setStateHTML('🎯 Locking target…<br><span class="spin"></span>Setting target satellite…', "busy");
     await sleep(900);
     steps[0].apply();
     doneVals[0] = steps[0].value;
