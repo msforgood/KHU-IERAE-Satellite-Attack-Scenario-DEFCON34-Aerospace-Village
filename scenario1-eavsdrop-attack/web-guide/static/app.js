@@ -103,6 +103,7 @@ function show(id) {
   if (id === 'track') mountEmbeds();
   if (id === 'analyze') mountAnalyze();
   if (id === 'flowgraph') { mountFlowgraph(); startDecode(); }   // start live reassembly automatically on entry (no manual button needed)
+  if (id === 'result') { const ri = $('#resultImg'); if (ri) ri.src = '/decoded.png?t=' + Date.now(); }   // show the actual recovered image (fresh)
   if (id === 'puzzle') {   // upload + analysis already happened in PHASE 4; refresh labels and start the preview
     requestAnimationFrame(() => { renderSlots(); renderTray(); drawWires(); updatePuzzleState(); startSignalFlow(); });
   }
@@ -124,17 +125,9 @@ function wireNav() {
     document.querySelectorAll('.si-cell[data-si]').forEach((cell) => cell.classList.toggle('hl', show));
     if (show && box) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
-  $('#restart').addEventListener('click', () => {
-    $('#ackChk').checked = false; $('#toTarget').disabled = true;
-    state.recUploaded = false; state.recFile = null; state.recFileObj = null;
-    AN.ran = false; AN.highlight = false; AN.psd = null; AN.spec = null; AN.m = null;
-    ['pFc', 'pMod', 'pBw'].forEach((id) => { const e = $('#' + id); if (e) { e.value = ''; e.classList.remove('ok', 'err'); } });
-    const hb = $('#anHintBox'); if (hb) { hb.classList.add('hidden'); hb.innerHTML = ''; }
-    const ui = $('#ugInfo'); if (ui) { ui.classList.add('hidden'); ui.classList.remove('ug-ok', 'ug-err'); ui.innerHTML = ''; }
-    const uf = $('#ugFile'); if (uf) uf.value = '';
-    syncAnalyzeGate();
-    show('mission');
-  });
+  // Result-page "Restart ↺" = next participant, so it runs the SAME full reset (recreate gpredict +
+  // GNU Radio, clear the recorded signal / recovered image, reload) rather than a client-only redo.
+  $('#restart').addEventListener('click', () => { doFullReset(); });
   document.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => show(b.dataset.goto)));
 }
 
@@ -230,6 +223,7 @@ function mountEmbeds() {
 
 // Phase-3 record button: triggers the VSA's own IQ recorder inside the embedded VSA
 // iframe (same origin), so it saves exactly what the VSA REC button would.
+let recTimer = null;
 function wireRecord() {
   const btn = $('#btnRecord'), stat = $('#btnRecordStat');
   if (!btn || btn.dataset.wired) return;
@@ -244,7 +238,33 @@ function wireRecord() {
     btn.classList.toggle('recording', recording);
     btn.textContent = recording ? '■ Stop & save' : '⏺ Record';
     stat.className = 'passstat ok';
-    stat.textContent = recording ? '● Recording the VSA signal…' : '✓ Saved on the server (ready for Phase 4)';
+    if (recording) {
+      const t0 = performance.now();
+      const fmt = () => { const s = Math.floor((performance.now() - t0) / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+      if (recTimer) clearInterval(recTimer);
+      stat.textContent = `● Recording ${fmt()}`;
+      recTimer = setInterval(() => { stat.textContent = `● Recording ${fmt()}`; }, 250);   // live elapsed record time
+    } else {
+      if (recTimer) { clearInterval(recTimer); recTimer = null; }
+      // The VSA saves asynchronously (POST /api/upload). VERIFY the server actually stored it rather
+      // than assuming success, so a failed save shows a real error instead of a misleading "saved".
+      stat.className = 'passstat'; stat.textContent = '⏳ saving to the server…';
+      const startedAt = Date.now();
+      let tries = 0;
+      const verify = async () => {
+        let u = null;
+        try { u = await (await fetch('/api/upload', { cache: 'no-store' })).json(); } catch (e) {}
+        if (u && u.exists && u.size && (!u.uploadedAt || u.uploadedAt * 1000 > startedAt - 4000)) {
+          stat.className = 'passstat ok';
+          stat.textContent = `✓ saved (${(u.size / 1048576).toFixed(1)} MB) - ready for Phase 4`;
+          return;
+        }
+        if (++tries < 12) { setTimeout(verify, 700); return; }
+        stat.className = 'passstat err';
+        stat.textContent = '✗ save failed - record again (hold Record a few seconds before Stop)';
+      };
+      setTimeout(verify, 700);
+    }
   });
 }
 
@@ -253,6 +273,18 @@ function wireRecord() {
 function vsaEl(id) {
   const f = $('#vsaFrame');
   try { return f && f.contentDocument ? f.contentDocument.getElementById(id) : null; } catch (e) { return null; }
+}
+// Only the correct antenna (Helix, RHCP) receives ENIGMA-1: green when Helix is chosen, red otherwise.
+const CORRECT_ANTENNA = 'helix';
+function markAntenna(val) {
+  const st = $('#antStat');
+  const correct = String(val || '').toLowerCase() === CORRECT_ANTENNA;
+  // Keep the dropdown in its plain, readable style (no green/red tint bleeding into the <option>
+  // list); only the status message beside it turns green (correct) / red (wrong).
+  if (st) {
+    st.className = 'passstat ' + (correct ? 'ok' : 'err');
+    st.textContent = correct ? '✓ correct antenna (RHCP) - signal received' : '✗ wrong antenna - no signal (try another)';
+  }
 }
 function wireVsaControls() {
   const antSel = $('#antSelect'), antStat = $('#antStat');
@@ -264,6 +296,7 @@ function wireVsaControls() {
       antSel.innerHTML = vsel.innerHTML;
       antSel.value = vsel.value;
       antSel.dataset.filled = '1';
+      markAntenna(antSel.value);
       const sr = vsaEl('ctrl-samplerate'); if (sr && sr.value) srInput.value = sr.value;
       clearInterval(fill);
     }
@@ -277,8 +310,7 @@ function wireVsaControls() {
       if (!vsel) { antStat.className = 'passstat err'; antStat.textContent = '✗ VSA not ready'; return; }
       vsel.value = antSel.value;
       vsel.dispatchEvent(new Event('change', { bubbles: true }));
-      antStat.className = 'passstat ok';
-      antStat.textContent = `✓ ${(antSel.options[antSel.selectedIndex] || {}).text || antSel.value}`;
+      markAntenna(antSel.value);
     });
   }
   if (srBtn && !srBtn.dataset.wired) {
@@ -1338,6 +1370,17 @@ function mountFlowgraph() {
     const card = el('div', 'fgcard');
     const f = el('iframe', 'gnuframe'); f.title = 'GNU Radio'; f.src = novncEmbedUrl(state.cfg.gnuradioUrl);
     card.append(el('h3', null, 'GNU RADIO COMPANION / ▶ Run to recover the image'), f);
+    // GNU Radio (inside the container) takes ~10-15s to bring up the QT waterfall window. Show a
+    // "starting…" overlay so the participant does not think it is stuck. noVNC's iframe 'load' fires
+    // early (when vnc.html loads, before the session is visible), so keep a hard backstop timer too.
+    const wait = el('div', 'gnu-wait');
+    wait.innerHTML = '<div class="reset-spinner"></div>' +
+      '<div class="gnu-wait-title">GNU Radio waterfall is starting…</div>' +
+      '<div class="gnu-wait-sub">The live spectrum window takes about <b>10-15s</b> to appear. This is normal, please wait.</div>';
+    card.append(wait);
+    const clearWait = () => { if (wait && wait.parentElement) wait.remove(); };
+    f.addEventListener('load', () => setTimeout(clearWait, 6000));
+    setTimeout(clearWait, 15000);
     slot.append(card);
   } else {
     const card = el('div', 'fgcard'); card.innerHTML = '<h3>ENIGMA-1 DECODER / SOLVED FLOWGRAPH</h3>';
@@ -1374,8 +1417,9 @@ function renderStaticFlowgraph(cv) {
 // ─────────────────────────────────────────────────────────────────────────────
 const reasImg = new Image();
 reasImg.src = '/assets/result.png';
-const reas = { running: false, done: false, frac: 0, rows: 128, reps: 0, everDone: false, maxFrac: 0, liveStart: 0, poll: null, real: false };
+const reas = { running: false, done: false, frac: 0, rows: 128, reps: 0, everDone: false, maxFrac: 0, liveStart: 0, poll: null, real: false, baselineMtime: 0 };
 let reasWired = false;
+let reasBlank = true;   // true = show the "waiting" panel instead of a stale image, until a fresh decode loads
 
 function initReassemble() {
   if (!reasWired) {
@@ -1401,26 +1445,45 @@ async function startDecode() {
   const b = $('#reasBadge'); if (b) b.classList.add('hidden');
   stopDecode();
   reas.running = true; reas.done = false; reas.frac = 0; reas.real = false; reas.everDone = false; reas.maxFrac = 0; reas.liveStart = 0;
+  // Start from a clean slate: blank the panel + progress so the previous run's image is not shown
+  // while the new input decodes (avoids the "already recovered on entry" feeling).
+  reasBlank = true;
+  const fill0 = $('#reasFill'); if (fill0) fill0.style.width = '0%';
+  const fr0 = $('#reasFrame'); if (fr0) fr0.textContent = 'waiting for the new decode…';
+  drawReassemble();
+  // Snapshot the newest decode output present RIGHT NOW, then ignore anything at or before it: only a
+  // decode whose progress file is (re)written AFTER this moment counts as live. This is what stops a
+  // previous participant's leftover gnuradio-out image from popping up the instant we enter the phase.
+  reas.baselineMtime = 0;
+  try {
+    const p0 = await (await fetch('/api/decode-progress', { cache: 'no-store' })).json();
+    if (p0 && p0.exists) reas.baselineMtime = p0.mtime || 0;
+  } catch (e) {}
   const t0 = performance.now(); let sawLive = false;
   reas.poll = setInterval(async () => {
     if (state.phase !== 'flowgraph') { stopDecode(); return; }
     let live = false, done = false, frac = 0;
     try {
       const p = await (await fetch('/api/decode-progress', { cache: 'no-store' })).json();
-      if (p && p.exists) { live = true; sawLive = true; frac = Math.min(1, p.fraction || 0); done = !!p.done; reas.rows = 128; reas.reps = p.reps || 0; if (!reas.liveStart) reas.liveStart = performance.now(); }
+      // Only a decode whose progress file was (re)written AFTER we entered (mtime past the entry
+      // baseline) counts as live. A stale leftover from a previous run has mtime == baseline -> ignored.
+      if (p && p.exists && (p.mtime || 0) > reas.baselineMtime) {
+        live = true; sawLive = true; frac = Math.min(1, p.fraction || 0); done = !!p.done; reas.rows = 128; reas.reps = p.reps || 0; if (!reas.liveStart) reas.liveStart = performance.now();
+      }
     } catch (e) {}
     if (live) {                                   // follow the real progressive image
       reas.real = true;
       await loadReasImage('/decoded.png?t=' + Date.now());
+      reasBlank = false;                           // a fresh decode has arrived -> show it
       reas.frac = frac; reas.done = done && frac >= 0.99;
       if (reas.done) reas.everDone = true;
       if (frac > reas.maxFrac) reas.maxFrac = frac;
-    } else if (!sawLive) {                         // before ▶Run: 6-second demo with the reference image
-      if (!reas.real) { await loadReasImage('/assets/result.png'); reas.frac = Math.min(1, (performance.now() - t0) / 6000); reas.done = reas.frac >= 1; }
+    } else if (!sawLive && !state.cfg.gnuradioUrl) {   // no real GNU Radio configured: brief reference-image demo (with real GNU Radio we stay blank until it actually decodes)
+      if (!reas.real) { await loadReasImage('/assets/result.png'); reasBlank = false; reas.frac = Math.min(1, (performance.now() - t0) / 6000); reas.done = reas.frac >= 1; }
     }
     drawReassemble();
     const fill = $('#reasFill'); if (fill) fill.style.width = Math.round(reas.frac * 100) + '%';
-    const fr = $('#reasFrame'); if (fr) fr.textContent = reas.real ? `recovered ${Math.round(reas.frac * 100)}% / pass ${(reas.reps || 0) + 1}` : `recovered ${Math.round(reas.frac * 100)}%`;
+    const fr = $('#reasFrame'); if (fr) fr.textContent = reas.real ? `recovered ${Math.round(reas.frac * 100)}% / pass ${(reas.reps || 0) + 1}` : (reasBlank ? 'waiting for the decode (▶ Run in GNU Radio)…' : `recovered ${Math.round(reas.frac * 100)}%`);
     const badge = $('#reasBadge');
     const failing = reas.real && !reas.everDone && reas.liveStart && (performance.now() - reas.liveStart > 30000);   // demodulating for over 30s without ever completing = recovery failure (center-frequency offset, etc.)
     if (badge) {
@@ -1446,7 +1509,7 @@ function drawReassemble() {
   if (cv.width !== w * dpr || cv.height !== h * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = '#050a10'; ctx.fillRect(0, 0, w, h);
-  if (!reasImg.complete || !reasImg.naturalWidth) { reasNoise(ctx, 8, 8, w - 16, h - 16, 0.5); return; }
+  if (reasBlank || !reasImg.complete || !reasImg.naturalWidth) { reasNoise(ctx, 8, 8, w - 16, h - 16, 0.5); return; }
   const iw = reasImg.naturalWidth, ih = reasImg.naturalHeight;
   const sc = Math.min((w - 16) / iw, (h - 16) / ih), dw = iw * sc, dh = ih * sc, dx = (w - dw) / 2, dy = (h - dh) / 2;
   ctx.imageSmoothingEnabled = false;
@@ -1455,9 +1518,49 @@ function drawReassemble() {
   ctx.drawImage(reasImg, dx, dy, dw, dh);   // draw the full image as-is on one screen (no row split or partial reveal; the real decode fills top to bottom)
 }
 
+// Full reset for the next participant: recreate gpredict + GNU Radio, clear the recorded signal
+// and recovered image on the server, then reload the page (resets the browser / VSA state too).
+// Full booth reset for the next participant: recreate gpredict + GNU Radio, clear the recorded
+// signal and recovered image on the server, then reload the page. Shared by the topbar "Reset for
+// next participant" button and the result-page "Restart ↺" button so both give a clean slate.
+async function doFullReset() {
+  if (!confirm('Reset the whole demo (gpredict, VSA, GNU Radio, and this page) to the initial state for the next participant?')) return;
+  const ov = $('#resetOverlay'); if (ov) ov.classList.remove('hidden');
+  // Clear the client-side upload / Analyze / Puzzle state immediately so the recording and its
+  // file-source labels disappear at once, instead of only after the deferred reload (which can lag
+  // 28-80s while gpredict recreates). This is what made Reset feel like it "did nothing".
+  state.recUploaded = false; state.recFile = null; state.recFileObj = null;
+  AN.ran = false; AN.highlight = false; AN.psd = null; AN.spec = null; AN.m = null;
+  if (BLOCKS && BLOCKS.file_source) BLOCKS.file_source.sub = 'enigma34_downlink.cf32';
+  { const ui = $('#ugInfo'); if (ui) { ui.classList.add('hidden'); ui.classList.remove('ug-ok', 'ug-err'); ui.innerHTML = ''; } }
+  { const uf = $('#ugFile'); if (uf) uf.value = ''; }
+  if (typeof syncAnalyzeGate === 'function') syncAnalyzeGate();
+  try { await fetch('/api/reset-all'); } catch (e) { /* fire-and-forget: the poll below waits for the fresh state */ }
+  // Reload ONLY once the recreated gpredict is back AND fully clean - engaged AND tracking both off -
+  // otherwise the reloaded page re-colours the Track/Apply/Doppler buttons from stale gpredict state.
+  const cd = $('#resetCountdown');
+  const minReload = Date.now() + 28000;   // give the container recreates time to finish
+  const deadline  = Date.now() + 80000;   // hard cap
+  const tick = async () => {
+    if (cd) cd.textContent = String(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+    let clean = false;
+    try {
+      const st = await (await fetch('/api/gpredict-status', { cache: 'no-store' })).json();
+      clean = st && st.ok && st.bridgeUp && !st.radioEngaged && !st.rotorEngaged
+              && !st.radioTracking && !st.rotorTracking;
+    } catch (e) { /* control server still coming up */ }
+    if ((clean && Date.now() > minReload) || Date.now() > deadline) { location.reload(); return; }
+    setTimeout(tick, 2000);
+  };
+  setTimeout(tick, 6000);
+}
+function wireResetAll() {
+  const btn = $('#resetAllBtn'); if (btn) btn.addEventListener('click', doFullReset);
+}
+
 // ── boot ──
 async function boot() {
-  buildStepper(); wireNav(); wirePuzzle(); initPuzzle(); wireUploadGate(); wireUseRecording(); wireAnalyzeControls();
+  buildStepper(); wireNav(); wirePuzzle(); initPuzzle(); wireUploadGate(); wireUseRecording(); wireAnalyzeControls(); wireResetAll();
   try {
     const [cfg, sat, qth] = await Promise.all([
       fetch('/api/config').then((r) => r.json()),
@@ -1468,6 +1571,16 @@ async function boot() {
     if (qth && qth[0]) { state.qth = qth[0]; buildSatrec(); }
     renderDossierFull(sat); renderSatInfoStrip(sat);
   } catch (e) { console.error('boot load failed', e); }
+  // Re-derive the upload state from the server so any reload (Reset-triggered or manual) starts
+  // consistent: never leave a stale recUploaded=true, and reflect a still-present server file as true.
+  try {
+    const u = await fetch('/api/upload', { cache: 'no-store' }).then((r) => r.json());
+    state.recUploaded = !!(u && u.exists);
+    if (u && u.exists) {
+      state.recFile = { name: u.name || 'uploaded.cf32', size: u.size, samples: u.samples || Math.floor((u.size || 0) / 8) };
+      if (BLOCKS && BLOCKS.file_source) BLOCKS.file_source.sub = u.name || 'uploaded.cf32';
+    }
+  } catch (e) { state.recUploaded = false; }
   show('mission');
 }
 boot();
