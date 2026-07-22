@@ -3,8 +3,8 @@
 /**
  * GPredict rotator bridge
  *
- * - TCP :4533  – Hamlib rotctld protocol (point GPredict here)
- * - WS  :4534  – WebSocket for the browser visualisation
+ * - TCP :4533  - Hamlib rotctld protocol (point GPredict here)
+ * - WS  :4534  - WebSocket for the browser visualisation
  *
  * Usage:  node server.js
  */
@@ -21,8 +21,8 @@ const { WebSocketServer } = require("ws");
 let az = 131;
 let el = 47;
 let gpredictConnected = false;
-// 열린 rotctld/rigctld 소켓 집합. 상태를 "연결 개수 > 0"으로 판정한다.
-// (단일 boolean 이면 소켓 하나가 닫힐 때 다른 연결이 살아있어도 false 로 떨어지는 버그가 있었음)
+// Set of open rotctld/rigctld sockets. Status is decided by "connection count > 0".
+// (With a single boolean, there was a bug where closing one socket dropped the status to false even if other connections were still alive.)
 const rotClients = new Set();
 const rigClients = new Set();
 
@@ -65,7 +65,7 @@ const tcpServer = net.createServer((sock) => {
       const cmd = raw.trim();
       if (!cmd) continue;
 
-      // Normalise extended-format commands (\set_pos → P, \get_pos → p, etc.)
+      // Normalise extended-format commands (\set_pos -> P, \get_pos -> p, etc.)
       const normalised = cmd
         .replace(/^\\set_pos\s+/, "P ")
         .replace(/^\\get_pos$/, "p")
@@ -104,7 +104,7 @@ const tcpServer = net.createServer((sock) => {
         }
         sock.write("RPRT 0\n");
       } else if (normalised.startsWith("C ")) {
-        // \set_conf <key> <value>  – GPredict may send sat name here
+        // \set_conf <key> <value>  - GPredict may send sat name here
         const rest  = normalised.slice(2).trim();
         const space = rest.indexOf(" ");
         const key   = space === -1 ? rest : rest.slice(0, space);
@@ -119,7 +119,7 @@ const tcpServer = net.createServer((sock) => {
       } else if (normalised === "q" || normalised === "Q") {
         sock.end();
       } else {
-        // Unknown command – respond OK so GPredict doesn't bail out
+        // Unknown command - respond OK so GPredict doesn't bail out
         console.log(`[rotctld] UNKNOWN: ${JSON.stringify(cmd)}`);
         sock.write("RPRT 0\n");
       }
@@ -141,7 +141,7 @@ tcpServer.listen(4533, "0.0.0.0", () => {
   console.log("          → Point GPredict's rotator host to localhost:4533");
 });
 
-// ── HTTP server — TLE feed for GPredict (my_link) ─────────────────────────────
+// ── HTTP server - TLE feed for GPredict (my_link) ─────────────────────────────
 // DISABLED: TLE is served externally.
 // Configure GPredict to use your own TLE source.
 // const httpServer = http.createServer((req, res) => {
@@ -223,12 +223,12 @@ function forwardUplinkCommand(msg) {
         uplinkWs.send(payload);
       });
       uplinkWs.on("error", () => {
-        console.log(`[uplink] No external receiver at ${UPLINK_DEST} — command logged only`);
+        console.log(`[uplink] No external receiver at ${UPLINK_DEST} - command logged only`);
         uplinkWs = null;
       });
       uplinkWs.on("close", () => { uplinkWs = null; });
     } catch {
-      console.log("[uplink] Forward failed — command logged only");
+      console.log("[uplink] Forward failed - command logged only");
     }
   } else {
     uplinkWs.send(payload);

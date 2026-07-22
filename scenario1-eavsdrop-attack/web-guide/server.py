@@ -1,32 +1,41 @@
 #!/usr/bin/env python3
 """
-ENIGMA-1 Downlink Decoder — Scenario 1 web interface (stdlib http.server, no pip deps)
+ENIGMA-1 Downlink Decoder: Scenario 1 web interface (stdlib http.server, no pip deps)
 
-시나리오 2(scn2)의 webapp 패턴(단일 파이썬 stdlib 서버 + templates/static)을 그대로 따르되,
-UI 는 scenario2 packet-generator webapp 스타일로 새로 작성했다. 6개 phase 를 한 페이지에서
-순차적으로 안내한다:
+This follows the scenario 2 (scn2) webapp pattern (a single Python stdlib server plus
+templates/static), but the UI was rewritten in the style of the scenario2 packet-generator
+webapp. It guides the user through 6 phases in sequence on a single page:
 
-  PHASE 1  MISSION   위성 신호 수신이 목적 — 안테나 트랙킹 / RF 동기화 / 신호 복조 3단계 설명
-  PHASE 2  TARGET    수신 대상 위성(ENIGMA-1) 제원 — VSA 로 확인한 정보
-  PHASE 3  TRACK     제원(SAT info)을 상단에 띄운 채 GPredict(좌) + VSA(우) 를 웹으로 임베드
-                     · GPredict 창 위에 Reset 버튼 + "Remaining time for communication with SAT"
-  PHASE 4  PUZZLE    enigma1_decoder.grc 블록 연결을 퍼즐로 분해 → 사용자가 조립(정답/힌트 버튼)
-  PHASE 5  FLOWGRAPH 실물 GNU Radio(noVNC) 로 정답 flowgraph 실행 → 복원 이미지 생성
-  PHASE 6  RESULT    복원된 이미지(enigma1_image_org.png) 확인
+  PHASE 1  MISSION   The goal is to receive the satellite signal: explains the 3 stages of
+                     antenna tracking / RF synchronization / signal demodulation
+  PHASE 2  TARGET    Specs of the target satellite (ENIGMA-1): information confirmed via VSA
+  PHASE 3  TRACK     Keeps the specs (SAT info) at the top while embedding GPredict (left) and
+                     VSA (right) in the web page
+                     / a Reset button plus "Remaining time for communication with SAT" above the
+                     GPredict window
+  PHASE 4  ANALYZE   Uploads the recorded IQ (.cf32) and runs an in-browser spectrum and
+                     waterfall on it (carrier / occupied bandwidth / packet bursts)
+  PHASE 5  PUZZLE    Breaks the enigma1_decoder.grc block connections into a puzzle: the user
+                     assembles it (answer/hint buttons)
+  PHASE 6  FLOWGRAPH Runs the correct flowgraph on real GNU Radio (noVNC): produces the
+                     restored image
+  PHASE 7  RESULT    View the restored image (enigma1_image_org.png)
 
-이 서버는 렌더링과 정적 마운트만 담당한다:
-  · scenario1 VSA(VSA-DEFCON2026) 를 /vsa/ 로 정적 마운트 + electronAPI shim 주입
-    (일반 브라우저 iframe 에서도 IQ 로드가 되도록. ENIGMA-1 자동선택 + enigma34_downlink.cf32 자동로드)
-  · GPredict / GNU Radio 는 환경변수 URL(noVNC)을 iframe 으로 임베드(없으면 안내 placeholder/폴백)
-  · gpredict-web 의 time-control 서버(:6079)로 reset-pass / offset 을 프록시
+This server only handles rendering and static mounting:
+  / static-mounts the scenario1 VSA (vsa/) at /vsa/ plus injects an electronAPI shim
+    (so IQ loading works even in a plain browser iframe: auto-selects ENIGMA-1 plus auto-loads
+    enigma34_downlink.cf32)
+  / GPredict / GNU Radio are embedded via iframe from their environment-variable URLs (noVNC)
+    (if absent, a guidance placeholder/fallback is shown)
+  / proxies reset-pass / offset to the gpredict-web time-control server (:6079)
 
-실행:  python3 server.py            # → http://localhost:8080
-환경변수:
-  PORT          기본 8080
-  GPREDICT_URL  GPredict 임베드용 noVNC URL (예: http://localhost:6080/vnc.html?autoconnect=1&resize=remote)
-  GNURADIO_URL  GNU Radio Companion 임베드용 noVNC URL (예: http://localhost:6081/vnc.html?...)
-  VSA_URL       VSA 임베드 URL (기본: /vsa/index.html — 이 서버가 정적 제공)
-  GPREDICT_CONTROL_URL  gpredict-web time-control 서버 (기본 http://localhost:6079)
+Run:  python3 server.py            # -> http://localhost:8080
+Environment variables:
+  PORT          default 8080
+  GPREDICT_URL  noVNC URL for embedding GPredict (e.g. http://localhost:6080/vnc.html?autoconnect=1&resize=remote)
+  GNURADIO_URL  noVNC URL for embedding GNU Radio Companion (e.g. http://localhost:6081/vnc.html?...)
+  VSA_URL       VSA embed URL (default: /vsa/index.html, served statically by this server)
+  GPREDICT_CONTROL_URL  gpredict-web time-control server (default http://localhost:6079)
 """
 import os
 import sys
@@ -38,11 +47,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SCEN1 = os.path.abspath(os.path.join(HERE, ".."))          # scenario1-eavsdrop-attack/
 STATIC_DIR = os.path.join(HERE, "static")
 TEMPLATE = os.path.join(HERE, "templates", "index.html")
-VSA_DIR = os.path.join(SCEN1, "VSA-DEFCON2026")
-GRC_FILE = os.path.join(SCEN1, "postProcess", "enigma1_decoder.grc")
-RESULT_IMG = os.path.join(SCEN1, "postProcess", "enigma1_image_org.png")
-GRC_OUT_DIR = os.path.join(SCEN1, "gnuradio-out")   # gnuradio-web ▶ Run 결과 png 가 떨어지는 곳
-# PHASE 4 에서 업로드한 녹음 → PHASE 5 실물 GNU Radio 의 File Source(gnuradio-web/run.sh 가 마운트).
+VSA_DIR = os.path.join(SCEN1, "vsa")
+GRC_FILE = os.path.join(SCEN1, "decoder", "enigma1_decoder.grc")
+RESULT_IMG = os.path.join(SCEN1, "decoder", "enigma1_image_org.png")
+GRC_OUT_DIR = os.path.join(SCEN1, "gnuradio-out")   # where the gnuradio-web Run result png lands
+# The recording uploaded in PHASE 4 -> the File Source of the real GNU Radio in PHASE 6 (mounted by gnuradio-web/run.sh).
 UPLOAD_DIR = os.path.join(SCEN1, "gnuradio-web", "upload")
 UPLOAD_CF32 = os.path.join(UPLOAD_DIR, "uploaded.cf32")
 UPLOAD_META = os.path.join(UPLOAD_DIR, "uploaded.json")
@@ -51,7 +60,7 @@ MAX_UPLOAD = 200 * 1024 * 1024   # 200 MB
 
 # Per-satellite default IQ the browser VSA auto-loads (see the electronAPI shim).
 IQ_FILES = {
-    "ENIGMA-1": os.path.join(SCEN1, "enigma34_downlink.cf32"),
+    "ENIGMA-1": os.path.join(SCEN1, "signal", "enigma34_downlink.cf32"),
 }
 QTH_FILE = os.path.join(SCEN1, "gpredict-config", "defcon.qth")
 ENIGMA_TLE_FILE = os.path.join(SCEN1, "gpredict-config", "enigma1.tle")
@@ -91,15 +100,15 @@ def read_enigma_tle():
         return []
 
 
-# ── ENIGMA-1 dossier — scenario1 VSA(satellite-info.js)에서 확인한 제원 ────────────
+# ── ENIGMA-1 dossier: specs confirmed from the scenario1 VSA (satellite-info.js) ────────────
 SATELLITE = {
     "name": "ENIGMA-1",
     "status": "Active",
-    "tagline": "LEO Earth-observation cubesat · AX.25 image beacon (G3RUH 9600)",
+    "tagline": "LEO Earth-observation cubesat / AX.25 image beacon (G3RUH 9600)",
     "identity": {
         "NORAD Catalog ID": "90001",
         "Type": "Earth-observation cubesat (LEO)",
-        "Regime": "Sun-synchronous · 98.5° inclination",
+        "Regime": "Sun-synchronous / 98.5° inclination",
     },
     "rf": {
         "Downlink freq": "433.500 MHz (UHF)",
@@ -108,13 +117,13 @@ SATELLITE = {
         "Deviation": "±2.4 kHz (h = 0.5)",
         "Occupied BW": "~14 kHz",
         "Polarization": "RHCP",
-        "Framing": "AX.25 UI · G3RUH scrambler (1+x^12+x^17) · HDLC · CRC-16",
+        "Framing": "AX.25 UI / G3RUH scrambler (1+x^12+x^17) / HDLC / CRC-16",
     },
     "sdr": {
         "Center frequency": "433.500 MHz",
         "Sample rate": "0.096 MSps",
         "Display bandwidth": "0.096 MHz",
-        "Gain": "20 – 30 dB",
+        "Gain": "20 - 30 dB",
         "Antenna": "70-cm Helix, RHCP, ≥10 dBi",
     },
     "passes": {
@@ -127,10 +136,10 @@ SATELLITE = {
         "2 90001  98.5000 100.0000 0010000  90.0000 270.0000 16.40000000  1006",
     ],
     "notes": [
-        "Continuous, unencrypted AX.25 UI beacon — a passive-intercept target. No uplink, no command interface.",
+        "Continuous, unencrypted AX.25 UI beacon: a passive-intercept target. No uplink, no command interface.",
         "Broadcasts a packetized image across ~29 AX.25 frames on a 7.22 s loop; one capture spanning a full burst is enough to decode.",
-        "Decode with gr-satellites: FSK demodulator (9600 baud) → AX.25 deframer (G3RUH scrambler on) → reassemble the Info fields by sequence number.",
-        "Sun-synchronous 98.5° inclination → visible from any latitude; only the pass times differ.",
+        "Decode with gr-satellites: FSK demodulator (9600 baud) -> AX.25 deframer (G3RUH scrambler on) -> reassemble the Info fields by sequence number.",
+        "Sun-synchronous 98.5° inclination -> visible from any latitude; only the pass times differ.",
         "Its TLE is installed into GPredict so GPredict can track it and drive the rotator over rotctld/rigctld.",
     ],
 }
@@ -142,15 +151,16 @@ SATELLITE = {
 # to the satellite centre so a signal appears without manual steps.
 VSA_IQ_SHIM = """
 <style id="vsa-embed-fit">
-  /* iframe 임베드용: VSA 기본 레이아웃(controls 좌 / scene 우)을 좁은 폭에서도 유지.
-     VSA styles.css 의 @media(max-width:860px) 단일컬럼 붕괴를 무력화하고 사이드바를 좁힘. */
+  /* For iframe embedding: keep the VSA default layout (controls left / scene right) even at
+     narrow widths. Disables the single-column collapse from @media(max-width:860px) in VSA
+     styles.css and narrows the sidebar. */
   html, body { overflow: hidden !important; height: 100dvh !important; }
   .app-layout { grid-template-columns: 236px minmax(0,1fr) !important;
     grid-template-rows: 1fr !important; height: 100dvh !important; overflow: hidden !important; }
   .panel--controls { border-right: 1px solid #2e3f50 !important; border-bottom: none !important;
     padding: 12px 10px !important; gap: 7px !important; }
   .panel--scene { min-width: 0 !important; }
-  /* 좁아진 사이드바에서 입력/슬라이더가 넘치지 않게 */
+  /* Keep inputs/sliders from overflowing the narrowed sidebar */
   .panel--controls input, .panel--controls select { max-width: 100% !important; }
 </style>
 <script src="/static/vendor/satellite.min.js"></script>
@@ -163,7 +173,7 @@ VSA_IQ_SHIM = """
   // poll gpredict's faketime offset so VSA computes the sat at the SAME time as gpredict
   (function poll(){ fetch('/api/offset').then(function(r){return r.json();})
     .then(function(j){ if(j&&typeof j.offsetMs==='number') fakeOffsetMs=j.offsetMs; })
-    .catch(function(){}).then(function(){ setTimeout(poll,2500); }); })();
+    .catch(function(){}).then(function(){ setTimeout(poll,500); }); })();
 
   function satPos(satName, lat, lon){
     var S=window.satellite; if(!S) return null;
@@ -183,25 +193,31 @@ VSA_IQ_SHIM = """
       var o={x:(Nn+h)*Math.cos(latr)*Math.cos(lonr),y:(Nn+h)*Math.cos(latr)*Math.sin(lonr),z:(Nn*(1-e2)+h)*Math.sin(latr)};
       function d(p,q){return Math.sqrt(Math.pow(p.x-q.x,2)+Math.pow(p.y-q.y,2)+Math.pow(p.z-q.z,2));}
       var rr=d(ecf2,o)-d(ecf,o);
-      var dop=-(CENTER_HZ[satName]||433.5e6)*rr/299792.458;
+      // Doppler: the gpredict Radio (rigctld) retunes store.frequency by +doppler (server.js->ws:4534),
+      // and the waterfall subtracts -satDopplerHz at the signal position to cancel it out -> the two
+      // cancel, so the signal stays fixed at the tuning center.
+      // So satDopplerHz must be the SAME 'real doppler' as gpredict for the cancellation to hold: DOP_SCALE=1.0.
+      // (if 0, the cancellation breaks and the signal drifts off screen by gpredict's retune amount: same model as the OpenVSA original)
+      var DOP_SCALE=1.0;
+      var dop=-(CENTER_HZ[satName]||433.5e6)*rr/299792.458*DOP_SCALE;
       return {az:S.radiansToDegrees(look.azimuth), el:S.radiansToDegrees(look.elevation),
               rangeKm:look.rangeSat, dopplerHz:dop};
     }catch(e){ return null; }
   }
 
-  var __recBuf = [];   // 브라우저 IQ 녹음 누적 (cf32 청크)
+  var __recBuf = [];   // browser IQ recording accumulator (cf32 chunks)
   if (!window.electronAPI) {
     window.electronAPI = {
       loadIQFile: async (satName) => {
         const r = await fetch('/vsa-iq/' + encodeURIComponent(satName) + '.cf32', {cache:'no-store'});
         if (!r.ok) throw new Error('no default IQ for ' + satName);
         const ab = await r.arrayBuffer();
-        return { bytes: new Uint8Array(ab), path: 'default IQ · ' + satName + ' (' + ab.byteLength + ' B)' };
+        return { bytes: new Uint8Array(ab), path: 'default IQ / ' + satName + ' (' + ab.byteLength + ' B)' };
       },
       getQTH: async () => { if(!QTH){ try{ ingestQTH(await (await fetch('/api/qth')).json()); }catch(e){} }
                             return QTH ? [{lat:QTH.lat, lon:QTH.lon, name:QTH.name}] : []; },
       getSatPosition: async (satName, lat, lon) => satPos(satName, lat, lon),
-      // ── 브라우저 IQ 녹음: 청크를 모아 REC 종료 시 cf32(+SigMF 메타)로 다운로드 ──
+      // ── Browser IQ recording: collect chunks and, when REC stops, download as cf32 (+SigMF meta) ──
       chooseRecDir: async () => null,
       recStart: async () => { __recBuf = []; return {}; },
       recChunk: async (bytes) => { __recBuf.push(new Uint8Array(bytes)); return {}; },
@@ -217,8 +233,8 @@ VSA_IQ_SHIM = """
           setTimeout(function(){ URL.revokeObjectURL(u); }, 6000); }
         dl(new Blob([all], {type:'application/octet-stream'}), name);                          // IQ (cf32)
         try { if (meta) dl(new Blob([JSON.stringify(meta, null, 2)], {type:'application/json'}),
-                          name.replace(/\\.cf32$/, '') + '.sigmf-meta.json'); } catch(e){}      // 메타데이터
-        return '\\u2b07 다운로드됨: ' + name + ' (' + all.length + ' B, cf32) — 브라우저 Downloads 폴더';
+                          name.replace(/\\.cf32$/, '') + '.sigmf-meta.json'); } catch(e){}      // metadata
+        return '\\u2b07 Downloaded: ' + name + ' (' + all.length + ' B, cf32) - browser Downloads folder';
       },
       onQTHUpdated: () => {}, decodeUplink: async () => ({}),
       chooseUplinkFile: async () => null, getUplinkFlag: async () => null,
@@ -253,9 +269,9 @@ VSA_IQ_SHIM = """
       +'padding:9px 12px;font:12px ui-monospace,monospace;color:#c7d3e0';
     bar.innerHTML='<b style="color:#39c5ff;letter-spacing:.1em">IQ</b>'
       +'<button id="vsa-iq-default" style="cursor:pointer;background:#39c5ff;color:#001018;border:0;'
-      +'border-radius:6px;padding:5px 10px;font:inherit;font-weight:700">\\uAE30\\uBCF8 \\uB85C\\uB4DC</button>'
+      +'border-radius:6px;padding:5px 10px;font:inherit;font-weight:700">Load default</button>'
       +'<label style="cursor:pointer;color:#39c5ff;border:1px solid #1e2b3a;border-radius:6px;padding:5px 10px">'
-      +'\\uB85C\\uCEEC .cf32<input id="vsa-iq-file" type="file" accept=".cf32,.bin,.iq" style="display:none"></label>'
+      +'Local .cf32<input id="vsa-iq-file" type="file" accept=".cf32,.bin,.iq" style="display:none"></label>'
       +'<span id="vsa-iq-status" style="color:#7f92a6"></span>';
     document.body.appendChild(bar);
     document.getElementById('vsa-iq-default').onclick=async function(){ await autoLoad(); };
@@ -277,12 +293,12 @@ VSA_IQ_SHIM = """
     }
     // auto-select ENIGMA-1, tune to its centre + usable gain, and auto-load its IQ
     setTimeout(function(){
-      selectEnigma();             // ENIGMA-1 자동 선택 (freq/gain 은 VSA store 기본값 0 유지)
-      autoLoad();                 // 입력 파일(enigma34_downlink.cf32) 자동 선택
-      var rl=document.getElementById('rec-dir-label');   // 웹에선 폴더가 아니라 브라우저 다운로드
-      if(rl){ rl.textContent='브라우저 Downloads'; rl.title='웹에서는 REC 종료 시 브라우저 다운로드로 저장됩니다'; }
+      selectEnigma();             // auto-select ENIGMA-1 (freq/gain stay at the VSA store default of 0)
+      autoLoad();                 // auto-select the input file (enigma34_downlink.cf32)
+      var rl=document.getElementById('rec-dir-label');   // on the web it's a browser download, not a folder
+      if(rl){ rl.textContent='Browser Downloads'; rl.title='On the web, REC stops are saved as a browser download'; }
     }, 1800);
-    // ENIGMA-1 위성 선택만 유지 — freq/gain 은 사용자가 입력한 값을 존중(강제 안 함)
+    // Keep only the ENIGMA-1 satellite selection: freq/gain respect the user's input (not forced)
     setInterval(function(){
       var sel=document.getElementById('ctrl-sat');
       if(sel && !/enigma/i.test(sel.value||'')) selectEnigma();
@@ -315,7 +331,7 @@ def read_grc():
 
 
 def latest_decoded():
-    """gnuradio-out/ 에서 가장 최근 .png 경로 (없으면 None). gnuradio-web ▶ Run 산출물."""
+    """Path to the most recent .png in gnuradio-out/ (None if absent). Output of gnuradio-web Run."""
     best = None
     try:
         for f in os.listdir(GRC_OUT_DIR):
@@ -329,8 +345,31 @@ def latest_decoded():
     return best
 
 
+def latest_progress():
+    """The most recent *_progress.txt in gnuradio-out/: progressive reassembly progress (real Run)."""
+    best = None
+    try:
+        for f in os.listdir(GRC_OUT_DIR):
+            if f.lower().endswith("_progress.txt"):
+                fp = os.path.join(GRC_OUT_DIR, f)
+                m = os.path.getmtime(fp)
+                if best is None or m > best[1]:
+                    best = (fp, m)
+    except OSError:
+        pass
+    if not best:
+        return {"exists": False}
+    try:
+        p = open(best[0]).read().split() + ["0", "1", "0", "0"]
+        dec, tot, done, reps = int(p[0]), int(p[1]), int(p[2]), int(p[3])
+        return {"exists": True, "decoded": dec, "total": tot, "done": bool(done),
+                "reps": reps, "fraction": (dec / tot) if tot else 0.0, "mtime": best[1]}
+    except Exception:
+        return {"exists": False}
+
+
 def uploaded_status():
-    """PHASE 4 에서 업로드된 녹음(있으면 PHASE 5 File Source)의 상태."""
+    """Status of the recording uploaded in PHASE 4 (the PHASE 6 File Source, if present)."""
     try:
         if os.path.isfile(UPLOAD_CF32):
             meta = {}
@@ -367,6 +406,39 @@ class Handler(BaseHTTPRequestHandler):
             with open(fp, "rb") as f:
                 return self._send(200, mime_for(fp), f.read())
         self._send(404, "text/plain; charset=utf-8", b"not found")
+
+    def _serve_range(self, fp, ctype):
+        """Serve a file, honoring a byte Range request so the client can fetch only a
+        leading slice (used by PHASE 4 signal analysis to read a few MB for the FFT)."""
+        size = os.path.getsize(fp)
+        rng = self.headers.get("Range")
+        if rng and rng.startswith("bytes="):
+            try:
+                s, e = rng[6:].split("-", 1)
+                start = int(s) if s else 0
+                end = int(e) if e else size - 1
+            except ValueError:
+                start, end = 0, size - 1
+            start = max(0, start)
+            end = min(end, size - 1)
+            if start > end:
+                start, end = 0, size - 1
+            with open(fp, "rb") as f:
+                f.seek(start)
+                data = f.read(end - start + 1)
+            self.send_response(206)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Range", "bytes %d-%d/%d" % (start, end, size))
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            if data:
+                self.wfile.write(data)
+            return
+        with open(fp, "rb") as f:
+            data = f.read()
+        return self._send(200, ctype, data)
 
     def log_message(self, *a):
         pass
@@ -406,14 +478,22 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/assets/result.png":
             return self._file(RESULT_IMG)
 
-        # 실물 GNU Radio 출력(gnuradio-out/*.png) — 있으면 재조합 패널이 실사용
+        # Real GNU Radio output (gnuradio-out/*.png): if present, the reassembly panel uses it live
         if path == "/api/decoded":
             d = latest_decoded()
             return self._json({"exists": bool(d), "name": os.path.basename(d[0]) if d else None,
                                "mtime": d[1] if d else 0})
-        # PHASE 4 업로드 녹음 상태(= PHASE 5 GNU Radio File Source)
+        # PHASE 4 uploaded recording status (= PHASE 6 GNU Radio File Source)
         if path == "/api/upload":
             return self._json(uploaded_status())
+        # PHASE 4 signal analysis re-reads the uploaded IQ (leading slice via Range) after a page reload.
+        if path == "/api/uploaded-iq":
+            if os.path.isfile(UPLOAD_CF32):
+                return self._serve_range(UPLOAD_CF32, "application/octet-stream")
+            return self._send(404, "text/plain; charset=utf-8", b"no upload")
+        # PHASE 6 live reassembly progress (the real Run writes progressively to gnuradio-out)
+        if path == "/api/decode-progress":
+            return self._json(latest_progress())
         if path == "/decoded.png":
             d = latest_decoded()
             if d:
@@ -462,7 +542,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, "text/plain; charset=utf-8", b"not found")
 
     def _handle_upload(self):
-        """PHASE 4 업로드 녹음(.cf32)을 gnuradio-web/upload/ 에 저장 → PHASE 5 File Source."""
+        """Save the PHASE 4 uploaded recording (.cf32) to gnuradio-web/upload/ -> PHASE 6 File Source."""
         from urllib.parse import urlparse, parse_qs
         q = parse_qs(urlparse(self.path).query)
         name = os.path.basename((q.get("name", ["uploaded.cf32"])[0]))[:200] or "uploaded.cf32"
@@ -512,7 +592,7 @@ def main():
         except Exception:
             pass
     print(f"ENIGMA-1 Downlink Decoder (Scenario 1) -> http://localhost:{PORT}")
-    print(f"  Virtual Antenna mounted at  /vsa/   (from {VSA_DIR})")
+    print(f"  VSA mounted at  /vsa/   (from {VSA_DIR})")
     print(f"  GPredict embed: {GPREDICT_URL or '(none - placeholder/polar-preview shown)'}")
     print(f"  GNURadio embed: {GNURADIO_URL or '(none - static answer flowgraph rendered)'}")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
@@ -522,5 +602,5 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n[guide] 종료")
+        print("\n[guide] shutting down")
         sys.exit(0)

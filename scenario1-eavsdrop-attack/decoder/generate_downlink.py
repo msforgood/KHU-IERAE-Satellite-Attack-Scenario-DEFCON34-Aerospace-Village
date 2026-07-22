@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
 """
-generate_downlink.py — ENIGMA-1 다운링크 IQ(cf32) 생성기.
+generate_downlink.py - ENIGMA-1 downlink IQ (cf32) generator.
 
-임의의 이미지를 enigma1_decoder.grc 가 그대로 복조할 수 있는 GFSK/AX.25/G3RUH
-9600baud IQ 파일로 인코딩한다(= 디코더 체인의 정확한 역).
+Encodes an arbitrary image into a GFSK/AX.25/G3RUH 9600 baud IQ file that
+enigma1_decoder.grc can demodulate as-is (= the exact inverse of the decoder chain).
 
-디코더 체인:  slice → nrzi_decode → descrambler_bb(0x21,0,16) → hdlc_deframer
-인코더 체인:  hdlc_framer_pb → scrambler_bb(0x21,0,16) → nrzi_encode → GFSK
+Decoder chain:  slice -> nrzi_decode -> descrambler_bb(0x21,0,16) -> hdlc_deframer
+Encoder chain:  hdlc_framer_pb -> scrambler_bb(0x21,0,16) -> nrzi_encode -> GFSK
 
-프레임 포맷(재조립 블록과 일치):
-  이미지 192x128 grayscale('L') raw(24576B)
-    → zlib.compress → [4B BE 길이][압축데이터] = payload
-    → payload 를 CHUNK 단위로 분할, 각 청크에 [2B BE seq] 접두
-    → AX.25 UI 프레임 = [dest7][src7][ctrl 0x03][pid 0xF0][2B seq][chunk]
-    → HDLC(FCS/비트스터핑/7E) → G3RUH scramble → NRZI → GFSK(dev 2400, 10 sps) @ 96 kSps
+Frame format (matches the reassembly block):
+  Image 192x128 grayscale('L') raw (24576B)
+    -> zlib.compress -> [4B BE length][compressed data] = payload
+    -> split payload into CHUNK-sized pieces, prefix each chunk with [2B BE seq]
+    -> AX.25 UI frame = [dest7][src7][ctrl 0x03][pid 0xF0][2B seq][chunk]
+    -> HDLC (FCS/bit stuffing/7E) -> G3RUH scramble -> NRZI -> GFSK(dev 2400, 10 sps) @ 96 kSps
 
-⚠ 실행 환경: gnuradio + gr-satellites 가 필요하므로 gnuradio-web 컨테이너에서 실행한다.
-  예) docker cp military-airbase.png <gnuradio-container>:/tmp/in.png
+Warning: runtime environment: gnuradio + gr-satellites are required, so run inside the gnuradio-web container.
+  e.g.) docker cp military-airbase.png <gnuradio-container>:/tmp/in.png
       docker cp postProcess/generate_downlink.py <gnuradio-container>:/tmp/gen.py
       docker exec -i <gnuradio-container> python3 /tmp/gen.py /tmp/in.png /tmp/enigma34_downlink.cf32
       docker cp <gnuradio-container>:/tmp/enigma34_downlink.cf32 ./enigma34_downlink.cf32
 
-사용:  python3 generate_downlink.py <입력이미지> <출력.cf32> [--reps N] [--chunk B]
+Usage:  python3 generate_downlink.py <input image> <output.cf32> [--reps N] [--chunk B]
 """
 import argparse
 import struct
@@ -34,7 +34,7 @@ from PIL import Image
 from gnuradio import blocks, digital, gr
 from satellites import nrzi_encode
 
-FS = 96000        # 샘플레이트 (start.sh 가 grc samp_rate 0.05e6→0.096e6 패치)
+FS = 96000        # sample rate (start.sh patches grc samp_rate 0.05e6 -> 0.096e6)
 BAUD = 9600
 DEV = 2400        # deviation (h = 2*dev/baud = 0.5, GFSK BT=0.5)
 SPS = FS // BAUD  # 10
@@ -42,7 +42,7 @@ IMG_W, IMG_H = 192, 128
 
 
 def ax25_addr(call, ssid, last):
-    """AX.25 주소 7바이트 (콜사인<<1 + SSID, 마지막이면 확장비트)."""
+    """AX.25 address, 7 bytes (callsign<<1 + SSID, extension bit if last)."""
     call = (call.upper() + '      ')[:6]
     return bytes([ord(c) << 1 for c in call]) + \
         bytes([0x60 | ((ssid & 0xf) << 1) | (1 if last else 0)])
@@ -61,7 +61,7 @@ def build_frames(img_path, chunk):
 
 
 def frames_to_txbits(frames, reps):
-    """hdlc_framer_pb → scrambler_bb → nrzi_encode (디코더의 정확한 역)."""
+    """hdlc_framer_pb -> scrambler_bb -> nrzi_encode (the exact inverse of the decoder)."""
     tb = gr.top_block()
     framer = digital.hdlc_framer_pb('packet_len')
     scr = digital.scrambler_bb(0x21, 0, 16)
@@ -69,7 +69,7 @@ def frames_to_txbits(frames, reps):
     snk = blocks.vector_sink_b()
     tb.connect(framer, scr, nrzi, snk)
     tb.start()
-    for _ in range(reps):           # 여러 번 반복 → 초기 락/동기 손실 프레임 보완
+    for _ in range(reps):           # repeat several times -> compensate for frames lost during initial lock/sync
         for fr in frames:
             framer.to_basic_block()._post(
                 pmt.intern('in'),
@@ -82,7 +82,7 @@ def frames_to_txbits(frames, reps):
 
 
 def gfsk_modulate(txbits):
-    syms = txbits * 2 - 1                       # 0→-1, 1→+1
+    syms = txbits * 2 - 1                       # 0 -> -1, 1 -> +1
     up = np.repeat(syms, SPS)
     sigma = np.sqrt(np.log(2)) / (2 * np.pi * 0.5)      # BT=0.5 gaussian
     t = np.arange(-3 * SPS, 3 * SPS + 1) / SPS
@@ -91,15 +91,15 @@ def gfsk_modulate(txbits):
     phase = 2 * np.pi * (DEV / FS) * np.cumsum(shaped)
     iq = np.exp(1j * phase).astype(np.complex64)
     pre = (0.05 * (np.random.randn(3000) + 1j * np.random.randn(3000))).astype(np.complex64)
-    return np.concatenate([pre, iq, pre])       # AGC/클럭 정착용 리드인
+    return np.concatenate([pre, iq, pre])       # lead-in for AGC/clock settling
 
 
 def main():
     ap = argparse.ArgumentParser(description='ENIGMA-1 downlink cf32 generator')
     ap.add_argument('image')
     ap.add_argument('out_cf32')
-    ap.add_argument('--reps', type=int, default=2, help='프레임 버스트 반복(기본 2)')
-    ap.add_argument('--chunk', type=int, default=200, help='AX.25 info 청크 바이트(기본 200)')
+    ap.add_argument('--reps', type=int, default=2, help='frame burst repetitions (default 2)')
+    ap.add_argument('--chunk', type=int, default=200, help='AX.25 info chunk bytes (default 200)')
     a = ap.parse_args()
 
     frames, comp_len = build_frames(a.image, a.chunk)

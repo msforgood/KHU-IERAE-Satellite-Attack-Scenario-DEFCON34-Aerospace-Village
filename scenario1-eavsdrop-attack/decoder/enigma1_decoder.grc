@@ -1,0 +1,294 @@
+options:
+  parameters:
+    author: sunhyuk
+    catch_exceptions: 'True'
+    category: Custom
+    cmake_opt: ''
+    comment: ''
+    copyright: ''
+    description: ENIGMA-1 AX.25/G3RUH 9600 decoder (Scenario 1)
+    gen_cmake: 'On'
+    gen_linking: dynamic
+    generate_options: qt_gui
+    hier_block_src_path: '.:'
+    id: enigma1_decoder
+    max_nouts: '0'
+    output_language: python
+    placement: (0,0)
+    qt_qss_theme: ''
+    realtime_scheduling: ''
+    run: 'True'
+    run_command: '{python} -u {filename}'
+    run_options: run
+    sizing_mode: fixed
+    thread_safe_setters: ''
+    title: ENIGMA-1 Decoder
+    window_size: 1280, 1024
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [8, 8]
+    rotation: 0
+    state: enabled
+
+blocks:
+- name: baud_rate
+  id: variable
+  parameters:
+    comment: ''
+    value: '9600'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [320, 12]
+    rotation: 0
+    state: enabled
+- name: deviation
+  id: variable
+  parameters:
+    comment: ''
+    value: '2400'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [440, 12]
+    rotation: 0
+    state: enabled
+- name: freq_offset
+  id: variable
+  parameters:
+    comment: ''
+    value: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [560, 12]
+    rotation: 0
+    state: enabled
+- name: samp_rate
+  id: variable
+  parameters:
+    comment: ''
+    value: 0.05e6
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [200, 12]
+    rotation: 0
+    state: enabled
+- name: blocks_file_source_0
+  id: blocks_file_source
+  parameters:
+    affinity: ''
+    alias: ''
+    begin_tag: pmt.PMT_NIL
+    comment: ''
+    file: /home/sunhyuk/projects/vsa4lv-defcon/vsa4lv-challenges/scenario-1/signal/ENIGMA-1_433_506MHz_2026-07-08T02-25-04.cf32
+    length: '0'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    offset: '0'
+    repeat: 'True'
+    type: complex
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [16, 156]
+    rotation: 0
+    state: enabled
+- name: blocks_message_debug_0
+  id: blocks_message_debug
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    en_uvec: 'True'
+    log_level: info
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [960, 312.0]
+    rotation: 0
+    state: enabled
+- name: blocks_throttle2_0
+  id: blocks_throttle2
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    ignoretag: 'True'
+    limit: auto
+    maximum: '0.1'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    samples_per_second: samp_rate
+    type: complex
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [248, 276.0]
+    rotation: 0
+    state: enabled
+- name: epy_block_0
+  id: epy_block
+  parameters:
+    _source_code: "\"\"\"\nEmbedded Python Block: ENIGMA-1 progressive, repeat-aware, offset-shearing reassembler.\n\nOrders AX.25 Info chunks by sequence and STREAMING-inflates the in-order prefix so the\nimage appears progressively (row by row) as it decodes, and keeps re-decoding on every\nrepeat burst so the web shows a continuously updating picture.\n\nB2 EFFECT (center-frequency skew): the flow's startup measures the recording's residual\ncenter-frequency offset and writes it to  <out_dir>/offset.txt  (normalized, cycles/sample).\nThis block reads that value and applies a PROGRESSIVE HORIZONTAL SHEAR proportional to it:\n  \u00b7 offset ~ 0 (correctly tuned)  -> shear 0  -> image comes out straight (original);\n  \u00b7 larger offset                 -> stronger diagonal slant (like a mistuned analog frame).\nSo the OUTPUT depends on the INPUT file: a centered capture decodes straight, an off-center\ncapture decodes visibly slanted, and the slant grows with the measured offset (and its sign\nsets the direction). The shear is applied to whatever has decoded so far, so the slant builds\nup live as the picture fills in.\n\nProgress line: \"decoded total done reps\".\n\"\"\"\nimport os\nimport time\nimport struct\nimport zlib\nimport pmt\nfrom gnuradio import gr\n\n\nclass blk(gr.sync_block):\n    def __init__(self, img_w=192, img_h=128, out_path='/home/sunhyuk/projects/vsa4lv-defcon/vsa4lv-challenges/scenario-1/solution/enigma1_recovered.png'):\n        gr.sync_block.__init__(self, name='ENIGMA-1 Image Reassembler', in_sig=[], out_sig=[])\n        self.message_port_register_in(pmt.intern('frame'))          # ax25_deframer(out) \u2192 \uc774 \ud3ec\ud2b8\ub85c \ud504\ub808\uc784 \uc218\uc2e0\n        self.set_msg_handler(pmt.intern('frame'), self.handle)\n        self.w, self.h = int(img_w), int(img_h)\n        self.out_path = out_path\n        self.prog_path = out_path.rsplit('.', 1)[0] + '_progress.txt'\n        self.off_path = os.path.join(os.path.dirname(out_path), 'offset.txt')\n        self.chunks = {}\n        self.last_seq = -1\n        self.reps = 0\n        self.decoded = 0\n        self.done_flag = False\n        self.last_prog = 0.0\n        # \uc9c0\uc18d \uc774\ubbf8\uc9c0 \ubc84\ud37c: \ud68c\ucc28\ub9c8\ub2e4 \uac80\uc815\uc73c\ub85c \ub9ac\uc14b\ud558\uc9c0 \uc54a\uace0 \uadf8 \uc704\uc5d0 \ub36e\uc5b4\uc4f4\ub2e4. \ub514\uc2a4\ud06c\uc5d0\ub3c4 \uc800\uc7a5\ud574\n        # \uc6cc\uce58\ub3c5 \uc7ac\uc2dc\uc791(\uc0c8 \ud504\ub85c\uc138\uc2a4) \ud6c4\uc5d0\ub3c4 \uc774\uc804 \uc774\ubbf8\uc9c0\ub97c \uc774\uc5b4\ubc1b\uc544 \uac80\uc815 \uae5c\ube61\uc784\uc744 \uc644\uc804\ud788 \uc5c6\uc564\ub2e4.\n        self.persist_path = os.path.join(os.path.dirname(out_path), 'persist.raw')\n        self.persist = self._load_persist()\n\n    def _load_persist(self):\n        try:\n            data = open(self.persist_path, 'rb').read()\n            if len(data) == self.w * self.h:\n                return bytearray(data)\n        except Exception:\n            pass\n        return bytearray(self.w * self.h)\n\n    def _read_offset(self):\n        \"\"\"\uc911\uc2ec\uc8fc\ud30c\uc218 \uc624\ud504\uc14b(normalized cyc/sample). flow \uae30\ub3d9 \uc2dc offset.txt \uc5d0 \uae30\ub85d\ub428. \uc5c6\uc73c\uba74 0.\"\"\"\n        try:\n            return float(open(self.off_path).read().strip())\n        except Exception:\n            return 0.0\n\n    def _progress(self):\n        try:\n            with open(self.prog_path + '.tmp', 'w') as fh:\n                fh.write('%d %d %d %d' % (self.decoded, self.w * self.h, 1 if self.done_flag else 0, self.reps))\n            os.replace(self.prog_path + '.tmp', self.prog_path)\n        except Exception:\n            pass\n\n    def _shear(self, buf):\n        \"\"\"B2: \uce21\uc815 \uc624\ud504\uc14b\uc5d0 \ube44\ub840\ud574 \ud589\ub9c8\ub2e4 \uac00\ub85c\ub85c \uc810\uc810 \ub354 \ubc00\uc5b4 \uc0ac\uc120(shear)\uc73c\ub85c \ub9cc\ub4e0\ub2e4.\n        \uc624\ud504\uc14b 0 \u2192 \ubc00\ub9bc 0(\uc6d0\ubcf8). |\uc624\ud504\uc14b| \ud074\uc218\ub85d \ub354 \uae30\uc6b8\uace0, \ubd80\ud638\uac00 \ubc29\ud5a5\uc744 \uc815\ud55c\ub2e4.\"\"\"\n        off = self._read_offset()\n        GAIN = 18.0\n        frac = max(-0.6, min(0.6, off * GAIN))        # \ub9e8 \uc544\ub7ab\ud589\uc758 \ubc00\ub9bc\ub7c9(\ud3ed \ub300\ube44 \ube44\uc728)\n        if abs(frac) < 0.003:\n            return buf                                # \uc911\uc2ec \ub9de\uc74c \u2192 \uc6d0\ubcf8 \uadf8\ub300\ub85c\n        try:\n            import numpy as np\n            W, H = self.w, self.h\n            arr = np.frombuffer(bytes(buf), dtype=np.uint8).reshape(H, W)\n            out = np.empty_like(arr)\n            denom = (H - 1) if H > 1 else 1\n            for y in range(H):\n                s = int(round(frac * W * (y / denom)))\n                out[y] = np.roll(arr[y], s)           # \uc544\ub798\ub85c \uac08\uc218\ub85d \ub354 \ubbfc\ub2e4\n            return out.tobytes()\n        except Exception:\n            return buf\n\n    def _image(self, raw):\n        total = self.w * self.h\n        n = min(len(raw), total)\n        self.persist[:n] = raw[:n]                    # \ub514\ucf54\ub4dc\ub41c \uc55e\ubd80\ubd84\uc744 persist \uc704\uc5d0 \ub77c\uc778 \ubc14\uc774 \ub77c\uc778 \ub36e\uc5b4\uc4f4\ub2e4\n        try:                                          # \uc7ac\uc2dc\uc791 \ud6c4 \uc774\uc5b4\ubc1b\ub3c4\ub85d persist \ub97c \ub514\uc2a4\ud06c\uc5d0 \uc6d0\uc790\uc801 \uc800\uc7a5\n            with open(self.persist_path + '.tmp', 'wb') as fh:\n                fh.write(bytes(self.persist))\n            os.replace(self.persist_path + '.tmp', self.persist_path)\n        except Exception:\n            pass\n        buf = self._shear(bytes(self.persist))        # \ud56d\uc0c1 persist \uc804\uccb4\ub97c \ucd9c\ub825 \u2192 \uac80\uc815\uc73c\ub85c \ub9ac\uc14b \uc548 \ub428(\uae5c\ube61\uc784 \uc5c6\uc74c)\n        try:\n            from PIL import Image\n            img = Image.frombytes('L', (self.w, self.h), bytes(buf))\n            try:\n                img.save(self.out_path + '.tmp'); os.replace(self.out_path + '.tmp', self.out_path)\n            except Exception:\n                img.save(self.out_path)\n        except Exception:\n            pass\n\n    def handle(self, msg):\n        try:\n            ba = bytes(pmt.u8vector_elements(pmt.cdr(msg)))\n        except Exception:\n            return\n        now = time.time()\n        info = ba[16:] if len(ba) > 16 else b''\n        if len(info) >= 2:                            # \uc720\ud6a8 \uc774\ubbf8\uc9c0 \ud504\ub808\uc784 \ud6c4\ubcf4\n            seq = struct.unpack('>H', info[:2])[0]\n            if self.chunks and self.last_seq - seq > 5:   # seq \ub418\ub3cc\uc544\uac10 = \uc804\uc1a1 \ubc18\ubcf5(\uc0c8 \ud68c\ucc28)\n                self.chunks = {}; self.reps += 1; self.done_flag = False   # \uc2a4\ud2b8\ub9bc \uccad\ud06c\ub9cc \ucd08\uae30\ud654(\uc7ac\ubcf5\uc6d0). persist \ub294 \uc720\uc9c0 \u2192 \uadf8 \uc704\uc5d0 \ub77c\uc778 \ubc14\uc774 \ub77c\uc778 \ub36e\uc5b4\uc500(\uac80\uc815 \ub9ac\uc14b \uc5c6\uc74c)\n            self.last_seq = seq\n            self.chunks.setdefault(seq, info[2:])\n            ordered, k = b'', 0\n            while k in self.chunks:\n                ordered += self.chunks[k]; k += 1\n            if len(ordered) >= 4:\n                clen = struct.unpack('>I', ordered[:4])[0]\n                comp = ordered[4:4 + clen]\n                try:\n                    raw = zlib.decompressobj().decompress(comp)\n                except zlib.error:\n                    raw = None\n                if raw is not None:\n                    self.decoded = min(len(raw), self.w * self.h)\n                    self.done_flag = len(comp) >= clen and len(raw) >= self.w * self.h\n                    self._image(raw)\n                    self._progress()\n                    self.last_prog = now\n                    return\n        # \uc720\ud6a8 \ud504\ub808\uc784 \uc544\ub2d8(\uae68\uc9c4/\uc9e7\uc740 \ud504\ub808\uc784) \u2014 GNU Radio \uc2e4\ud589 \uc911\uc784\uc744 \uc8fc\uae30\uc801\uc73c\ub85c \uc54c\ub9bc\n        if now - self.last_prog > 0.4:\n            self.last_prog = now\n            self._progress()\n\n    def work(self, input_items, output_items):\n        return 0\n"
+    affinity: ''
+    alias: ''
+    comment: ''
+    img_h: '128'
+    img_w: '192'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    out_path: '''/home/sunhyuk/projects/vsa4lv-defcon/vsa4lv-challenges/scenario-1/solution/enigma1_recovered0708.png'''
+  states:
+    _io_cache: ('ENIGMA-1 Image Reassembler', 'blk', [('img_w', '192'), ('img_h',
+      '128'), ('out_path', "'/home/sunhyuk/projects/vsa4lv-defcon/vsa4lv-challenges/scenario-1/solution/enigma1_recovered.png'")],
+      [('frame', 'message', 1)], [], '', ['out_path'])
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [960, 220.0]
+    rotation: 0
+    state: enabled
+- name: freq_xlating_fir_filter_xxx_0
+  id: freq_xlating_fir_filter_xxx
+  parameters:
+    affinity: ''
+    alias: ''
+    center_freq: freq_offset
+    comment: ''
+    decim: '1'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    samp_rate: samp_rate
+    taps: firdes.low_pass(1, samp_rate, 12000, 2000)
+    type: ccc
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [400, 156.0]
+    rotation: 0
+    state: enabled
+- name: qtgui_waterfall_sink_x_0
+  id: qtgui_waterfall_sink_x
+  parameters:
+    affinity: ''
+    alias: ''
+    alpha1: '1.0'
+    alpha10: '1.0'
+    alpha2: '1.0'
+    alpha3: '1.0'
+    alpha4: '1.0'
+    alpha5: '1.0'
+    alpha6: '1.0'
+    alpha7: '1.0'
+    alpha8: '1.0'
+    alpha9: '1.0'
+    axislabels: 'True'
+    bw: samp_rate
+    color1: '0'
+    color10: '0'
+    color2: '0'
+    color3: '0'
+    color4: '0'
+    color5: '0'
+    color6: '0'
+    color7: '0'
+    color8: '0'
+    color9: '0'
+    comment: ''
+    fc: '0'
+    fftsize: '1024'
+    freqhalf: 'True'
+    grid: 'False'
+    gui_hint: ''
+    int_max: '10'
+    int_min: '-140'
+    label1: '""'
+    label10: '""'
+    label2: '""'
+    label3: '""'
+    label4: '""'
+    label5: '""'
+    label6: '""'
+    label7: '""'
+    label8: '""'
+    label9: '""'
+    legend: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    name: '"ENIGMA-1 433.5 MHz"'
+    nconnections: '1'
+    showports: 'False'
+    type: complex
+    update_time: '0.10'
+    wintype: window.WIN_BLACKMAN_hARRIS
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [632, 316.0]
+    rotation: 0
+    state: disabled
+- name: satellites_ax25_deframer_0
+  id: satellites_ax25_deframer
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    g3ruh_scrambler: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    options: '""'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [696, 236.0]
+    rotation: 0
+    state: enabled
+- name: satellites_fsk_demodulator_0
+  id: satellites_fsk_demodulator
+  parameters:
+    affinity: ''
+    alias: ''
+    baudrate: baud_rate
+    comment: ''
+    iq: 'True'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    options: '"--deviation " + str(deviation)'
+    samp_rate: samp_rate
+    subaudio: 'False'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [680, 140.0]
+    rotation: 0
+    state: enabled
+
+connections:
+- [blocks_file_source_0, '0', blocks_throttle2_0, '0']
+- [blocks_throttle2_0, '0', freq_xlating_fir_filter_xxx_0, '0']
+- [freq_xlating_fir_filter_xxx_0, '0', qtgui_waterfall_sink_x_0, '0']
+- [freq_xlating_fir_filter_xxx_0, '0', satellites_fsk_demodulator_0, '0']
+- [satellites_ax25_deframer_0, out, blocks_message_debug_0, log]
+- [satellites_ax25_deframer_0, out, epy_block_0, frame]
+- [satellites_fsk_demodulator_0, '0', satellites_ax25_deframer_0, '0']
+
+metadata:
+  file_format: 1
+  grc_version: 3.10.7.0
