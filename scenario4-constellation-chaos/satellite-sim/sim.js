@@ -17,6 +17,7 @@
 (function (root) {
   'use strict';
   var K = root.SatKepler;
+  var CC = root.CollisionCore;   // scenario-5 shared physics (load collision-core.js before sim.js)
   var THREE = root.THREE;
 
   var SCENE_SCALE = 1e-5;
@@ -123,8 +124,11 @@
     var r = K.EarthRadius * SCENE_SCALE, self = this;
     var tex = new THREE.TextureLoader().load(this.textureUrl, function () { self.render(); });
     this.earth = new THREE.Mesh(new THREE.SphereGeometry(r, 64, 48), new THREE.MeshPhongMaterial({ map: tex, color: 0x99a7bd, shininess: 6 }));
+    if (this._earthSpinDeg) this.earth.rotation.y = this._earthSpinDeg * Math.PI / 180;
     this.scene.add(this.earth);
   };
+  // spin the Earth texture (degrees about the polar axis) so a chosen region faces forward
+  Engine.prototype.setEarthSpin = function (deg) { this._earthSpinDeg = deg || 0; if (this.earth) { this.earth.rotation.y = this._earthSpinDeg * Math.PI / 180; this.render(); } };
   Engine.prototype._fx = function () {
     this.explosion = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), new THREE.MeshBasicMaterial({ color: COLOR.explosion, transparent: true, opacity: 0.55, depthWrite: false }));
     this.explosion.visible = false; this.scene.add(this.explosion);
@@ -152,6 +156,14 @@
     var bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
     this.beam = new THREE.Line(bg, new THREE.LineBasicMaterial({ color: 0x39c5ff, transparent: true, opacity: 0.8, depthWrite: false }));
     this.beam.visible = false; this.scene.add(this.beam);
+    // thruster plume: a hot cone shown on ENIGMA-1 while the commanded burn fires (monitor 2).
+    // It points OPPOSITE the delta-v — gas ejected backward is what pushes the satellite forward.
+    this.plume = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1, 18, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xffb43a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    this.plume.renderOrder = 7; this.plume.visible = false; this.scene.add(this.plume);
+    this.plumeCore = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1, 18, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xfff2c4, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    this.plumeCore.renderOrder = 8; this.plumeCore.visible = false; this.scene.add(this.plumeCore);
   };
   Engine.prototype.setGS = function (p) {
     if (!p) { this.gs.visible = this.gsLabel.visible = false; if (this.gsPin) this.gsPin.visible = false; if (this.gsBase) this.gsBase.visible = false; return; }
@@ -174,6 +186,31 @@
     var s = SCENE_SCALE, arr = this.beam.geometry.attributes.position.array;
     arr[0] = a.x * s; arr[1] = a.y * s; arr[2] = a.z * s; arr[3] = b.x * s; arr[4] = b.y * s; arr[5] = b.z * s;
     this.beam.geometry.attributes.position.needsUpdate = true; this.beam.geometry.computeBoundingSphere(); this.beam.visible = true;
+  };
+  // p = satellite position (metres, ECI), dir = exhaust direction (unit, world, = -delta-v),
+  // intensity 0..1 = how hard the engine is firing (length + brightness). Apex sits on the
+  // satellite; the cone widens outward along dir.
+  Engine.prototype.setPlume = function (p, dir, intensity) {
+    if (!this.plume) return;
+    var i = intensity || 0;
+    if (!p || !dir || i <= 0.02) { this.plume.visible = false; this.plumeCore.visible = false; return; }
+    if (i > 1) i = 1;
+    var s = SCENE_SCALE;
+    var pos = new THREE.Vector3(p.x * s, p.y * s, p.z * s);
+    var d = new THREE.Vector3(dir.x, dir.y, dir.z);
+    if (d.lengthSq() < 1e-9) { this.plume.visible = false; this.plumeCore.visible = false; return; }
+    d.normalize();
+    var UP = this._plumeUp || (this._plumeUp = new THREE.Vector3(0, 1, 0));
+    var nd = d.clone().negate(), len = 2.2 + 4.2 * i;
+    function place(mesh, radius, lenScale, opacity) {
+      mesh.quaternion.setFromUnitVectors(UP, nd);
+      var L = len * lenScale;
+      mesh.scale.set(radius / 0.5, L, radius / 0.5);
+      mesh.position.copy(pos).addScaledVector(d, L / 2);
+      mesh.material.opacity = opacity; mesh.visible = true;
+    }
+    place(this.plume, 0.55 + 0.5 * i, 1.0, 0.30 + 0.42 * i);
+    place(this.plumeCore, 0.24 + 0.2 * i, 0.68, 0.45 + 0.5 * i);
   };
   Engine.prototype.addSatellite = function (id, hex, css, radius, name) {
     if (this.sats[id]) return;
@@ -273,6 +310,8 @@
     this.fx = null; this.outcome = null; this._epoch = null; this._cache = null;
     this.beamActive = false; this._beamTimer = null;   // GS→ENIGMA-1 uplink beam shows only while uplinking
     this.engine = new Engine(canvas, opts.textureUrl); this.engine.init();
+    this.gsFixed = opts.gsFixed || null;                              // fixed ground-station 3D point (Las Vegas)
+    if (opts.earthSpinDeg != null) this.engine.setEarthSpin(opts.earthSpinDeg);
     var self = this;
     this._onResize = function () { self.engine.resize(); self._render(); };
     this._downPt = null; this._onDown = function (e) { self._downPt = { x: e.clientX, y: e.clientY }; };
@@ -284,7 +323,7 @@
     this.engine.clearSatellites();
     this.sats = list.map(function (s) {
       var hex = typeof s.color === 'string' ? parseInt(s.color.replace('#', ''), 16) : s.color;
-      return { id: s.id, name: s.name, role: s.role || 'neighbor', answer: !!s.answer, hex: hex, css: s.color, kep: s.kep.slice(), baseKep: s.kep.slice(), alive: true, _pos: null };
+      return { id: s.id, name: s.name, role: s.role || 'neighbor', answer: !!s.answer, target: !!s.target, hex: hex, css: s.color, kep: s.kep.slice(), baseKep: s.kep.slice(), alive: true, _pos: null };
     });
     this._answerHi = false;
     var maxR = K.EarthRadius * 1.05;
@@ -297,10 +336,14 @@
     this.selectedId = null; this.maneuver = null;
     this._maneuverStartInc = null; this._maneuverStartAlt = null; this._incNow = null; this._altNow = null; this._lastManKey = null;
     this.engine.setPredicted(null); this.engine.setMarker(null);
-    // Las Vegas ground station under ENIGMA-1 + uplink beam (only ENIGMA-1 is reachable)
+    // Las Vegas ground station (fixed site) + uplink beam to ENIGMA-1. If no fixed site is
+    // configured, fall back to placing it under ENIGMA-1's sub-satellite point.
     var atk = this._attacker();
     this.beamActive = false;
-    if (atk) {
+    if (this.gsFixed) {
+      this.gsPos = { x: this.gsFixed[0], y: this.gsFixed[1], z: this.gsFixed[2] };
+      this.engine.setGS(this.gsPos); this.engine.setBeam(null);
+    } else if (atk) {
       var D = this._pos(atk), r = Math.hypot(D.x, D.y, D.z) || 1;
       this.gsPos = { x: D.x / r * K.EarthRadius, y: D.y / r * K.EarthRadius, z: D.z / r * K.EarthRadius };
       // ground-station icon stays put; the uplink beam is only drawn while a command is being sent
@@ -366,6 +409,82 @@
     }
     return best;
   };
+
+  // ── STAGE 1 (scenario 5): circular-altitude gate + plane nudge, live MOID ─────
+  // The target is the fixed victim orbit (flagged target:true in scenario.js).
+  SatSim.prototype._target = function () {
+    for (var i = 0; i < this.sats.length; i++) if (this.sats[i].target) return this.sats[i];
+    return null;
+  };
+  // victim-centred RTN decomposition (km) of a relative-position vector
+  SatSim.prototype._rtn = function (sV, rel) {
+    var R = CC.unit(sV.r), W = CC.unit(CC.cross(sV.r, sV.v)), S = CC.cross(W, R);
+    return { radialKm: Math.round(CC.dot(rel, R) / 1000),
+             inTrackKm: Math.round(CC.dot(rel, S) / 1000),
+             crossTrackKm: Math.round(CC.dot(rel, W) / 1000) };
+  };
+  // Participant sets ENIGMA-1's target CIRCULAR altitude (up/down) + a small cross-
+  // track plane nudge (left/right). Redraws its predicted orbit, computes the live
+  // MOID against the victim, and (when they cross) the collision point + closing
+  // speed. Returns a summary and fires onClosest.
+  SatSim.prototype.setStage1 = function (o) {
+    o = o || {};
+    var atk = this._attacker(), tgt = this._target();
+    if (!atk || !tgt || !CC) return null;
+    var base = atk.baseKep;
+    var altKm = (o.targetAltKm != null) ? o.targetAltKm : (base[0] - K.EarthRadius) / 1000;
+    var crossDv = o.crossDv || 0;
+    // predicted orbit: circular at altKm on the start plane, then a cross-track nudge
+    var circ = [K.EarthRadius + altKm * 1000, 0, base[2], base[3], 0, base[5]];
+    var pred = crossDv ? CC.applyManeuver3D(circ, 0, 0, crossDv) : circ.slice();
+    atk.kep = pred.slice();
+    this.engine.setOrbitLine(atk.id, pred);
+    this.engine.setSatPosition(atk.id, K.keplerianToECI(pred[0], pred[1], pred[2], pred[3], pred[4], pred[5]));
+    // live MOID vs the victim
+    var mo = CC.numericMOID(pred, tgt.kep, 480);
+    var intersects = mo.moid <= this.collisionThreshold;
+    // closing speed + RTN miss at the closest approach
+    var nuA = CC.nuAtPoint(pred, mo.collisionPoint), nuV = CC.nuAtPoint(tgt.kep, mo.collisionPoint);
+    var sA = CC.stateFromElements(pred[0], pred[1], pred[2], pred[3], pred[4], nuA);
+    var sV = CC.stateFromElements(tgt.kep[0], tgt.kep[1], tgt.kep[2], tgt.kep[3], tgt.kep[4], nuV);
+    var closing = CC.norm(CC.sub(sA.v, sV.v));
+    var rtn = this._rtn(sV, CC.sub(sA.r, sV.r));
+    var cp = mo.collisionPoint;
+    this.engine.setMarker(intersects ? { x: cp[0], y: cp[1], z: cp[2] } : null, 0xff3b4e);
+    this._stage1 = { pred: pred, moid: mo.moid, collisionPoint: cp, closing: closing, nuA: nuA, nuV: nuV, targetId: tgt.id };
+    var res = {
+      intersects: intersects, moid: mo.moid, moidKm: Math.round(mo.moid / 1000),
+      collisionPoint: { x: Math.round(cp[0]), y: Math.round(cp[1]), z: Math.round(cp[2]) },
+      collisionPointRaw: cp,
+      closingKmS: Math.round(closing / 100) / 10, closingMs: Math.round(closing),
+      victim: tgt.name, victimNuDeg: Math.round(nuV), rtn: rtn, altKm: Math.round(altKm),
+      attackerKep: pred.slice(), attackerNuDeg: Math.round(nuA), victimKep: tgt.kep.slice()
+    };
+    if (this.onClosest) this.onClosest(res);
+    this._render();
+    return res;
+  };
+
+  // ── victim playback (scenario 5): set ENIGMA-1's maneuvered orbit, then blow it ─
+  // up at the collision point (explosion + debris cascade), killing the target.
+  SatSim.prototype.setAttackerOrbit = function (kep) {
+    var atk = this._attacker(); if (!atk || !kep) return;
+    atk.kep = kep.slice();
+    this.engine.setOrbitLine(atk.id, kep);
+    this.engine.setSatPosition(atk.id, K.keplerianToECI(kep[0], kep[1], kep[2], kep[3], kep[4], kep[5]));
+    this._render();
+  };
+  SatSim.prototype.detonate = function (pointRaw, victimId) {
+    var atk = this._attacker();
+    var p = { x: pointRaw[0], y: pointRaw[1], z: pointRaw[2] };
+    this.engine.setSatPosition(atk.id, p);                 // slam ENIGMA-1 onto the point
+    if (victimId) this.engine.setSatPosition(victimId, p);
+    this.triggerFX(p, [atk && atk.id, victimId]);
+    this.mode = 'playback';
+    if (!this.running) this.start();
+    return { victimId: victimId, pos: p };
+  };
+
   SatSim.prototype.setManeuver = function (m) {
     this.maneuver = { altKm: +m.altKm, inc: +m.inc, raan: +m.raan };
     var res = this._analyze(); var pred = this._predictedKep();
