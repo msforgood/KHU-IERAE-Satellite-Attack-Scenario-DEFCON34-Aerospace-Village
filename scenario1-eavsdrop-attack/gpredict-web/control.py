@@ -35,6 +35,7 @@ DISPLAY     = os.environ.get("DISPLAY", ":99")
 ROTOR_TITLE = "Gpredict Rotator Control"
 RADIO_TITLE = "Gpredict Radio Control"
 ROTOR_TRACK  = (817, 807)      # Antenna control: Track button
+ROTOR_TRACK_PROBE = (810, 807) # a spot on the rotor Track button: ~210 pressed (tracking on), ~248 off
 ROTOR_ENGAGE = (1224, 807)     # Antenna control: Engage button
 RADIO_TRACK  = (304, 1204)     # Radio control: Track (Doppler) button
 RADIO_ENGAGE = (697, 1204)     # Radio control: Engage button
@@ -129,6 +130,31 @@ def _ensure_track(title, track_xy, status_key):
     if not _bridge_status().get(status_key):
         _activate(title)
         _click(*track_xy)
+
+
+def _rotor_track_on():
+    """Read whether the rotor Track toggle is pressed (tracking ON) from its background shade - an
+    active GtkToggleButton is drawn darker. This is the actual toggle state, independent of whether
+    the satellite is currently moving (a parked pre-AOS pass would fool a movement-based check)."""
+    subprocess.run(["scrot", "-o", "/tmp/_rt.png"],
+                   env={**os.environ, "DISPLAY": DISPLAY}, check=False)
+    try:
+        from PIL import Image
+        return Image.open("/tmp/_rt.png").convert("L").getpixel(ROTOR_TRACK_PROBE) < 225
+    except Exception:
+        return False
+
+
+def _ensure_rotor_tracking():
+    """Engage the rotor and make sure the Track toggle is actually ON (pixel-checked), so ONE press
+    reliably starts tracking. Fixes the 'one press leaves it fixed at the initial position' bug where
+    the Track toggle stayed off (the old check saw the engage's single position as 'tracking')."""
+    _ensure_engaged(ROTOR_TITLE, ROTOR_ENGAGE, 4533)
+    for _ in range(3):
+        if _rotor_track_on():
+            return True
+        _activate(ROTOR_TITLE); _click(*ROTOR_TRACK); time.sleep(0.6)
+    return _rotor_track_on()
 
 
 def _wait_disengaged(port, tries=10):
@@ -369,8 +395,7 @@ class Handler(BaseHTTPRequestHandler):
                 if _is_engaged(4533):                       # currently ON -> turn OFF
                     _activate(ROTOR_TITLE); _click(*ROTOR_ENGAGE); _park()
                     return self._reply(200, {"ok": True, "engaged": _wait_disengaged(4533), "tracking": False})
-                _ensure_engaged(ROTOR_TITLE, ROTOR_ENGAGE, 4533)   # OFF -> turn ON
-                _ensure_track(ROTOR_TITLE, ROTOR_TRACK, "rotorTracking")
+                _ensure_rotor_tracking()   # OFF -> engage AND verify the antenna is actually moving (tracking)
                 _park()
                 return self._reply(200, {"ok": True, "engaged": _is_engaged(4533),
                                          "tracking": bool(_bridge_status().get("rotorTracking"))})
