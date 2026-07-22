@@ -166,12 +166,25 @@
       transform: rotate(360deg);
     }
   }
-  /* on spoof start the rogue drone climbs a little and edges toward the GS */
+  /* on spoof start the rogue drone FIRST climbs straight up, THEN slides toward the GS
+     — two distinct moves (with a brief hold between), not one diagonal glide. */
   .drone {
     transition: transform 0.8s ease;
   }
   body.spoofing .drone {
-    transform: translate(12px, -18px);
+    animation: droneClimb 1.8s ease forwards;
+  }
+  @keyframes droneClimb {
+    0% {
+      transform: translate(0, 0);
+    }
+    42%,
+    54% {
+      transform: translate(0, -34px); /* climb straight up, then hold a beat */
+    }
+    100% {
+      transform: translate(36px, -34px); /* then slide right toward the GS */
+    }
   }
   .beam {
     opacity: 0;
@@ -268,6 +281,17 @@
   .svgnote.weak {
     fill: #e0556a;
     opacity: 0.6;
+  }
+  /* the drone's "437 MHz · strong" TX label: hidden until spoofing, and it rides
+     inside the .drone group so it moves with the drone. */
+  .beamfreq {
+    transition: opacity 0.5s;
+  }
+  body:not(.spoofing) .beamfreq {
+    opacity: 0;
+  }
+  body.spoofing .beamfreq {
+    opacity: 1;
   }
 
   .cards {
@@ -484,9 +508,6 @@
   pre.frame .pend {
     color: #46566a;
   }
-  pre.frame .crc {
-    color: var(--warn);
-  }
 
   .deck {
     flex: 0 0 auto;
@@ -624,6 +645,8 @@
             ROGUE DRONE
           </text>
           <text x="86" y="290" text-anchor="middle" class="svgnote" fill="#35d0e0" opacity="0.8">hover ~200 m</text>
+          <!-- TX label: only while spoofing, and pinned to the drone so it moves with it -->
+          <text x="120" y="230" class="svgnote freq beamfreq">↱ 437 MHz · strong ≈ -26 dBm</text>
         </g>
 
         <!-- forged beacon packets drone → GS (short, strong) -->
@@ -633,18 +656,17 @@
           <rect class="pkt p2" x="100" y="240" width="30" height="13" rx="2" />
           <rect class="pkt p3" x="100" y="240" width="30" height="13" rx="2" />
         </g>
-        <text x="120" y="230" class="svgnote freq">↱ 437 MHz · strong ≈ -26 dBm</text>
         <text id="beaconLbl" x="210" y="287" text-anchor="middle" fill="#4ec98a" font-size="10" font-family="monospace" opacity="0">
           STATUS: ALL NOMINAL ✓
         </text>
         <!-- victim ground station (real photo gs.webp). Glow rings are drawn UNDER the
              photo so they read as a halo around the dish, not a disc covering it. -->
         <g>
-          <circle class="gsglow red alarmring" cx="336" cy="282" r="36" fill="none" stroke="#ff5c5c" stroke-width="2" />
-          <circle class="gsglow green" cx="336" cy="282" r="36" fill="url(#gGood)" />
-          <image href="gs.webp" x="308" y="254" width="56" height="56" preserveAspectRatio="xMidYMid meet" />
+          <circle class="gsglow red alarmring" cx="336" cy="262" r="36" fill="none" stroke="#ff5c5c" stroke-width="2" />
+          <circle class="gsglow green" cx="336" cy="262" r="36" fill="url(#gGood)" />
+          <image href="gs.webp" x="308" y="234" width="56" height="56" preserveAspectRatio="xMidYMid meet" />
         </g>
-        <text x="336" y="240" text-anchor="middle" fill="#8497a8" font-size="11" font-family="monospace">
+        <text x="336" y="220" text-anchor="middle" fill="#8497a8" font-size="11" font-family="monospace">
           📡 VICTIM GS
         </text>
       </svg>
@@ -755,19 +777,6 @@
       return count() === FIELDS.length;
     }
 
-    // simple visible "CRC" over the forged values, for packet authenticity
-    function crc() {
-      var s = "DEMOSAT";
-      FIELDS.forEach(function (f) {
-        if (forged[f.key]) s += f.k + f.v;
-      });
-      var h = 0x1d0f;
-      for (var i = 0; i < s.length; i++) {
-        h = ((h << 5) - h + s.charCodeAt(i)) & 0xffff;
-      }
-      return "0x" + h.toString(16).toUpperCase().padStart(4, "0");
-    }
-
     function renderFrame() {
       var lines = ['<span class="k">BEACON</span>  SRC=DEMOSAT  APID=0x21A  TYPE=TM'];
       FIELDS.forEach(function (f) {
@@ -775,12 +784,6 @@
         if (forged[f.key]) lines.push('  <span class="k">' + pad + '</span>= <span class="v">' + f.v + "</span>");
         else lines.push('  <span class="pend">' + pad + "= —</span>");
       });
-      lines.push(
-        '  <span class="k">' +
-          "crc                ".slice(0, 18) +
-          "</span>= " +
-          (complete() ? '<span class="crc">' + crc() + "</span>" : '<span class="pend">—</span>'),
-      );
       frameEl.innerHTML = lines.join("\n");
     }
 
