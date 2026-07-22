@@ -293,6 +293,18 @@ def do_uplink(body):
     return res
 
 
+def do_uplink_collision(body):
+    """Scenario 5 uplink: the console already computed the whole collision (geometry
+    + timing), so we just forward that maneuver to the victim ground station, which
+    replays it on monitor 2. No RF layer: the attacker owns the satellite."""
+    msg = dict(body or {})
+    msg["type"] = "uplink-command"
+    try:
+        return {"ok": True, "gs": _gs_post("/api/inject", msg)}
+    except Exception as e:
+        return {"ok": False, "error": "ground station unreachable: %s" % e}
+
+
 def do_reset_target(_body):
     """Reset the victim ground station + its simulation (monitor 2)."""
     try:
@@ -380,6 +392,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(do_build(body, save=True))
             if self.path == "/api/uplink":
                 return self._json(do_uplink(body))
+            if self.path == "/api/uplink-collision":
+                return self._json(do_uplink_collision(body))
             if self.path == "/api/reset-target":
                 return self._json(do_reset_target(body))
         except Exception as e:

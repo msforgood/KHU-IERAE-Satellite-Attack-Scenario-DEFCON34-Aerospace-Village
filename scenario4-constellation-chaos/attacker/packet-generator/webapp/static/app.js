@@ -1,805 +1,898 @@
-// ENIGMA-1 Command Builder — scenario 4, four phases:
-//   1 PLAN    orbit planner (satellite-sim): tune an up/down/left/right burn until the
-//             predicted orbit reaches the AURORA constellation ring
-//   2 BUILD   assemble the CCSDS orbit_maneuver packet (the value = the planned burn)
-//   3 UPLINK  transmit the IQ file to the victim ground station (software uplink)
-//   4 OBSERVE watch monitor 2; on a miss, reset and re-plan
-// All CCSDS/OOK logic is in the Python backend (ccsds_ook.py); this drives the UI.
+// app.js — ENIGMA-1 orbital-collision console (scenario 5, monitor 1), reversed flow.
+//   PHASE 1 INTEL      parse both TLEs into the six classical orbital elements
+//   PHASE 2 PROPAGATE  advance the clock (Kepler chain), pick the collision pass = execution time
+//   PHASE 3 SOLVE      assemble the equation chain, tune the real delta-v, back-solve the burn
+//   PHASE 4 TRANSMIT   ground-station-style send: build the CCSDS/cFS packet, uplink, observe
+// Physics lives in kepler.js + collision-core.js; this drives the UI.
 'use strict';
 
-let M = null;                 // mission payload
-let sim = null;               // orbit-planning simulation (satellite-sim seam, 3D)
-let phase = 1;
-let lastPlan = null;          // most recent planner status (for the phase-2 recap)
-let hintOn = false;           // hint toggle: highlight the reachable (answer) orbit
-const S = {
-  scid: null,
-  command: null, cmdDef: null,
-  params: { altKm: 600, inc: 50, raan: 25 },   // resulting orbit (absolute — this is what the packet carries)
-  thrust: { alt: 0, ud: 0 },                   // gas fired from the ALTITUDE / UP-DOWN thrusters (deltas)
-  valueConfirmed: false,
-  rf: { modulation: null, baud: null, sampleRate: null },
-  generated: false,
-  lastOutcome: null,
+var $ = function (s) { return document.querySelector(s); };
+var K = window.SatKepler, CC = window.CollisionCore, Scn = window.Scenario5;
+var phase = 1, sim = null, solveSim = null;
+var clamp = function (v, lo, hi) { return Math.max(lo, Math.min(hi, v)); };
+
+// precomputed nominal geometry + timing (fixed collision point, victim passes)
+var G = null;
+// solve state
+var S = {
+  execTimeSec: null, execPassM: null,
+  dv: { prograde: 0, cross: 0, phase: 0, k: 5 },
+  thrusterId: Scn.defaultThruster,
+  geom: null, timing: null, burn: null, packet: null
 };
 
-const $ = (s) => document.querySelector(s);
-const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const round1 = (v) => Math.round(v * 10) / 10;
-
-async function boot() {
-  M = await (await fetch('/api/mission')).json();
-  renderDossier();
-  renderSteps();
-  initSim();
-  buildElementInputs();
-  wirePhaseNav();
-  updateSimManeuver();
-  // preset thrusters from the query string (?alt=&ud=) - booth setup / demo shortcut
-  const qp = new URLSearchParams(location.search);
-  ['alt', 'ud'].forEach((k) => { if (qp.has(k)) { const t = THRUSTERS.find((x) => x.key === k); setThrust(k, +qp.get(k) || 0, t.min, t.max, false); } });
-  // intro shows first; #toPlan reveals the phase stepper + phase 1.
-  // deep-link: #p1/#plan or #p3/#uplink jumps straight to a phase (booth operator shortcut)
-  const h = (location.hash || '').replace('#', '').toLowerCase();
-  const jump = { p1: 1, plan: 1, p2: 2, build: 2, p3: 3, uplink: 3, p4: 4, observe: 4 }[h];
-  if (jump) { $('#intro').classList.add('hidden'); $('#phasebar').classList.remove('hidden'); showPhase(jump); }
-}
+// ── formula rendering helpers ────────────────────────────────────────────────
+var SUP = { '-': '⁻', '.': '·', '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+function sup(n) { return String(n).split('').map(function (c) { return SUP[c] || c; }).join(''); }
+function sci(x, d) { d = (d == null) ? 3 : d; if (!x) return '0'; var e = Math.floor(Math.log(Math.abs(x)) / Math.LN10); var m = x / Math.pow(10, e); return m.toFixed(d) + '×10' + sup(e); }
+function frac(n, d) { return '<span class="frac"><span class="fn">' + n + '</span><span class="fd">' + d + '</span></span>'; }
+function rt(inner) { return '<span class="rt"><span class="rb">' + inner + '</span></span>'; }
+function fv(x) { return '<span class="fvar">' + x + '</span>'; }
+function fo(x) { return '<span class="fout">' + x + '</span>'; }
+function fkc(x) { return '<span class="fconst">' + x + '</span>'; }
+function fmtDur(sec) { sec = Math.max(0, Math.round(sec)); var m = Math.floor(sec / 60), s = sec % 60; return m + 'm ' + (s < 10 ? '0' : '') + s + 's'; }
 
 // ── phase navigation ─────────────────────────────────────────────────────────
 function showPhase(n) {
   phase = n;
-  if (n !== 4) clearObserveTimers();   // stop the phase-4 countdown/poll when leaving OBSERVE
-  for (let i = 1; i <= 4; i++) $('#phase' + i).classList.toggle('hidden', i !== n);
-  document.querySelectorAll('.phasebar .pstep').forEach((s) => {
-    const p = +s.dataset.p;
-    s.classList.toggle('active', p === n);
-    s.classList.toggle('done', p < n);
+  if (sim && sim.stop) sim.stop();               // pause any running sim; the enter* handler
+  if (solveSim && solveSim.stop) solveSim.stop(); // starts the one this phase needs
+  for (var i = 1; i <= 4; i++) { var p = $('#phase' + i); if (p) p.classList.toggle('hidden', i !== n); }
+  document.querySelectorAll('.phasebar .pstep').forEach(function (s) {
+    var pp = +s.dataset.p; s.classList.toggle('active', pp === n); s.classList.toggle('done', pp < n);
   });
   window.scrollTo(0, 0);
-  if (n === 1) { syncThrustFromParams(); if (sim) requestAnimationFrame(() => { sim._resize(); updateSimManeuver(); }); }
-  if (n === 2) { renderPlanRecap(); renderBuildGuide(); renderBurnRecap(); renderSteps(); }
-  if (n === 3) { renderUplinkSummary(); setupGpredict(); }
+  if (n === 2) enterPropagate();
+  if (n === 3) enterSolve();
+  if (n === 4) enterTransmit();
 }
-// (re)load the VSA + gpredict iframes when phase 3 opens; show a hint if the container is down
-function setupGpredict() {
-  const vf = $('#vsaFrame');
-  // auto-configure the VSA: UPLINK mode + ENIGMA-1 + Helix + UHF 20W amp + 449.5 MHz,
-  // and hide its left settings menu (handled inside the VSA via ?auto=uplink)
-  if (vf) { try { vf.src = '/vsa/index.html?auto=uplink&sat=ENIGMA-1&ant=helix&amp=uhf-20w&freq=449.5&t=' + phase; } catch (e) {} }
-  const fr = $('#gpredictFrame'), fb = $('#gpFallback');
-  if (fr) { try { fr.src = 'http://localhost:6080/vnc.html?autoconnect=1&resize=remote'; } catch (e) {} }
-  if (!fb) return;
-  fb.classList.add('hidden');
-  const ctrl = new AbortController();
-  const to = setTimeout(() => { try { ctrl.abort(); } catch (e) {} }, 2500);
-  fetch('http://localhost:6080/', { mode: 'no-cors', signal: ctrl.signal })
-    .then(() => { clearTimeout(to); fb.classList.add('hidden'); })
-    .catch(() => { clearTimeout(to); fb.classList.remove('hidden'); });
+function wireNav() {
+  $('#toIntel').onclick = function () { $('#intro').classList.add('hidden'); $('#phasebar').classList.remove('hidden'); showPhase(1); };
+  $('#parseTle').onclick = parseTle;
+  var t2 = $('#toProp'); if (t2) t2.onclick = function () { showPhase(2); };
+  var t3 = $('#toSolve'); if (t3) t3.onclick = function () { if (!t3.disabled) showPhase(3); };
+  var t4 = $('#toTransmit'); if (t4) t4.onclick = function () { if (!t4.disabled) showPhase(4); };
+  document.querySelectorAll('[data-goto]').forEach(function (b) { b.onclick = function () { showPhase(+b.dataset.goto); }; });
 }
-function wirePhaseNav() {
-  $('#toPlan').onclick = () => {
-    $('#intro').classList.add('hidden');
-    $('#phasebar').classList.remove('hidden');
-    showPhase(1);
-    if (sim) requestAnimationFrame(() => { sim._resize(); updateSimManeuver(); });
-  };
-  $('#toPhase2').onclick = () => { if (!$('#toPhase2').disabled) showPhase(2); };
-  $('#backTo1').onclick = () => showPhase(1);
-  $('#toPhase3').onclick = () => { if (!$('#toPhase3').disabled) showPhase(3); };
-  $('#backTo2').onclick = () => showPhase(2);
-  $('#uplinkBtn').onclick = doUplink;
-  $('#retryBtn').onclick = doRetry;
-  $('#genBtn').onclick = doGenerate;
-  const hb = $('#hintBtn');
-  if (hb) hb.onclick = () => {
-    hintOn = !hintOn;
-    if (sim) sim.highlightAnswer(hintOn);
-    hb.classList.toggle('on', hintOn);
-    hb.textContent = hintOn ? '💡 Hide hint' : '💡 Hint: show the target satellite orbit';
-  };
-  const rp = $('#resetPass'); if (rp) rp.onclick = doResetPass;
-  const et = $('#engageTrack'); if (et) et.onclick = doEngageTracking;
+
+// ── PHASE 1 · INTEL (TLE -> 6 orbital elements) ──────────────────────────────
+function renderTleRaw() { var e = $('#tleRaw'); if (e) e.textContent = (Scn && Scn.tleText) || ''; }
+function parseTleText(text) {
+  var lines = text.split('\n'), out = [], name = null;
+  for (var i = 0; i < lines.length; i++) {
+    var t = lines[i].trim(); if (!t) { name = null; continue; }
+    if (t.charAt(0) === '1' && t.charAt(1) === ' ') { /* line 1 ignored for the demo */ }
+    else if (t.charAt(0) === '2' && t.charAt(1) === ' ') {
+      var c = t.split(/\s+/);
+      out.push({ name: name || ('SAT ' + c[1]), inc: parseFloat(c[2]), raan: parseFloat(c[3]),
+        ecc: parseFloat('0.' + c[4]), argp: parseFloat(c[5]), meanAnom: parseFloat(c[6]), meanMotion: parseFloat(c[7]) });
+    } else { name = t; }
+  }
+  return out;
 }
-// phase 3 · turn on gpredict tracking. This connects and enables BOTH links: the
-// antenna rotator (Track+Engage -> az/el follows ENIGMA-1) and the radio (Track+
-// Engage -> the uplink frequency is Doppler-corrected). The in-container helper
-// clicks each Track/Engage toggle with a check-first, single-click discipline so a
-// good state is never toggled back off.
-async function doEngageTracking() {
-  const btn = $('#engageTrack'), stat = $('#passStatus');
-  const prev = btn ? btn.textContent : '';
-  if (btn) { btn.disabled = true; btn.textContent = '… checking'; }
-  if (stat) { stat.className = 'passstatus'; stat.textContent = 'Turning on gpredict antenna + Doppler tracking… (the gpredict window will move briefly)'; }
-  try {
-    const j = await (await fetch('http://localhost:6079/engage')).json();
-    if (j && j.rotorTracking) {
-      const dop = j.radioTracking ? ' · Doppler correction on (uplink frequency corrected in real time)' : ' · (Doppler will follow shortly)';
-      if (stat) { stat.className = 'passstatus ok'; stat.textContent = 'Antenna tracking on · the VSA antenna is following ENIGMA-1' + dop; }
-    } else if (j && j.rotorEngaged && j.satUp === false) {
-      if (stat) { stat.className = 'passstatus err'; stat.textContent = 'Rotor connected · the satellite is still below the horizon. When gpredict shows EL>0, press the button again.'; }
-    } else if (j && j.rotorEngaged) {
-      if (stat) { stat.className = 'passstatus err'; stat.textContent = 'Rotor connected but tracking did not turn on · press the button again.'; }
-    } else {
-      if (stat) { stat.className = 'passstatus err'; stat.textContent = 'Rotor connection failed: ' + ((j && j.error) || '?') + ' · check the gpredict container.'; }
+function orbitFromMeanMotion(mm) {
+  var n = mm * 2 * Math.PI / 86400;
+  var a = Math.pow(K.MuEarth / (n * n), 1 / 3);
+  return { a: a, altKm: (a - K.EarthRadius) / 1000, periodMin: (2 * Math.PI / n) / 60 };
+}
+function parseTle() {
+  var sats = parseTleText((Scn && Scn.tleText) || '');
+  var box = $('#intelTable'); if (!box) return;
+  var rows = sats.map(function (s) {
+    var o = orbitFromMeanMotion(s.meanMotion);
+    var peri = o.a * (1 - s.ecc), apo = o.a * (1 + s.ecc);
+    var altLine = s.ecc < 1e-4 ? (Math.round(o.altKm) + ' km circular')
+      : (Math.round((peri - K.EarthRadius) / 1000) + ' – ' + Math.round((apo - K.EarthRadius) / 1000) + ' km (e=' + s.ecc.toFixed(2) + ')');
+    return '<div class="intelcard"><div class="intelname">' + s.name + '</div>' +
+      '<div class="intelrow"><span>a · semi-major</span><b>' + Math.round(o.a / 1000) + ' km</b></div>' +
+      '<div class="intelrow"><span>e · eccentricity</span><b>' + s.ecc.toFixed(4) + '</b></div>' +
+      '<div class="intelrow"><span>i · inclination</span><b>' + s.inc.toFixed(2) + '°</b></div>' +
+      '<div class="intelrow"><span>Ω · RAAN</span><b>' + s.raan.toFixed(2) + '°</b></div>' +
+      '<div class="intelrow"><span>ω · arg perigee</span><b>' + s.argp.toFixed(2) + '°</b></div>' +
+      '<div class="intelrow"><span>M · mean anomaly</span><b>' + s.meanAnom.toFixed(2) + '°</b></div>' +
+      '<div class="intelrow"><span>altitude</span><b>' + altLine + '</b></div>' +
+      '<div class="intelrow"><span>period</span><b>' + o.periodMin.toFixed(1) + ' min</b></div></div>';
+  }).join('');
+  box.innerHTML = '<div class="intelgrid">' + rows + '</div>';
+  var read = $('#intelRead');
+  if (read && sats.length >= 2) {
+    var dR = Math.abs(sats[0].raan - sats[1].raan);
+    read.innerHTML = 'Read: both orbits are near-polar but their <b>RAAN differs by ' + dR.toFixed(0) +
+      '°</b>, so their planes cross at a steep angle — that is what makes a crossing a hypervelocity hit. ' +
+      'AURORA-2 is <b>eccentric</b> (altitude rises and falls), so its orbit reaches down to where you can meet it.';
+    read.classList.remove('hidden');
+  }
+  var t2 = $('#toProp'); if (t2) t2.classList.remove('hidden');
+}
+
+// ── PHASE 2 · PROPAGATE & TIME ───────────────────────────────────────────────
+var propInited = false, propStarted = false, hint1On = false, hint2On = false;
+function baseSats() { return Scn.satellites(); }
+function attacker() { return baseSats().filter(function (s) { return s.role === 'attacker'; })[0]; }
+function victim() { return baseSats().filter(function (s) { return s.target; })[0]; }
+
+// nominal geometry: raise ENIGMA-1 (prograde only) until its orbit best-crosses AURORA-2;
+// gives the fixed collision point P and the two orbits' passes through it.
+function precompute() {
+  var atk = attacker(), vic = victim();
+  var base = atk.kep;
+  var v0 = Math.sqrt(K.MuEarth / base[0]);           // current circular speed
+  var best = null;
+  for (var dvp = 0; dvp <= 900; dvp += 15) {          // scan a prograde transfer burn
+    var kep = CC.applyManeuver3D(base, dvp, 0, 0);
+    var mo = CC.numericMOID(kep, vic.kep, 360);
+    if (!best || mo.moid < best.moid) best = { dvp: dvp, moid: mo.moid, cp: mo.collisionPoint, kep: kep };
+  }
+  var P = best.cp;                                    // fixed collision point (raw ECI array)
+  var nuV = CC.nuAtPoint(vic.kep, P), nuA = CC.nuAtPoint(best.kep, P);
+  var Tv = CC.period(vic.kep[0]), Ta = CC.period(best.kep[0]);
+  var tV0 = K.timeToNu(vic.kep[0], vic.kep[1], vic.kep[5], nuV);      // victim first reaches P
+  var tA0 = K.timeToNu(best.kep[0], best.kep[1], best.kep[5], nuA);   // attacker first reaches P (after transfer)
+  // phasing capability: for each victim pass, the phasing dv needed (at k=30) to shift
+  // the attacker's arrival onto it. A pass is REACHABLE only if that dv is within a
+  // realistic budget, so the demo never asks for an absurd phasing burn.
+  var kMax = 30, dvCap = 120, Tins = CC.period(best.kep[0]);   // m/s: realistic phasing ceiling
+  var passes = [];
+  for (var m = 0; m < 10; m++) {
+    var tc = tV0 + m * Tv;
+    var need = centeredMod(tc - tA0, Tins);            // align mod ENIGMA-1's period (it passes P each orbit)
+    var dv = phaseDvFor(best.kep[0], need, kMax);      // min phasing dv (at kMax) to cover it
+    passes.push({ m: m, tc: tc, need: need, dv: dv, feasible: dv <= dvCap });
+  }
+  G = { atk: atk, vic: vic, base: base, v0: v0, nominal: best, P: P,
+        nuV: nuV, nuA: nuA, Tv: Tv, Ta: Ta, tV0: tV0, tA0: tA0, passes: passes };
+  return G;
+}
+
+function enterPropagate() {
+  if (!G) precompute();
+  if (!propInited) { initPropSim(); propInited = true; }
+  requestAnimationFrame(function () { if (sim) sim._resize(); });
+  // time slider spans ~ the last feasible pass + one victim period (fine step for tuning)
+  var span = Math.max(G.tV0 + (G.passes.length - 1) * G.Tv, G.Tv * 3) + G.Tv * 0.5;
+  var sl = $('#timeSlider'); if (sl) { sl.min = 0; sl.max = span.toFixed(0); sl.step = (span / 1500).toFixed(2); sl.value = 0; }
+  // default: only the TASK + slider are shown. Hints reveal the marker / the valid times.
+  hint1On = false; hint2On = false; S.execTimeSec = null; S.execPassM = null;
+  if (sim && sim.engine && sim.engine.setMarker) sim.engine.setMarker(null);
+  var pb = $('#passBox'); if (pb) pb.classList.add('hidden');
+  var hm = $('#hintMsg'); if (hm) hm.classList.add('hidden');
+  var h1b = $('#hint1Btn'); if (h1b) { h1b.disabled = false; h1b.classList.remove('on', 'used'); h1b.innerHTML = '💡 Hint 1 · show collision point'; }
+  var h2b = $('#hint2Btn'); if (h2b) { h2b.disabled = false; h2b.classList.remove('on', 'used'); h2b.innerHTML = '💡 Hint 2 · show valid times'; }
+  wireHints();
+  propAt(0);
+  if (sim && !sim.running) sim.start();
+}
+function initPropSim() {
+  var cv = $('#propSim'); if (!cv || typeof SatSim === 'undefined' || !Scn) return;
+  sim = new SatSim(cv, Object.assign({ mode: 'planner' }, Scn.simOpts));
+  sim.setSatellites(baseSats());
+  sim.lockOn('demosat');
+  if (sim.engine && sim.engine.setMarker) sim.engine.setMarker(null);   // collision marker hidden until Hint 1
+  var sl = $('#timeSlider'); if (sl) sl.oninput = function () { propAt(+sl.value); };
+  if (!propStarted) { sim.start(); propStarted = true; }
+  // frame ENIGMA-1 once, then release the camera so mouse drag rotates freely
+  setTimeout(function () { if (sim) sim.lockId = null; }, 120);
+}
+// reveal (or hide) the collision point (Hint 1) or the list of valid times (Hint 2).
+// Both hints are TOGGLES: click to show, click again to hide.
+var HINT1_MSG = '<b>Hint 1:</b> the red marker is the plane-crossing point. Find the moment <b>AURORA-2 sits on it</b> — that is where it lands on ENIGMA-1\'s (future) orbit.';
+var HINT2_MSG = '<b>Hint 2:</b> these are the exact moments AURORA-2 is on the crossing. Click one to jump the clock there.';
+// the hint message plate is shared, so drive it from the current toggle state
+function refreshHintMsg() {
+  var hm = $('#hintMsg'); if (!hm) return;
+  if (hint2On) { hm.classList.remove('hidden'); hm.innerHTML = HINT2_MSG; }
+  else if (hint1On) { hm.classList.remove('hidden'); hm.innerHTML = HINT1_MSG; }
+  else { hm.classList.add('hidden'); hm.innerHTML = ''; }
+}
+function wireHints() {
+  var h1 = $('#hint1Btn'); if (h1) h1.onclick = function () {
+    hint1On = !hint1On;
+    h1.classList.toggle('on', hint1On);
+    h1.innerHTML = hint1On ? '💡 Hint 1 · hide collision point' : '💡 Hint 1 · show collision point';
+    if (sim && sim.engine && sim.engine.setMarker) {
+      if (hint1On && G) sim.engine.setMarker({ x: G.P[0], y: G.P[1], z: G.P[2] }, 0xff3b4e);
+      else sim.engine.setMarker(null);
     }
-  } catch (e) {
-    if (stat) { stat.className = 'passstatus err'; stat.textContent = 'Cannot reach the gpredict control (:6079). Restart the container with run.sh.'; }
-  }
-  if (btn) { btn.disabled = false; btn.textContent = prev; }
-}
-// phase 3 · reset ENIGMA-1's position: re-arm the pass so gpredict jumps back to
-// just before AOS (the in-container time-control server on :6079, /arm endpoint)
-async function doResetPass() {
-  const btn = $('#resetPass'), stat = $('#passStatus');
-  if (!btn) return;
-  const prev = btn.textContent; btn.disabled = true; btn.textContent = '… resetting';
-  if (stat) { stat.textContent = ''; stat.className = 'passstatus'; }
-  try {
-    const j = await (await fetch('http://localhost:6079/arm')).json();
-    if (j && j.ok) {
-      const inSec = j.secToAos != null ? ` (AOS in ${Math.max(0, Math.round(j.secToAos))}s)` : '';
-      if (stat) { stat.className = 'passstatus ok'; stat.textContent = `Position reset · next pass AOS ${j.aosUtc || ''}${j.maxAltDeg != null ? ', max elevation ' + j.maxAltDeg + '°' : ''}${inSec}`; }
-    } else {
-      if (stat) { stat.className = 'passstatus err'; stat.textContent = 'Reset failed: ' + ((j && j.error) || '?'); }
-    }
-  } catch (e) {
-    if (stat) { stat.className = 'passstatus err'; stat.textContent = 'Cannot reach the gpredict control (:6079). Restart the container with run.sh.'; }
-  }
-  btn.disabled = false; btn.textContent = prev;
-}
-
-// ── PHASE 1 · orbit planner ──────────────────────────────────────────────────
-function initSim() {
-  const cv = $('#planSim');
-  if (!cv || typeof SatSim === 'undefined' || typeof Scenario4 === 'undefined') return;
-  sim = new SatSim(cv, Object.assign({ mode: 'planner', onClosest: onPlanStatus, onSelect: renderSatInfo }, Scenario4.simOpts));
-  sim.setSatellites(Scenario4.satellites());
-  requestAnimationFrame(() => sim._resize());
-  renderSatInfo('demosat');
-}
-// Two thrusters (ALTITUDE / UP-DOWN) as separate blocks in one horizontal row.
-// Each block fires "gas" (a signed delta); the resulting orbit is shown under it.
-// The packet still carries the resulting absolute orbit, so nothing else changes.
-const THRUSTERS = [
-  { key: 'alt', name: 'ALTITUDE', tag: 'orbit altitude', effect: 'raises / lowers the orbit (altitude)', unit: 'km', min: -200, max: 600, step: 10 },
-  { key: 'ud',  name: 'UP / DOWN', tag: 'orbital plane', effect: 'tilts the orbital plane (inclination)', unit: '°', min: -50, max: 40, step: 1 },
-];
-function thrustBase() { return (Scenario4 && Scenario4.demosatStart) || { altKm: 600, inc: 50, raan: 25 }; }
-function applyThrust() {
-  const b = thrustBase();
-  S.params.altKm = round1(clamp(b.altKm + S.thrust.alt, 300, 1400));
-  S.params.inc   = round1(clamp(b.inc + S.thrust.ud, 0, 90));
-  S.params.raan  = b.raan;   // node stays fixed; thrusters change altitude + inclination only
-}
-function buildElementInputs() {
-  const pad = $('#thrustPad'); if (!pad) return;
-  pad.innerHTML = '';
-  THRUSTERS.forEach((t) => pad.appendChild(thrustInput(t)));
-  refreshThrustResults();
-}
-function thrustInput(t) {
-  const col = el('div', 'thrustcol');
-  col.appendChild(el('div', 'txhead', `<span class="txname">${t.name}</span><span class="txko">${t.tag}</span>`));
-  col.appendChild(el('div', 'txdesc', t.effect));
-  const ctl = el('div', 'axctl');
-  const dec = el('button', 'stepbtn', '−');
-  const inp = el('input', 'axinput'); inp.type = 'number'; inp.min = t.min; inp.max = t.max; inp.step = t.step; inp.id = 'th_' + t.key;
-  inp.value = S.thrust[t.key];
-  const inc = el('button', 'stepbtn', '+');
-  dec.onclick = () => setThrust(t.key, (+inp.value || 0) - t.step, t.min, t.max, false);
-  inc.onclick = () => setThrust(t.key, (+inp.value || 0) + t.step, t.min, t.max, false);
-  inp.oninput = () => setThrust(t.key, +inp.value || 0, t.min, t.max, true);
-  ctl.appendChild(dec); ctl.appendChild(inp); ctl.appendChild(inc);
-  col.appendChild(ctl);
-  col.appendChild(el('div', 'txunit', `gas output (${t.unit})`));
-  const res = el('div', 'txresult'); res.id = 'res_' + t.key;
-  col.appendChild(res);
-  return col;
-}
-function setThrust(key, v, min, max, typing) {
-  v = clamp(round1(v), min, max);
-  S.thrust[key] = v;
-  const box = $('#th_' + key); if (box && !typing) box.value = v;
-  applyThrust();
-  S.valueConfirmed = false; S.generated = false;
-  updateSimManeuver();
-  refreshThrustResults();
-  renderSatInfo('demosat');
-}
-function refreshThrustResults() {
-  const map = {
-    alt: `→ altitude <b>${round1(S.params.altKm)} km</b>`,
-    ud:  `→ inclination <b>${round1(S.params.inc)}°</b>`,
+    refreshHintMsg();
+    if (lastPropT != null) updateTimeStatus(lastPropT);
   };
-  Object.keys(map).forEach((k) => { const e = $('#res_' + k); if (e) e.innerHTML = map[k]; });
-}
-// keep the thruster deltas in sync if the value was edited directly in phase 2
-function syncThrustFromParams() {
-  const b = thrustBase();
-  S.thrust.alt = round1(S.params.altKm - b.altKm);
-  S.thrust.ud = round1(S.params.inc - b.inc);
-  THRUSTERS.forEach((t) => { const e = $('#th_' + t.key); if (e) e.value = S.thrust[t.key]; });
-  refreshThrustResults();
-}
-function updateSimManeuver() {
-  if (sim) sim.setManeuver({ altKm: +S.params.altKm, inc: +S.params.inc, raan: +S.params.raan });
-  const changed = S.thrust.alt !== 0 || S.thrust.ud !== 0;
-  const b = $('#toPhase2'); if (b) b.disabled = !changed;
-}
-// right-side satellite info panel; ENIGMA-1 shows the planned orbit, others their orbit
-function renderSatInfo(id) {
-  const box = $('#satInfo'); if (!box) return;
-  if (!id) { box.innerHTML = '<div class="siempty">Click a satellite to inspect its orbit.</div>'; return; }
-  let info;
-  if (id === 'demosat') info = { name: 'ENIGMA-1', role: 'attacker', altKm: +S.params.altKm, incDeg: +S.params.inc, raanDeg: +S.params.raan };
-  else info = sim ? sim.getInfo(id) : null;
-  if (!info) return;
-  const tag = info.role === 'attacker' ? '<span class="sirole atk">YOUR SATELLITE</span>' : '<span class="sirole tgt">TARGET</span>';
-  box.innerHTML = `<div class="sihead">${info.name} ${tag}</div>
-    <div class="sirow"><span>Altitude</span><b>${info.altKm} km</b></div>
-    <div class="sirow"><span>Inclination</span><b>${info.incDeg}°</b></div>
-    <div class="sirow"><span>RAAN</span><b>${info.raanDeg}°</b></div>` +
-    (info.role !== 'attacker'
-      ? (Math.abs(info.raanDeg - thrustBase().raan) <= 2
-          ? '<div class="sihint">Same RAAN plane as ENIGMA-1. Fire ALTITUDE / UP-DOWN until ENIGMA-1 reaches this altitude + inclination.</div>'
-          : '<div class="sihint" style="color:#d9b3ff">Different RAAN plane. ENIGMA-1 can only change ALTITUDE / UP-DOWN (not RAAN), so this one is out of reach.</div>')
-      : '');
-}
-function onPlanStatus(r) {
-  lastPlan = r;
-  const box = $('#planStatus');
-  if (!box) return;
-  if (!r || !r.hasManeuver) { box.className = 'planstatus idle'; box.innerHTML = 'Fire the thrusters to preview ENIGMA-1\'s new path.'; return; }
-  if (r.status === 'course') {
-    box.className = 'planstatus course';
-    box.innerHTML = `<b>⚠ COLLISION COURSE</b> - ENIGMA-1's new path passes over <b>${r.victimName}</b> (${r.distKm} km). Transmit this maneuver.`;
-  } else if (r.status === 'plane') {
-    box.className = 'planstatus plane';
-    box.innerHTML = `Path crosses <b>${r.victimName}</b>, but it is on a <b>different orbital plane (RAAN)</b>. ALTITUDE / UP-DOWN alone can't line it up — aim for a different satellite.`;
-  } else {
-    box.className = 'planstatus off';
-    box.innerHTML = `Nearest satellite <b>${r.victimName || '-'}</b>, path passes <b>${r.distKm != null ? r.distKm + ' km' : '-'}</b> away. Keep firing ALTITUDE / UP-DOWN to close in.`;
-  }
-}
-
-// ── TARGET INTEL dossier (both phase 1 + phase 2) ────────────────────────────
-function renderDossier() {
-  const t = M.target;
-  const html = `
-    <div class="drow"><span>SATELLITE</span><b>${t.satellite}</b></div>
-    <div class="drow hl-scid"><span>SPACECRAFT ID</span><b>${t.scid}</b></div>
-    <div class="hl-rf">
-      <div class="dsep">RECEIVER (RF)</div>
-      <div class="drow"><span>MODULATION</span><b>${t.modulation}</b></div>
-      <div class="drow"><span>BAUD RATE</span><b>${t.baud} bps</b></div>
-      <div class="drow"><span>SAMPLE RATE</span><b>${(t.sampleRate / 1000)} kSa/s</b></div>
-    </div>
-    <div class="dsep">UPLINK</div>
-    <div class="drow"><span>FREQUENCY</span><b>${t.uplinkFreqMHz.toFixed(3)} MHz</b></div>
-    <div class="dnote">${t.notes}</div>`;
-  if ($('#dossier')) $('#dossier').innerHTML = html;
-  if ($('#dossier2')) $('#dossier2').innerHTML = html + '<div class="dnote dim">Match every field to arm the uplink.</div>';
-}
-function renderBurnRecap() {
-  const r = $('#burnRecap'); if (!r) return;
-  r.innerHTML = `<div class="brl">PLANNED ORBIT</div>
-    <div class="brv">alt <b>${S.params.altKm} km</b> · inc <b>${S.params.inc}°</b></div>
-    <div class="brhint">this is the value STEP 3 will carry. Re-plan in phase 1 to change it.</div>`;
-}
-// phase 2 · top strip: recap the maneuver the visitor dialled in phase 1
-function renderPlanRecap() {
-  const box = $('#planRecap'); if (!box) return;
-  const fmt = (v) => (v >= 0 ? '+' : '') + round1(v);
-  let target = '';
-  if (lastPlan && lastPlan.status === 'course') {
-    target = `<div class="prtarget">⚠ COLLISION COURSE → <b>${lastPlan.victimName}</b> (${lastPlan.distKm} km)</div>`;
-  } else if (lastPlan && lastPlan.victimName) {
-    target = `<div class="prtarget">nearest <b>${lastPlan.victimName}</b>${lastPlan.distKm != null ? ' (' + lastPlan.distKm + ' km away)' : ''}</div>`;
-  }
-  box.innerHTML = `<div class="prtag">PHASE 1 · YOUR MANEUVER</div>
-    <div class="prcells">
-      <div class="prcell"><span>ALTITUDE thruster</span><b>${fmt(S.thrust.alt)} km</b></div>
-      <div class="prcell"><span>UP / DOWN thruster</span><b>${fmt(S.thrust.ud)}°</b></div>
-      <div class="prcell arrow">→</div>
-      <div class="prcell res"><span>Result altitude</span><b>${round1(S.params.altKm)} km</b></div>
-      <div class="prcell res"><span>Result inclination</span><b>${round1(S.params.inc)}°</b></div>
-    </div>
-    ${target}
-    <div class="prhint">This value is carried by the STEP 3 packet below. To change it, <a href="#" id="rePlan1">re-plan in phase 1</a>.</div>`;
-  const rp = box.querySelector('#rePlan1'); if (rp) rp.onclick = (e) => { e.preventDefault(); showPhase(1); };
-}
-// phase 2 · top strip: tell the visitor which packet to build
-function renderBuildGuide() {
-  const box = $('#buildGuide'); if (!box) return;
-  box.innerHTML = `<div class="bgtag">PACKET BUILD GUIDE</div>
-    <ol class="bglist">
-      <li>Build the <b>orbit_maneuver</b> command that changes the satellite's orbit (an attack that abuses a legitimate command).</li>
-      <li><span class="bgstep">STEP 1</span> Match the target satellite's <b>SCID</b> to the TARGET INTEL.</li>
-      <li><span class="bgstep">STEP 2</span> Under the <b>AOCS</b> subsystem, choose <b>orbit_maneuver ★</b>.</li>
-      <li><span class="bgstep">STEP 3</span> Confirm the <b>orbit values</b> (altitude / inclination) you planned in phase 1.</li>
-      <li><span class="bgstep">STEP 4</span> Match the receiver <b>RF settings</b> (modulation / baud rate / sample rate) to arm the uplink.</li>
-    </ol>`;
-}
-
-// ── PHASE 2 · step machine (scenario 2) ──────────────────────────────────────
-const FRAME_MAP = [
-  { field: 'preamble', label: 'Preamble · bit sync' },
-  { field: 'tc_header', label: 'TC Frame Header · addressing', anno: () => S.scid != null ? `addressed → SCID ${S.scid}` : 'awaiting Spacecraft ID (Step 1)' },
-  { field: 'sp_header', label: 'Space Packet Header · APID', anno: () => S.cmdDef ? `routed → APID ${S.cmdDef.apid}` : 'awaiting command (Step 2)' },
-  { field: 'opcode', label: 'Opcode · command', anno: () => S.cmdDef ? `→ ${S.command}` : 'awaiting command (Step 2)' },
-  { field: 'payload', label: 'Payload · value', anno: () => S.valueConfirmed ? 'value confirmed' : 'awaiting value (Step 3)' },
-  { field: 'crc', label: 'Frame CRC-16 · integrity', anno: () => 'computed over the whole frame' },
-];
-function stepStatus() {
-  const t = M.target, rf = S.rf;
-  return {
-    1: S.scid == null ? 'pending' : (S.scid === t.scid ? 'ok' : 'bad'),
-    2: S.command == null ? 'pending' : 'ok',
-    3: S.command == null ? 'pending' : (S.valueConfirmed ? 'ok' : 'pending'),
-    4: (rf.modulation == null || rf.baud == null || rf.sampleRate == null) ? 'pending'
-      : (rf.modulation === t.modulation && rf.baud === t.baud && rf.sampleRate === t.sampleRate ? 'ok' : 'bad'),
+  var h2 = $('#hint2Btn'); if (h2) h2.onclick = function () {
+    hint2On = !hint2On;
+    h2.classList.toggle('on', hint2On);
+    h2.innerHTML = hint2On ? '💡 Hint 2 · hide valid times' : '💡 Hint 2 · show valid times';
+    var pb = $('#passBox'); if (pb) pb.classList.toggle('hidden', !hint2On);
+    if (hint2On) renderPasses();
+    refreshHintMsg();
   };
 }
-const PILL = { pending: 'PENDING', ok: 'LOCKED ✓', bad: 'MISMATCH ✗' };
-function stepUnlocked() { return { 1: true, 2: S.scid != null, 3: S.command != null, 4: S.valueConfirmed }; }
-function stepComplete() {
-  return { 1: S.scid != null, 2: S.command != null, 3: S.valueConfirmed,
-    4: S.rf.modulation != null && S.rf.baud != null && S.rf.sampleRate != null };
+// propagate both satellites (and neighbours) to time t and update the Kepler readout
+var lastPropT = null;
+function propAt(t) {
+  lastPropT = t;
+  $('#clockVal').textContent = 't = ' + Math.round(t) + ' s  (' + fmtDur(t) + ')';
+  var list = baseSats();
+  list.forEach(function (s) {
+    var nu = K.trueAnomalyAdvance(s.kep[0], s.kep[1], s.kep[5], t);
+    var p = K.keplerianToECI(s.kep[0], s.kep[1], s.kep[2], s.kep[3], s.kep[4], nu);
+    if (sim && sim.engine) sim.engine.setSatPosition(s.id, p);
+  });
+  renderKepler(t);
+  updateTimeStatus(t);
 }
-function activeStep() {
-  const u = stepUnlocked(), c = stepComplete();
-  for (let n = 1; n <= 4; n++) if (u[n] && !c[n]) return n;
-  return 5;
+// detect whether AURORA-2 is at the crossing point at time t (a valid collision window);
+// if so, snap the execution time to the exact pass and enable "confirm". This is the core
+// no-hint mechanic: line AURORA-2 up with the crossing using only the sim + slider.
+function updateTimeStatus(t) {
+  var tw = $('#timeWindow'), btn = $('#toSolve');
+  var vic = G.vic, nu = K.trueAnomalyAdvance(vic.kep[0], vic.kep[1], vic.kep[5], t);
+  var pv = K.keplerianToECI(vic.kep[0], vic.kep[1], vic.kep[2], vic.kep[3], vic.kep[4], nu);
+  var dist = Math.hypot(pv.x - G.P[0], pv.y - G.P[1], pv.z - G.P[2]);   // AURORA-2 distance to the crossing (m)
+  var best = null; G.passes.forEach(function (p) { var d = Math.abs(p.tc - t); if (!best || d < best.d) best = { d: d, p: p }; });
+  var near = dist < 1000e3 && best && best.p.feasible;                  // within ~1000 km of the crossing
+  if (near) {
+    S.execTimeSec = best.p.tc; S.execPassM = best.p.m;
+    if (btn) btn.disabled = false;
+    if (tw) { tw.className = 'timewindow ok'; tw.innerHTML = '✓ <b>Collision window</b> — AURORA-2 is on the crossing (' + Math.round(dist / 1000) + ' km). Confirm to lock t = ' + fmtDur(best.p.tc) + '.'; }
+  } else {
+    S.execTimeSec = null; S.execPassM = null;
+    if (btn) btn.disabled = true;
+    if (tw) { tw.className = 'timewindow'; tw.innerHTML = 'AURORA-2 is <b>' + Math.round(dist / 1000) + ' km</b> from the crossing. Scrub the clock until it lines up' + (hint1On ? ' with the red marker.' : '.'); }
+  }
+  if (hint2On) renderPasses();
 }
-function stepSummary(n) {
-  if (n === 1) return S.scid != null ? `SCID ${S.scid}` : '';
-  if (n === 2) return S.command || '';
-  if (n === 3) return S.command === 'orbit_maneuver' ? `alt ${S.params.altKm} · inc ${S.params.inc}` : (S.valueConfirmed ? 'confirmed' : '');
-  if (n === 4) { const r = S.rf; return r.modulation == null ? '' : `${r.modulation} · ${r.baud}bps · ${r.sampleRate / 1000}kSa/s`; }
-  return '';
+function renderKepler(t) {
+  var box = $('#keplerRows'); if (!box) return;
+  var rows = [attacker(), victim()].map(function (s) {
+    var a = s.kep[0], e = s.kep[1], nu0 = s.kep[5];
+    var n = Math.sqrt(K.MuEarth / (a * a * a));                       // mean motion
+    var M0 = meanFromTrue(nu0, e), M = M0 + n * t;
+    var Mdeg = ((M * 180 / Math.PI) % 360 + 360) % 360;
+    var nu = K.trueAnomalyAdvance(a, e, nu0, t);
+    return '<div class="krow"><div class="kname">' + s.name + '</div>' +
+      '<div class="kcell"><span>n</span><b>' + (n * 1e3).toFixed(3) + ' mrad/s</b></div>' +
+      '<div class="kcell"><span>M = M₀+n·t</span><b>' + Mdeg.toFixed(1) + '°</b></div>' +
+      '<div class="kcell"><span>ν (Kepler)</span><b>' + nu.toFixed(1) + '°</b></div></div>';
+  }).join('');
+  box.innerHTML = rows;
 }
-const collapseOverride = {};
-const STEP_DEFS = [
-  [1, 'TARGET ADDRESSING', 'Match the Spacecraft ID (SCID) to the target satellite.', bodyAddressing],
-  [2, 'COMMAND SELECT', 'Choose the subsystem and command to send.', bodyCommand],
-  [3, 'COMMAND VALUE', 'The maneuver Δv you planned in phase 1. Confirm it.', bodyValue],
-  [4, 'RF CONFIG', 'Match the modulation, baud and sample rate to the satellite receiver.', bodyRF],
+function meanFromTrue(nuDeg, e) {
+  var nu = nuDeg * Math.PI / 180;
+  var E = 2 * Math.atan2(Math.sqrt(1 - e) * Math.sin(nu / 2), Math.sqrt(1 + e) * Math.cos(nu / 2));
+  return E - e * Math.sin(E);
+}
+function renderPasses() {
+  var box = $('#passList'); if (!box) return;
+  box.innerHTML = G.passes.map(function (p) {
+    return '<div class="passrow ' + (p.feasible ? 'ok' : 'no') + (S.execPassM === p.m ? ' sel' : '') + '" data-m="' + p.m + '">' +
+      '<span class="pt">pass #' + (p.m + 1) + '</span>' +
+      '<span class="ptime">t = ' + fmtDur(p.tc) + '</span>' +
+      '<span class="ptag">' + (p.feasible ? 'phasing ≈ ' + p.dv + ' m/s' : 'out of range') + '</span></div>';
+  }).join('');
+  box.querySelectorAll('.passrow.ok').forEach(function (r) {
+    r.onclick = function () { pickPass(+r.dataset.m); };
+  });
+  var note = $('#feasNote');
+  if (note) note.innerHTML = 'A pass is <b>REACHABLE</b> when a phasing burn (within ENIGMA-1\'s budget) can shift its arrival to meet AURORA-2 there. Later passes leave more room to phase.';
+}
+function pickPass(m) {
+  var p = G.passes.filter(function (x) { return x.m === m; })[0]; if (!p || !p.feasible) return;
+  // jump the clock to the exact pass; propAt -> updateTimeStatus lands AURORA-2 on the
+  // crossing and enables "confirm", so the slider and the pass list share one code path.
+  var sl = $('#timeSlider'); if (sl) sl.value = Math.min(+sl.max, p.tc);
+  propAt(p.tc);
+}
+
+// ── PHASE 3 · SOLVE (equation-chain puzzle + variable tuning + burn plan) ──────
+var CARDS = [
+  { id: 'orbit', order: 0, drive: true, t: 'Transfer: new orbit', c: 'prograde Δv raises a',
+    sym: frac('1', 'a<sub>new</sub>') + ' = ' + frac('2', 'a₀') + ' − ' + frac('v<sub>new</sub>²', 'μ'),
+    out: function (c) { return 'a<sub>new</sub> = ' + fo(c.aNewKm + ' km'); },
+    feed: 'period', driver: 'Δv prograde',
+    detail: { purpose: 'The vis-viva equation, rearranged to give the new orbit size after a burn. It is how a change in speed becomes a change in orbit.',
+      vars: [ ['a<sub>new</sub>', 'new semi-major axis — the orbit\'s overall size'],
+              ['a₀', 'starting semi-major axis (ENIGMA-1\'s current orbit)'],
+              ['v<sub>new</sub>', 'speed just after the burn = v₀ + Δv prograde'],
+              ['μ', 'Earth\'s gravitational parameter, 3.986×10¹⁴ (fixed)'] ],
+      effect: 'Raise Δv prograde → v<sub>new</sub> grows → a<sub>new</sub> grows → the far side of the orbit (apogee) climbs toward AURORA-2. This is the knob that makes the two rings touch (MOID → 0).' } },
+  { id: 'pert', order: 1, group: ['pert-drag', 'pert-srp', 'pert-j2', 'pert-3b'],
+    t: '섭동력 (Perturbations)', c: '선택하면 4개 힘으로 확장',
+    sym: 'a<sub>tot</sub> = −μ ' + frac('r', '|r|³') + ' + a<sub>drag</sub> + a<sub>SRP</sub> + a<sub>J2</sub> + a<sub>3b</sub>',
+    detail: { purpose: '2체 중력 외에 궤도에 실제로 작용하는 힘들. 선택하면 4개 힘 카드로 펼쳐지고, 각 힘이 체인의 어느 요소에 작용하는지 화살표로 이어집니다.',
+      vars: [ ['대기 항력', 'a<sub>drag</sub>, 고도 a에 작용'],
+              ['태양복사압', 'a<sub>SRP</sub>, 이심률 e에 작용'],
+              ['지구 편평률 J2', 'dΩ/dt, 궤도면 Ω와 ω 세차'],
+              ['제3체 중력', 'a<sub>3b</sub>, 여러 요소 장기 섭동'] ],
+      effect: '실제 비행역학은 이 힘들까지 넣어 궤도를 전파합니다.' } },
+  { id: 'period', order: 2, t: 'Orbital period', c: 'Kepler III',
+    sym: 'T = 2π ' + rt(frac('a³', 'μ')),
+    out: function (c) { return 'T = ' + fo(c.TinsMin + ' min'); },
+    feed: 'arrival shift', driver: 'a<sub>new</sub>',
+    detail: { purpose: 'Kepler\'s third law: how long one lap takes, from the orbit size. It turns the new orbit into a clock.',
+      vars: [ ['T', 'orbital period — time for one full lap'],
+              ['a', 'semi-major axis (from the transfer step)'],
+              ['μ', 'Earth\'s gravitational parameter (fixed)'] ],
+      effect: 'A bigger orbit has a longer period (T grows with a^1.5). This period is what the phasing maneuver briefly changes to shift ENIGMA-1\'s arrival time.' } },
+  { id: 'plane', order: 4, drive: true, t: 'Plane tilt', c: 'cross-track burn',
+    sym: 'Δθ ≈ arctan(' + frac('Δv⊥', 'v') + ')',
+    out: function (c) { return 'Δθ = ' + fo(c.dThetaDeg + '°'); },
+    feed: 'crossing point', driver: 'Δv cross-track',
+    detail: { purpose: 'How far an out-of-plane (cross-track) burn tilts the orbit plane. It steers WHERE the two orbits cross.',
+      vars: [ ['Δθ', 'plane tilt angle produced by the burn'],
+              ['Δv⊥', 'cross-track burn (perpendicular to the orbit plane)'],
+              ['v', 'orbital speed at the burn point'] ],
+      effect: 'A small nudge slides the crossing point along AURORA-2. The big 13 km/s closing speed already comes from the fixed 125° plane difference (like Iridium-Cosmos), not from this burn — large cross-track values just pull the orbits apart and break the crossing.' } },
+  { id: 'shift', order: 3, drive: true, t: 'Arrival-time shift', c: 'phasing, k laps',
+    sym: 'Δt = k · (T<sub>new</sub> − T₀)',
+    out: function (c) { return 'Δt = ' + fo(c.shiftS + ' s') + ' (off ' + c.offS + ' s)'; },
+    feed: 'match the pass', driver: 'Δv phasing, k',
+    detail: { purpose: 'The phasing maneuver: a brief burn onto a slightly different orbit for k laps, then back. Same orbit, but you arrive earlier or later.',
+      vars: [ ['Δt', 'total arrival-time shift you gain'],
+              ['k', 'number of phasing laps (revolutions)'],
+              ['T<sub>new</sub>', 'period of the temporary phasing orbit (set by Δv phasing)'],
+              ['T₀', 'original orbital period'] ],
+      effect: 'More laps (k) or a bigger phasing Δv → a bigger shift. ENIGMA-1 passes the crossing every orbit, so tune Δt until one of those passes lands exactly when AURORA-2 is there (the timing gauge → 0).' } },
+  { id: 'point', order: 5, t: 'Burn pointing', c: 'attitude',
+    sym: 'yaw = atan2(Δv<sub>R</sub>, Δv<sub>T</sub>),  pitch = asin(' + frac('Δv<sub>N</sub>', '|Δv|') + ')',
+    out: function (c) { return 'yaw ' + fo(c.yaw + '°') + ', pitch ' + fo(c.pitch + '°'); },
+    feed: 'command packet', driver: 'Δv vector',
+    detail: { purpose: 'A satellite cannot simply "apply a delta-v" — it must point its thruster along the Δv vector. This gives the burn attitude.',
+      vars: [ ['yaw', 'in-plane pointing (from prograde toward radial)'],
+              ['pitch', 'out-of-plane pointing (elevation)'],
+              ['Δv<sub>R</sub>, Δv<sub>T</sub>, Δv<sub>N</sub>', 'radial / in-track / cross-track components of the burn'],
+              ['|Δv|', 'total delta-v magnitude'] ],
+      effect: 'A pure prograde burn gives yaw 0, pitch 0. Adding cross-track raises the pitch. The satellite holds this attitude while the engine fires; these angles go into the command packet.' } },
+  { id: 'rocket', order: 6, t: 'Rocket equation', c: 'Tsiolkovsky',
+    sym: 'Δm = m₀(1 − e' + sup('-') + '<sup>|Δv|/(Isp·g₀)</sup>),  t<sub>burn</sub> = Δm / ṁ',
+    out: function (c) { return 't<sub>burn</sub> ' + fo(c.burnSec + ' s') + ', Δm ' + fo(c.propKg + ' kg'); },
+    feed: 'command packet', driver: '|Δv|, thruster',
+    detail: { purpose: 'Tsiolkovsky\'s rocket equation: how much propellant a delta-v costs, and how long the engine must fire.',
+      vars: [ ['Δm', 'propellant burned'],
+              ['m₀', 'spacecraft mass before the burn'],
+              ['Isp', 'specific impulse — thruster efficiency (s)'],
+              ['g₀', 'standard gravity, 9.807 m/s² (fixed)'],
+              ['ṁ = F/(Isp·g₀)', 'propellant mass flow rate (F = thrust)'],
+              ['t<sub>burn</sub>', 'burn duration = Δm / ṁ'] ],
+      effect: 'A bigger total Δv burns more propellant. A smaller thruster (low F) means the same burn takes much longer. Pick the thruster to trade burn time against realism.' } }
 ];
-// per-step hint: which element holds the value this step needs (step 2 needs none)
-const STEP_HINTS = {
-  1: '#dossier2 .hl-scid',   // Spacecraft ID in TARGET INTEL
-  3: '#planRecap',           // the phase-1 "YOUR MANEUVER" strip at the top
-  4: '#dossier2 .hl-rf',     // RECEIVER (RF) block in TARGET INTEL
-};
-const hintTimers = {};
-function flashHint(n) {
-  const sel = STEP_HINTS[n]; if (!sel) return;
-  const els = document.querySelectorAll(sel);
-  els.forEach((e) => { e.classList.remove('hlpulse'); void e.offsetWidth; e.classList.add('hlpulse'); });
-  const first = els[0]; if (first && first.scrollIntoView) first.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  clearTimeout(hintTimers[n]);
-  hintTimers[n] = setTimeout(() => els.forEach((e) => e.classList.remove('hlpulse')), 5000);
+// the 4 cards the 섭동력 group expands into. Each acts on a maneuver-chain element (shown by a
+// hover arrow). Outputs are display-only; the collision solve never reads them.
+var PERTURBATIONS = [
+  { id: 'pert-drag', pgroup: true, t: '대기 항력 (drag)', feed: 'orbit (a, 고도)', card: 'orbit',
+    sym: 'a<sub>drag</sub> = −½ ρ ' + frac('C<sub>d</sub> A', 'm') + ' v²',
+    out: function (c) { var b = window.G && G.base; if (!b) return ''; var a = b[0], h = a - K.EarthRadius,
+        rho = 1.3e-11 * Math.exp(-(h - 180000) / 60000), v = Math.sqrt(K.MuEarth / a);
+      return 'a<sub>drag</sub> ≈ ' + fo(sci(0.5 * rho * v * v * 0.022, 2) + ' m/s²'); },
+    detail: { purpose: '희박한 대기와의 마찰이 만드는 감속. LEO 궤도가 서서히 낮아지는 주원인.',
+      vars: [ ['ρ', '대기밀도 (고도와 태양활동에 따라 변함)'], ['C<sub>d</sub>', '항력계수 (마찰)'],
+              ['A / m', '단면적 대 질량비 (탄도계수 B = C<sub>d</sub>A/m)'], ['v', '대기에 대한 상대속도'] ],
+      effect: '반장축 a가 줄어든다. 항력은 속도 반대 방향으로 작용한다.' } },
+  { id: 'pert-srp', pgroup: true, t: '태양복사압 (SRP)', feed: 'orbit (e, 이심률)', card: 'orbit',
+    sym: 'a<sub>SRP</sub> = −P<sub>⊙</sub> ' + frac('C<sub>r</sub> A', 'm') + ' ŝ',
+    out: function (c) { return 'a<sub>SRP</sub> ≈ ' + fo(sci(4.56e-6 * 1.3 * 0.01, 2) + ' m/s²'); },
+    detail: { purpose: '햇빛(광자)의 압력이 위성을 미는 힘. 하전입자인 태양풍과는 다르다.',
+      vars: [ ['P<sub>⊙</sub>', '1 AU 복사압 ≈ 4.56×10' + sup('-') + sup(6) + ' N/m²'], ['C<sub>r</sub>', '반사계수'],
+              ['A / m', '단면적 대 질량비'], ['ŝ', '태양 방향'] ],
+      effect: '이심률 e와 궤도면을 천천히 바꾼다.' } },
+  { id: 'pert-j2', pgroup: true, t: '지구 편평률 J2', feed: 'plane (Ω, ω)', card: 'plane',
+    sym: frac('dΩ', 'dt') + ' = −' + frac('3', '2') + ' n J₂ ' + frac('R<sub>e</sub>²', 'p²') + ' cos i',
+    out: function (c) { var b = window.G && G.base; if (!b) return ''; var a = b[0], e = b[1], inc = b[2] * Math.PI / 180,
+        n = Math.sqrt(K.MuEarth / (a * a * a)), p = a * (1 - e * e), rr = K.EarthRadius / p;
+      return 'dΩ/dt = ' + fo((-1.5 * n * 1.0826e-3 * rr * rr * Math.cos(inc) * 180 / Math.PI * 86400).toFixed(3) + '°/day'); },
+    detail: { purpose: '지구 적도가 볼록해서 생기는 섭동. 궤도면을 돌린다.',
+      vars: [ ['J₂', '≈ 1.083×10' + sup('-') + sup(3)], ['n', '평균 운동'], ['p = a(1−e²)', '반통경'], ['i', '경사각'] ],
+      effect: '승교점 Ω와 근점편각 ω를 세차시킨다. 태양동기궤도는 이 세차로 유지된다.' } },
+  { id: 'pert-3b', pgroup: true, t: '제3체 중력 (Moon/Sun)', feed: 'orbit (a, e, i)', card: 'orbit',
+    sym: 'a<sub>3b</sub> = μ₃ [ ' + frac('r₃−r', '|r₃−r|³') + ' − ' + frac('r₃', '|r₃|³') + ' ]',
+    out: function (c) { var b = window.G && G.base; if (!b) return ''; return 'a<sub>3b</sub> ≈ ' + fo(sci(2 * 4.903e12 * b[0] / Math.pow(3.844e8, 3), 2) + ' m/s²'); },
+    detail: { purpose: '달과 태양의 인력이 만드는 조석형 섭동.',
+      vars: [ ['μ₃', '제3체(달/태양) 중력계수'], ['r₃', '제3체 위치'], ['r', '위성 위치'] ],
+      effect: '여러 궤도 요소(a, e, i)를 장기적으로 흔든다.' } }
+];
+var PERT_LINKS = PERTURBATIONS.map(function (p) { return { from: p.id, to: p.card }; });
+var lastCtx = null;
+var chainState = { placed: [], pool: [] };
+
+function enterSolve() {
+  if (!G || S.execTimeSec == null) return;
+  // reset puzzle + variables
+  chainState.placed = []; chainState.step = 0;
+  chainState.pool = CARDS.slice().sort(function () { return Math.random() - 0.5; });
+  // start with every delta-v at 0 so ENIGMA-1 begins exactly where Phase 2 left it
+  // (its un-maneuvered orbit at time T); the participant then tunes the values up.
+  S.dv = { prograde: 0, cross: 0, phase: 0, k: 12 };
+  renderChain(); renderVarBlock(); syncVarInputs();
+  wireSolveControls();
+  renderThrusterSel();
+  lockVars(false); lockThruster(true);
+  initSolveSim();
+  placeSolveSimAtT();
+  updateSolve();
 }
-function renderSteps() {
-  const wrap = $('#stepList'); if (!wrap) return;
-  wrap.innerHTML = '';
-  const u = stepUnlocked(), done = stepComplete(), active = activeStep();
-  STEP_DEFS.forEach(([n, title, prompt, fn]) => {
-    let collapsed = u[n] && done[n] && n !== active;
-    if (collapseOverride[n] !== undefined) collapsed = collapseOverride[n];
-    wrap.appendChild(stepCard(n, title, prompt, fn, u[n], collapsed));
+// place the victim + neighbours at the Phase-2 execution time T (they are the fixed
+// backdrop; only ENIGMA-1 moves as the burn is tuned)
+function placeSolveSimAtT() {
+  if (!solveSim || !solveSim.engine || S.execTimeSec == null) return;
+  baseSats().forEach(function (s) {
+    if (s.role === 'attacker') return;
+    var nu = K.trueAnomalyAdvance(s.kep[0], s.kep[1], s.kep[5], S.execTimeSec);
+    solveSim.engine.setSatPosition(s.id, K.keplerianToECI(s.kep[0], s.kep[1], s.kep[2], s.kep[3], s.kep[4], nu));
   });
-  refreshPills();
 }
-function stepCard(n, title, prompt, bodyFn, unlocked, collapsed) {
-  const card = el('div', 'step' + (unlocked ? '' : ' locked') + (collapsed ? ' collapsed' : ''));
-  card.dataset.step = n;
-  card.innerHTML = `<div class="shead"><span class="snum">${n}</span>
-      <span class="stitle">${title}</span><span class="ssum">${collapsed ? stepSummary(n) : ''}</span>
-      <span class="pill"></span>${unlocked ? `<span class="chev">${collapsed ? '▸' : '▾'}</span>` : ''}</div>
-    <div class="sbody"></div><div class="sprompt">${prompt}${(unlocked && STEP_HINTS[n]) ? ' <button class="stephint" type="button">💡 Hint</button>' : ''}</div>`;
-  const body = card.querySelector('.sbody');
-  if (unlocked) bodyFn(body);
-  else body.innerHTML = `<div class="lockmsg">🔒 Complete Step ${n - 1} first</div>`;
-  if (unlocked) card.querySelector('.shead').onclick = () => { collapseOverride[n] = !card.classList.contains('collapsed'); renderSteps(); };
-  const hbtn = card.querySelector('.stephint');
-  if (hbtn) hbtn.onclick = (e) => { e.stopPropagation(); flashHint(n); };
-  return card;
+// live orbit view for the solve phase: ENIGMA-1's predicted orbit updates as the
+// participant tunes the burn, with the collision point marked once the orbits cross.
+function initSolveSim() {
+  var cv = $('#solveSim'); if (!cv || typeof SatSim === 'undefined' || !Scn) return;
+  if (!solveSim) {
+    solveSim = new SatSim(cv, Object.assign({ mode: 'planner' }, Scn.simOpts));
+    solveSim.setSatellites(baseSats());
+    solveSim.lockOn('demosat');
+  }
+  requestAnimationFrame(function () { if (solveSim) solveSim._resize(); });
+  if (!solveSim.running) solveSim.start();
+  // frame ENIGMA-1 once, then release the camera so mouse drag rotates freely
+  setTimeout(function () { if (solveSim) solveSim.lockId = null; }, 120);
 }
-function refreshPills() {
-  const st = stepStatus();
-  document.querySelectorAll('.step').forEach((c) => {
-    const n = +c.dataset.step, s = st[n], pill = c.querySelector('.pill');
-    if (c.classList.contains('locked')) { pill.className = 'pill locked'; pill.textContent = 'LOCKED 🔒'; return; }
-    pill.className = 'pill ' + s; pill.textContent = PILL[s];
-    c.classList.toggle('done', s === 'ok'); c.classList.toggle('mismatch', s === 'bad');
+function renderChain() {
+  var slots = $('#chainSlots'), pool = $('#chainPool');
+  var mnum = 0;
+  var placedHTML = chainState.placed.map(function (c) {
+    var badge = c.pgroup ? '<span class="cnum pgroup">∿</span>' : '<span class="cnum">' + (++mnum) + '</span>';
+    return '<div class="ccard placed' + (c.pgroup ? ' pcard' : '') + '" data-id="' + c.id + '">' +
+      '<div class="cchead">' + badge + '<span class="ct">' + c.t + '</span>' +
+        (c.drive ? '<span class="cdrv">▲ ' + c.driver + '</span>' : '') +
+        '<button class="cexp" data-id="' + c.id + '" title="show details">ⓘ</button></div>' +
+      '<div class="csym">' + c.sym + '</div>' +
+      '<div class="cout" id="cout-' + c.id + '"><span class="muted">tune →</span></div>' +
+      '<div class="cfeedchip">' + (c.pgroup ? 'acts on → ' : 'feeds → ') + c.feed + '</div>' +
+    '</div>';
+  }).join('') || '<div class="chainempty">Click the equations below, in dependency order, to build the chain.</div>';
+  slots.innerHTML = placedHTML;   // the 6-step maneuver chain only (perturbations live in their own block)
+  pool.innerHTML = chainState.pool.map(function (c) {
+    return '<div class="ccard pool" data-id="' + c.id + '"><span class="ct">' + c.t + '</span><span class="cpc">' + c.c + '</span></div>';
+  }).join('');
+  slots.querySelectorAll('.ccard').forEach(function (el) {
+    el.onclick = function () { explainCard(el.dataset.id); };
+    el.onmouseenter = function () { highlightChainLink(el.dataset.id, true); };
+    el.onmouseleave = function () { highlightChainLink(el.dataset.id, false); };
   });
-  const ok = Object.values(st).filter((x) => x === 'ok').length;
-  if ($('#progText')) { $('#progText').textContent = `${ok} / 4`; $('#progFill').style.width = (ok / 4 * 100) + '%'; }
-  const btn = $('#genBtn');
-  if (ok === 4) {
-    btn.disabled = false; btn.className = 'genbtn armed';
-    btn.textContent = S.generated ? '✓ IQ GENERATED — REGENERATE' : '⚡ GENERATE UPLINK IQ';
-    if ($('#progHint')) $('#progHint').textContent = 'All systems configured — uplink armed.';
+  slots.querySelectorAll('.cexp').forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); explainCard(b.dataset.id); }; });
+  pool.querySelectorAll('.ccard').forEach(function (el) { el.onclick = function () { tryPlace(el.dataset.id); }; });
+  if (lastCtx) updateChainLive(lastCtx);
+  drawChainArrows();
+}
+function pulseSolveSim() { var cv = $('#solveSim'); if (cv) { cv.classList.remove('simpulse'); void cv.offsetWidth; cv.classList.add('simpulse'); setTimeout(function () { cv.classList.remove('simpulse'); }, 700); } }
+// fill each placed card's output with its live computed value, showing the result
+// that flows into the next equation in the chain
+function updateChainLive(ctx) {
+  if (!ctx) return; lastCtx = ctx;
+  chainState.placed.forEach(function (c) {
+    var el = document.getElementById('cout-' + c.id);
+    if (el && c.out) el.innerHTML = '<span class="colabel">→ outputs</span> ' + c.out(ctx);
+  });
+}
+// ── chain dependency arrows: show where each result feeds the next equation ──────
+// Solve-chain arrows (a → period, T → shift) are always visible. Perturbation arrows stay
+// hidden until you hover their card, keeping the default view clean. Every arrow has a
+// START DOT (where it begins) and an ARROWHEAD (where it goes), plus a solid, readable label.
+var CHAIN_LINKS = [ { from: 'orbit', to: 'period', label: 'a' }, { from: 'period', to: 'shift', label: 'T' } ];
+var _chainTuneTimer = null, _chainResizeWired = false;
+function _bez(sp, c1, c2, dp, t) {
+  var u = 1 - t;
+  return { x: u*u*u*sp.x + 3*u*u*t*c1.x + 3*u*t*t*c2.x + t*t*t*dp.x,
+           y: u*u*u*sp.y + 3*u*u*t*c1.y + 3*u*t*t*c2.y + t*t*t*dp.y };
+}
+function _arrow(svg, NS, sp, c1, c2, dp, cls, from, to) {
+  var extra = cls ? (' ' + cls) : '';
+  var dot = document.createElementNS(NS, 'circle');
+  dot.setAttribute('class', 'chainstart' + extra); dot.setAttribute('data-from', from); dot.setAttribute('data-to', to);
+  dot.setAttribute('cx', sp.x); dot.setAttribute('cy', sp.y); dot.setAttribute('r', 3.5); svg.appendChild(dot);
+  var p = document.createElementNS(NS, 'path');
+  p.setAttribute('class', 'chainarrow' + extra); p.setAttribute('data-from', from); p.setAttribute('data-to', to);
+  p.setAttribute('d', 'M ' + sp.x + ' ' + sp.y + ' C ' + c1.x + ' ' + c1.y + ' ' + c2.x + ' ' + c2.y + ' ' + dp.x + ' ' + dp.y);
+  p.setAttribute('marker-end', 'url(#chainAH)'); svg.appendChild(p);
+}
+function drawChainArrows() {
+  var col = document.querySelector('#phase3 .puzzlecol'); if (!col) return;
+  if (getComputedStyle(col).position === 'static') col.style.position = 'relative';
+  var NS = 'http://www.w3.org/2000/svg';
+  var svg = col.querySelector('#chainArrows');
+  if (!svg) {
+    svg = document.createElementNS(NS, 'svg'); svg.id = 'chainArrows'; svg.setAttribute('class', 'chainarrows');
+    svg.innerHTML = '<defs><marker id="chainAH" markerWidth="10" markerHeight="10" refX="7" refY="3.2" orient="auto">' +
+      '<path d="M0,0 L8,3.2 L0,6.4 Z" fill="currentColor"/></marker></defs>';
+    col.appendChild(svg);
+  }
+  Array.prototype.slice.call(svg.querySelectorAll('.chainarrow,.chainlabel,.chainstart')).forEach(function (n) { n.remove(); });
+  svg.setAttribute('width', col.clientWidth); svg.setAttribute('height', col.clientHeight);
+  var cr = col.getBoundingClientRect();
+  CHAIN_LINKS.forEach(function (lk) {   // from the source card's output to the next equation that uses it
+    var src = document.getElementById('cout-' + lk.from);
+    var dstCard = document.querySelector('#chainSlots .ccard[data-id="' + lk.to + '"]');
+    var dst = dstCard ? (dstCard.querySelector('.csym') || dstCard) : null;
+    if (!src || !dst) return;
+    var a = src.getBoundingClientRect(), b = dst.getBoundingClientRect();
+    var sp = { x: a.right - cr.left, y: a.top + a.height / 2 - cr.top };
+    var dp = { x: b.left - cr.left, y: b.top + b.height / 2 - cr.top };
+    var mx = (sp.x + dp.x) / 2;
+    _arrow(svg, NS, sp, { x: mx, y: sp.y }, { x: mx, y: dp.y }, dp, '', lk.from, lk.to);
+  });
+  PERT_LINKS.forEach(function (lk) {   // hover-only: each perturbation card → the chain element it acts on
+    var srcCard = document.querySelector('#chainSlots .ccard[data-id="' + lk.from + '"]');
+    var dstCard = document.querySelector('#chainSlots .ccard[data-id="' + lk.to + '"]');
+    if (!srcCard || !dstCard) return;
+    var a = srcCard.getBoundingClientRect(), b = dstCard.getBoundingClientRect();
+    var sp = { x: a.left + a.width / 2 - cr.left, y: a.top + a.height / 2 - cr.top };
+    var dp = { x: b.left + b.width / 2 - cr.left, y: b.top + b.height / 2 - cr.top };
+    var my = (sp.y + dp.y) / 2;
+    _arrow(svg, NS, sp, { x: sp.x, y: my }, { x: dp.x, y: my }, dp, 'pert', lk.from, lk.to);
+  });
+  if (!_chainResizeWired) { _chainResizeWired = true; window.addEventListener('resize', function () { if (phase === 3) drawChainArrows(); }); }
+}
+function highlightChainLink(cardId, on) {
+  var svg = document.getElementById('chainArrows'); if (!svg) return;
+  svg.querySelectorAll('.chainarrow,.chainlabel,.chainstart').forEach(function (n) {
+    if (n.getAttribute('data-from') === cardId || n.getAttribute('data-to') === cardId) n.classList.toggle('hot', on);
+  });
+}
+function markChainTuning() {
+  var svg = document.getElementById('chainArrows'); if (!svg) return;
+  svg.classList.add('tuning'); clearTimeout(_chainTuneTimer);
+  _chainTuneTimer = setTimeout(function () { svg.classList.remove('tuning'); }, 1100);
+}
+function tryPlace(id) {
+  var card = CARDS.filter(function (c) { return c.id === id; })[0];
+  explainCard(id);
+  if (card.order === chainState.step) {   // step counts pool items placed (a group counts as one)
+    var added = card.group
+      ? card.group.map(function (pid) { return PERTURBATIONS.filter(function (x) { return x.id === pid; })[0]; }).filter(Boolean)
+      : [card];
+    added.forEach(function (pc) { chainState.placed.push(pc); });
+    chainState.pool = chainState.pool.filter(function (c) { return c.id !== id; });
+    chainState.step++;
+    renderChain();
+    added.forEach(function (pc) { var el = document.querySelector('#chainSlots .ccard[data-id="' + pc.id + '"]'); if (el) { el.classList.add('justplaced'); setTimeout(function () { if (el) el.classList.remove('justplaced'); }, 750); } });
+    pulseSolveSim();
+    if (chainState.step === CARDS.length) { lockVars(true); flashExplain('Chain complete — every equation and force is linked. Tune the burn variables and watch the results update.'); }
+    else { flashExplain('Linked ' + chainState.step + '/' + CARDS.length + ': ' + card.t + '.'); }
   } else {
-    btn.disabled = true; btn.className = 'genbtn locked';
-    btn.textContent = `🔒 UPLINK LOCKED — ${ok}/4 CONFIGURED`;
-    S.generated = false;
-    if ($('#progHint')) $('#progHint').textContent = 'Complete all 4 systems to arm the uplink.';
+    flashExplain('Not yet — that equation depends on an earlier one. Build the chain in order.');
   }
-  const to3 = $('#toPhase3');
-  if (to3) { to3.classList.toggle('hidden', !S.generated); to3.disabled = !S.generated; }
+}
+function explainCard(id) {
+  var c = CARDS.filter(function (x) { return x.id === id; })[0] || PERTURBATIONS.filter(function (x) { return x.id === id; })[0];
+  if (!c) return;
+  var d = c.detail || {};
+  var vars = (d.vars || []).map(function (v) { return '<div class="cev"><b>' + v[0] + '</b><span>' + v[1] + '</span></div>'; }).join('');
+  $('#cardExplain').innerHTML =
+    '<div class="cetitle">' + c.t + '<span class="cesymsm">' + c.sym + '</span></div>' +
+    '<div class="cesec"><span class="cel">WHAT IT COMPUTES</span><div class="cet">' + (d.purpose || c.why || '') + '</div></div>' +
+    (vars ? '<div class="cesec"><span class="cel">VARIABLES</span><div class="cevars">' + vars + '</div></div>' : '') +
+    '<div class="cesec"><span class="cel">EFFECT OF CHANGING IT</span><div class="cet">' + (d.effect || '') + '</div></div>';
+}
+function flashExplain(msg) { var e = $('#cardExplain'); if (e) { var d = document.createElement('div'); d.className = 'ceflash'; d.textContent = msg; e.prepend(d); setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 2600); } }
+
+function renderVarBlock() { /* markup is static in index.html; just enable/disable */ }
+function lockVars(on) {
+  var blk = $('#varBlock'); if (blk) blk.classList.toggle('locked', !on);
+  $('#varLock').textContent = on ? 'chain assembled — tune away' : 'assemble the chain first';
+  ['#inPg', '#inCr', '#inPh', '#inK'].forEach(function (s) { var e = $(s); if (e) e.disabled = !on; });
+  document.querySelectorAll('#varBlock .stepbtn').forEach(function (b) { b.disabled = !on; });
+}
+function lockThruster(lock) {
+  var blk = $('#thrBlock'); if (blk) blk.classList.toggle('locked', lock);
+  $('#thrLock').textContent = lock ? 'lock geometry + timing first' : 'choose the thruster';
+}
+function syncVarInputs() {
+  var m = { '#inPg': S.dv.prograde, '#inCr': S.dv.cross, '#inPh': S.dv.phase, '#inK': S.dv.k };
+  Object.keys(m).forEach(function (s) { var e = $(s); if (e) e.value = m[s]; });
+}
+function wireSolveControls() {
+  var inMap = { prograde: '#inPg', cross: '#inCr', phase: '#inPh', k: '#inK' };
+  Object.keys(inMap).forEach(function (key) {
+    var el = $(inMap[key]); if (el) el.oninput = function () { S.dv[key] = clampVar(key, +el.value || 0); updateSolve(); };
+  });
+  var STEP = { prograde: 10, cross: 20, phase: 1, k: 1 };
+  var KEYOF = { pg: 'prograde', cr: 'cross', ph: 'phase', k: 'k' };
+  document.querySelectorAll('#varBlock .stepbtn').forEach(function (b) {
+    b.onclick = function () {
+      var a = b.dataset.act, sign = a.indexOf('+') >= 0 ? 1 : -1, key = KEYOF[a.replace(/[+-]/g, '')];
+      if (!key) return;
+      S.dv[key] = clampVar(key, S.dv[key] + sign * STEP[key]); syncVarInputs(); updateSolve();
+    };
+  });
+  var tb = $('#toTransmit'); if (tb) tb.onclick = function () { if (!tb.disabled) showPhase(4); };
+}
+function clampVar(key, v) {
+  var r = Scn.dvRanges;
+  if (key === 'prograde') return clamp(Math.round(v), r.prograde[0], r.prograde[1]);
+  if (key === 'cross') return clamp(Math.round(v), r.cross[0], r.cross[1]);
+  if (key === 'phase') return clamp(Math.round(v), 0, (r.phase && r.phase[1]) || 300);
+  if (key === 'k') return clamp(Math.round(v), 1, 30);
+  return v;
+}
+// signed remainder of x mod m in [-m/2, +m/2] (ENIGMA-1 passes the crossing every orbit,
+// so timing only matters modulo its period)
+function centeredMod(x, m) { var r = ((x % m) + m) % m; return r > m / 2 ? r - m : r; }
+// smallest phasing dv (m/s) whose k-lap shift covers |target| seconds (binary search)
+function phaseDvFor(a0, target, k) {
+  var dir = target >= 0 ? 1 : -1, lo = 0, hi = 300;
+  for (var i = 0; i < 26; i++) {
+    var mid = (lo + hi) / 2, ps = CC.phasingShift(a0, dir * mid, k), sh = ps && ps.shift != null ? ps.shift : 0;
+    if (Math.abs(sh) < Math.abs(target)) lo = mid; else hi = mid;
+  }
+  return Math.round((lo + hi) / 2);
+}
+function suggestPhaseDv(a0, tA, targetTime, k) { return phaseDvFor(a0, centeredMod(targetTime - tA, CC.period(a0)), k); }
+// geometry (prograde + cross-track burn) -> orbit + MOID; timing (phase + k) -> arrival
+function updateSolve() {
+  var base = G.base;
+  // zero delta-v => the un-maneuvered base orbit exactly (avoids state<->elements round-trip drift,
+  // so Phase 3 starts on the very same orbit/position Phase 2 showed)
+  var kep = (S.dv.prograde === 0 && S.dv.cross === 0) ? base.slice() : CC.applyManeuver3D(base, S.dv.prograde, 0, S.dv.cross);
+  var mo = CC.numericMOID(kep, G.vic.kep, 480);
+  var geomLocked = mo.moid <= (Scn.moidThreshold || 20000);
+  var P = G.P;   // the fixed collision point chosen in Phase 2 (where AURORA-2 is at time T)
+  // closing speed + geometry anchored on that fixed point
+  var nuA = CC.nuAtPoint(kep, P), nuV = CC.nuAtPoint(G.vic.kep, P);
+  var sA = CC.stateFromElements(kep[0], kep[1], kep[2], kep[3], kep[4], nuA);
+  var sV = CC.stateFromElements(G.vic.kep[0], G.vic.kep[1], G.vic.kep[2], G.vic.kep[3], G.vic.kep[4], nuV);
+  var closing = CC.norm(CC.sub(sA.v, sV.v));
+  S.geom = { kep: kep, moid: mo.moid, cp: P, closingKmS: Math.round(closing / 100) / 10, nuA: nuA, nuV: nuV };
+  // timing: ENIGMA-1 passes P every orbit, so what matters is whether one of those passes
+  // lands at the chosen time T. Measure the arrival mismatch MODULO ENIGMA-1's period.
+  var tA = K.timeToNu(kep[0], kep[1], kep[5], nuA);
+  var Tins = CC.period(kep[0]);
+  var need = centeredMod(S.execTimeSec - tA, Tins);          // signed time to align, within one orbit
+  var dvSigned = (need >= 0) ? Math.abs(S.dv.phase) : -Math.abs(S.dv.phase);   // delay if we must arrive later
+  var ps = CC.phasingShift(kep[0], dvSigned, S.dv.k);
+  var shift = ps && ps.shift != null ? ps.shift : 0;
+  var arrival = tA + shift;
+  var offset = arrival - S.execTimeSec;
+  var residual = centeredMod(offset, Tins);                  // how far ENIGMA-1's nearest pass is from T
+  var timeLocked = Math.abs(residual) < 45;
+  S.timing = { tA: tA, dvSigned: dvSigned, shift: shift, arrival: arrival, offset: offset, residual: residual, dvTotal: ps ? ps.dvTotal : 0, aNew: ps ? ps.aNew : kep[0] };
+  // live sim AT the Phase-2 execution time T: draw ENIGMA-1's new orbit and place it where
+  // it actually is at T. Raising Δv reshapes the ring; phasing (offset) slides ENIGMA-1
+  // along it. Locked geometry + timing => ENIGMA-1 sits on P, on top of AURORA-2.
+  if (solveSim && solveSim.engine) {
+    // propagate ENIGMA-1 on its (maneuvered) orbit from the burn point by T minus the
+    // phasing shift: at zero dv this is exactly Phase 2's position; when locked it sits on P.
+    var nuAtT = K.trueAnomalyAdvance(kep[0], kep[1], kep[5], S.execTimeSec - shift);
+    var posAtT = K.keplerianToECI(kep[0], kep[1], kep[2], kep[3], kep[4], nuAtT);
+    solveSim.engine.setOrbitLine('demosat', kep);
+    solveSim.engine.setSatPosition('demosat', posAtT);
+    if (solveSim.engine.setMarker) solveSim.engine.setMarker({ x: P[0], y: P[1], z: P[2] }, 0xff3b4e);
+  }
+  // live equation-chain values: each formula's result, flowing to the next card
+  var lth = thruster();
+  var livePlan = CC.burnPlan([0, S.dv.prograde, S.dv.cross], { massKg: Scn.spacecraft.massKg, thrustN: lth.thrustN, ispSec: lth.ispSec });
+  var vBurn = Math.sqrt(K.MuEarth / G.base[0]);
+  updateChainLive({
+    kep: kep,
+    aNewKm: Math.round(kep[0] / 1000),
+    TinsMin: (CC.period(kep[0]) / 60).toFixed(1),
+    dThetaDeg: (Math.atan2(Math.abs(S.dv.cross), vBurn) * 180 / Math.PI).toFixed(2),
+    incDeg: kep[2].toFixed(1),
+    shiftS: Math.round(shift), offS: Math.round(residual),
+    yaw: livePlan.yawDeg.toFixed(1), pitch: livePlan.pitchDeg.toFixed(1),
+    burnSec: livePlan.burnSec.toFixed(0), propKg: livePlan.propKg.toFixed(1)
+  });
+  // gauges
+  var moidKm = Math.round(mo.moid / 1000);
+  $('#moidNum').textContent = moidKm; $('#moidFill').style.width = clamp(100 - moidKm / 4, 3, 100) + '%';
+  $('#gMoid').classList.toggle('lock', geomLocked);
+  $('#timeNum').textContent = Math.round(residual); $('#timeFill').style.width = clamp(100 - Math.abs(residual) / 5, 3, 100) + '%';
+  $('#gTime').classList.toggle('lock', timeLocked);
+  var st = $('#solveState');
+  if (geomLocked && timeLocked) { st.textContent = 'GEOMETRY + TIMING LOCKED — choose a thruster and confirm the burn.'; st.className = 'solvestate lock'; }
+  else if (!geomLocked) { st.textContent = 'Geometry: raise Δv prograde so the orbits cross (MOID → 0). MOID ' + moidKm + ' km — try Δv prograde ≈ ' + G.nominal.dvp + ' m/s.'; st.className = 'solvestate'; }
+  else { var sug = suggestPhaseDv(kep[0], tA, S.execTimeSec, S.dv.k); st.textContent = 'Timing: ENIGMA-1\'s pass is off by ' + Math.round(residual) + ' s. Set phasing Δv ≈ ' + sug + ' m/s at k=' + S.dv.k + ' (more revs = smaller Δv per lap).'; st.className = 'solvestate'; }
+  lockThruster(!(geomLocked && timeLocked));
+  if (geomLocked && timeLocked) renderBurn(); else { $('#burnPanel').innerHTML = ''; S.burn = null; }
+  var tb = $('#toTransmit'); if (tb) tb.disabled = !(geomLocked && timeLocked && S.burn);
+  drawChainArrows(); markChainTuning();   // keep arrows aligned + flag the live recompute
+}
+function renderThrusterSel() {
+  var box = $('#thrSel'); if (!box) return;
+  box.innerHTML = Scn.thrusters.map(function (th) {
+    return '<div class="thropt' + (S.thrusterId === th.id ? ' sel' : '') + '" data-id="' + th.id + '">' +
+      '<b>' + th.name + '</b><span>' + th.thrustN + ' N · Isp ' + th.ispSec + ' s</span><i>' + th.note + '</i></div>';
+  }).join('');
+  box.querySelectorAll('.thropt').forEach(function (el) {
+    el.onclick = function () { S.thrusterId = el.dataset.id; renderThrusterSel(); if (S.geom) renderBurn(); updateTransmitReady(); };
+  });
+}
+function updateTransmitReady() { var tb = $('#toTransmit'); if (tb) tb.disabled = !(S.geom && S.timing && S.burn); }
+function thruster() { return Scn.thrusters.filter(function (t) { return t.id === S.thrusterId; })[0] || Scn.thrusters[0]; }
+// back-solve the burn: the commanded INSERTION burn (transfer prograde + plane cross-
+// track) is one delta-v vector -> pointing + thrust + duration + propellant. The
+// phasing is a separate timing maneuver; its fuel is added to the total budget.
+function renderBurn() {
+  var th = thruster(), opt = { massKg: Scn.spacecraft.massKg, thrustN: th.thrustN, ispSec: th.ispSec };
+  var dv = [0, S.dv.prograde, S.dv.cross];                 // in-track transfer + cross-track plane
+  var plan = CC.burnPlan(dv, opt);
+  var phaseDvTotal = S.timing ? Math.abs(S.timing.dvTotal || 0) : 0;      // 2×|phasing dv|, out + restore
+  // phasing happens AFTER the insertion burn, so it sizes against the lighter post-insertion mass
+  var phasePlan = CC.burnPlan([0, phaseDvTotal, 0], { massKg: Scn.spacecraft.massKg - plan.propKg, thrustN: th.thrustN, ispSec: th.ispSec });
+  var totalProp = plan.propKg + phasePlan.propKg;
+  S.burn = { plan: plan, dv: dv, thruster: th, phaseDvTotal: phaseDvTotal, phaseProp: phasePlan.propKg, totalProp: totalProp };
+  $('#burnPanel').innerHTML =
+    '<div class="brow"><span>Insertion Δv</span><b>' + plan.dvMag.toFixed(1) + ' m/s</b></div>' +
+    '<div class="brow"><span>Point thruster</span><b>yaw ' + plan.yawDeg.toFixed(1) + '°, pitch ' + plan.pitchDeg.toFixed(1) + '°' + (plan.retrograde ? ' (retro)' : ' (prograde)') + '</b></div>' +
+    '<div class="brow"><span>Thrust · Isp</span><b>' + th.thrustN + ' N · ' + th.ispSec + ' s</b></div>' +
+    '<div class="brow"><span>Burn duration</span><b>' + plan.burnSec.toFixed(1) + ' s</b></div>' +
+    '<div class="brow"><span>Phasing Δv (k=' + S.dv.k + ')</span><b>' + phaseDvTotal.toFixed(1) + ' m/s</b></div>' +
+    '<div class="brow"><span>Propellant total</span><b>' + totalProp.toFixed(2) + ' kg</b> <span class="bdim">(of ' + Scn.spacecraft.massKg + ' kg)</span></div>' +
+    '<div class="bnote">' + (plan.burnSec > CC.period(G.base[0]) / 4 ?
+      'The small 22 N thruster makes this a long finite burn — the high-thrust option shortens it. ' : '') +
+      'Planned as an impulsive Δv; the real burn spans the duration above.</div>';
+  updateTransmitReady();
 }
 
-function bodyAddressing(body) {
-  const row = el('div', 'chips');
-  M.options.scid.forEach((v) => {
-    const c = el('button', 'chip', `SCID ${v}`);
-    c.onclick = () => { S.scid = v; renderSteps(); rebuild(); };
-    if (S.scid === v) c.classList.add('sel');
-    row.appendChild(c);
-  });
-  body.appendChild(row);
+// ── PHASE 4 · TRANSMIT (extended CCSDS/cFS byte map + uplink) ─────────────────
+// 38-byte layout: header(6) fc(1) chk(1) time(6) mode(1) thrmask(1)
+//   dvIn(4) dvCross(4) thrustN(4) yaw(2) pitch(2) burnDur(2) prop(2) crc(2)
+var PKT_FIELDS = [
+  { o: 0, n: 2, g: 'hdr', label: 'CCSDS primary: version / type=CMD / APID 0x1F0' },
+  { o: 2, n: 2, g: 'hdr', label: 'Sequence flags + count' },
+  { o: 4, n: 2, g: 'hdr', label: 'Packet data length (= total − 7)' },
+  { o: 6, n: 1, g: 'fc', label: 'Function code = 0x03 START BURN' },
+  { o: 7, n: 1, g: 'chk', label: 'cFS command XOR checksum (whole packet → 0)' },
+  { o: 8, n: 6, g: 'time', label: 'Execution time T (CUC: 4B sec + 2B subsec)' },
+  { o: 14, n: 1, g: 'act', label: 'Maneuver mode (RTN delta-v + burn)' },
+  { o: 15, n: 1, g: 'act', label: 'Thruster select mask (from pointing)' },
+  { o: 16, n: 4, g: 'dv', label: 'delta-v in-track / prograde (float32, m/s)' },
+  { o: 20, n: 4, g: 'dv', label: 'delta-v cross-track (float32, m/s)' },
+  { o: 24, n: 4, g: 'act', label: 'thrust magnitude F (float32, N)' },
+  { o: 28, n: 2, g: 'act', label: 'burn attitude yaw (int16, 0.1°)' },
+  { o: 30, n: 2, g: 'act', label: 'burn attitude pitch (int16, 0.1°)' },
+  { o: 32, n: 2, g: 'act', label: 'burn duration (uint16, 0.1 s)' },
+  { o: 34, n: 2, g: 'act', label: 'propellant Δm (uint16, 0.1 kg)' },
+  { o: 36, n: 2, g: 'chk', label: 'payload CRC-16-CCITT (bytes 8-35)' }
+];
+var PKT_LEN = 38;
+function crc16(u8, start, end) {
+  var c = 0xFFFF;
+  for (var i = start; i < end; i++) { c ^= u8[i] << 8; for (var b = 0; b < 8; b++) c = (c & 0x8000) ? ((c << 1) ^ 0x1021) & 0xFFFF : (c << 1) & 0xFFFF; }
+  return c;
 }
-function bodyCommand(body) {
-  const tabs = el('div', 'tabs'); const list = el('div', 'cmdlist');
-  M.subsystems.forEach((sub) => {
-    const t = el('button', 'tab', sub); t.dataset.sub = sub;
-    t.onclick = () => selectSub(sub, tabs, list);
-    tabs.appendChild(t);
-  });
-  body.appendChild(tabs); body.appendChild(list);
-  selectSub((S.cmdDef && S.cmdDef.subsystem) || 'PROP', tabs, list);
+function buildPacket() {
+  var plan = S.burn.plan, buf = new ArrayBuffer(PKT_LEN), w = new DataView(buf), u8 = new Uint8Array(buf);
+  var execSec = Math.round(S.execTimeSec || 0), apid = 0x1F0, fc = 0x03;
+  var dvIn = S.dv.prograde, dvCross = S.dv.cross;   // commanded insertion burn (in-track + cross-track)
+  w.setUint16(0, (0 << 13) | (1 << 12) | (1 << 11) | (apid & 0x7FF), false);
+  w.setUint16(2, (3 << 14) | 0, false);
+  w.setUint16(4, PKT_LEN - 7, false);
+  u8[6] = fc & 0x7F; u8[7] = 0;
+  w.setUint32(8, execSec >>> 0, false); w.setUint16(12, 0, false);
+  u8[14] = 0x02; u8[15] = 0x01;
+  w.setFloat32(16, dvIn, false); w.setFloat32(20, dvCross, false);
+  w.setFloat32(24, plan.thrustN, false);
+  w.setInt16(28, Math.round(plan.yawDeg * 10), false);
+  w.setInt16(30, Math.round(plan.pitchDeg * 10), false);
+  w.setUint16(32, Math.min(0xFFFF, Math.round(plan.burnSec * 10)), false);
+  w.setUint16(34, Math.min(0xFFFF, Math.round((S.burn.totalProp || plan.propKg) * 10)), false);
+  // payload CRC-16 over bytes 8..35 (independent of the header + command checksum)
+  w.setUint16(36, crc16(u8, 8, 36), false);
+  // cFS command checksum LAST: XOR of the whole packet (byte 7 = 0 here), so the
+  // stored value makes the packet's total XOR validate to 0. Covers the CRC bytes too.
+  var x = 0xFF; for (var i = 0; i < PKT_LEN; i++) x ^= u8[i]; u8[7] = x;
+  return { u8: u8, w: w };
 }
-function selectSub(sub, tabs, list) {
-  tabs.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.sub === sub));
-  list.innerHTML = '';
-  M.commands.filter((c) => c.subsystem === sub).forEach((c) => {
-    const item = el('div', 'cmd' + (S.command === c.command ? ' sel' : ''));
-    item.innerHTML = `<div class="n">${c.command}${c.star ? ' <span class="star">★ attack</span>' : ''}</div>
-                      <div class="o">${c.opcode} · APID ${c.apid}</div><div class="role">${c.blurb}</div>`;
-    item.onclick = () => selectCommand(c);
-    list.appendChild(item);
-  });
-}
-function selectCommand(c) {
-  S.command = c.command; S.cmdDef = c; S.valueConfirmed = false;
-  if (c.command === 'orbit_maneuver') {
-    // keep the orbit elements planned in phase 1 (do not overwrite with defaults)
-    if (S.params.altKm == null) S.params.altKm = 600;
-    if (S.params.inc == null) S.params.inc = 50;
-    if (S.params.raan == null) S.params.raan = 25;
-  } else {
-    S.params = {};
-    (c.fields || []).forEach((f) => { S.params[f.key] = f.type === 'toggle' ? !!f.default : f.default; });
-    if (!c.fields || !c.fields.length) S.valueConfirmed = true;
+function fieldGroupAt(off) { for (var i = 0; i < PKT_FIELDS.length; i++) { var f = PKT_FIELDS[i]; if (off >= f.o && off < f.o + f.n) return f.g; } return 'hdr'; }
+function enterTransmit() {
+  var pk = buildPacket(); S.packet = pk;
+  var hex = $('#pktHex');
+  if (hex) { var html = ''; for (var i = 0; i < pk.u8.length; i++) html += '<span class="pb pg-' + fieldGroupAt(i) + '" title="byte ' + i + '">' + ('0' + pk.u8[i].toString(16)).slice(-2).toUpperCase() + '</span>'; hex.innerHTML = html; }
+  var fields = $('#pktFields');
+  if (fields) {
+    var val = function (f) {
+      if (f.g === 'dv') return pk.w.getFloat32(f.o, false).toFixed(1) + ' m/s';
+      if (f.o === 24) return pk.w.getFloat32(24, false).toFixed(0) + ' N';
+      if (f.o === 28) return (pk.w.getInt16(28, false) / 10).toFixed(1) + '°';
+      if (f.o === 30) return (pk.w.getInt16(30, false) / 10).toFixed(1) + '°';
+      if (f.o === 32) return (pk.w.getUint16(32, false) / 10).toFixed(1) + ' s';
+      if (f.o === 34) return (pk.w.getUint16(34, false) / 10).toFixed(1) + ' kg';
+      if (f.g === 'time') return 'T = ' + pk.w.getUint32(8, false) + ' s';
+      if (f.o === 6) return '0x03';
+      if (f.o === 4) return (PKT_LEN - 7) + ' B';
+      return '';
+    };
+    fields.innerHTML = PKT_FIELDS.map(function (f) {
+      return '<div class="pktfield pg-' + f.g + '"><span class="pkoff">' + f.o + (f.n > 1 ? '–' + (f.o + f.n - 1) : '') + '</span>' +
+        '<span class="pklbl">' + f.label + '</span><b>' + val(f) + '</b></div>';
+    }).join('');
   }
-  renderSteps(); rebuild();
+  $('#pktLen').textContent = pk.u8.length;
+  renderUplinkSummary();
 }
-// STEP 3 — value. orbit_maneuver shows the phase-1 burn read-only; other commands use fields.
-function bodyValue(body) {
-  if (!S.cmdDef) { body.innerHTML = '<div class="muted">Select a command first (Step 2).</div>'; return; }
-  const c = S.cmdDef;
-  if (S.command === 'orbit_maneuver') {
-    body.innerHTML = `<div class="vhead">${c.title} <span class="star">★</span></div>
-      <div class="muted">${c.blurb}</div>
-      <div class="pvnote">These orbit elements were <b>derived in phase 1</b>. You can fill or fine-tune them here · <a href="#" id="rePlan">re-plan</a></div>`;
-    const grid = el('div', 'valgrid');
-    grid.appendChild(valInput('altKm', 'Altitude', 'km'));
-    grid.appendChild(valInput('inc', 'Inclination', '°'));
-    body.appendChild(grid);
-    body.appendChild(el('div', 'effect', `<b>PREDICTED EFFECT</b> — ${c.effect}`));
-    const confirm = el('button', 'confirm' + (S.valueConfirmed ? ' done' : ''), S.valueConfirmed ? '✓ VALUE CONFIRMED' : 'CONFIRM VALUE');
-    confirm.onclick = () => { S.valueConfirmed = true; refreshPills(); renderSteps(); rebuild(); };
-    body.appendChild(confirm);
-    const rp = body.querySelector('#rePlan'); if (rp) rp.onclick = (e) => { e.preventDefault(); showPhase(1); };
-    return;
-  }
-  body.innerHTML = `<div class="vhead">${c.title}</div><div class="muted">${c.blurb}</div>`;
-  const fields = el('div', 'fields');
-  (c.fields || []).forEach((f) => fields.appendChild(fieldControl(f)));
-  if (!c.fields.length) fields.innerHTML = '<div class="muted">This command carries no payload.</div>';
-  body.appendChild(fields);
-  const danger = el('div', 'danger hidden'); danger.id = 'danger'; body.appendChild(danger);
-  body.appendChild(el('div', 'effect', `<b>PREDICTED EFFECT</b> — ${c.effect}`));
-  if (c.fields.length) {
-    const confirm = el('button', 'confirm' + (S.valueConfirmed ? ' done' : ''), S.valueConfirmed ? '✓ VALUE CONFIRMED' : 'CONFIRM VALUE');
-    confirm.onclick = () => { S.valueConfirmed = true; refreshPills(); renderSteps(); };
-    body.appendChild(confirm);
-  }
-}
-// editable phase-2 value input for orbit_maneuver (pre-filled from the phase-1 plan)
-function valInput(key, label, unit) {
-  const f = el('div', 'valfield');
-  f.innerHTML = `<label>${label} <span class="vu">${unit}</span></label>`;
-  const inp = el('input', 'axinput'); inp.type = 'number'; inp.value = S.params[key]; inp.id = 'v_' + key;
-  inp.oninput = () => { S.params[key] = +inp.value || 0; S.valueConfirmed = false; S.generated = false; rebuild(); syncConfirm(); };
-  f.appendChild(inp);
-  return f;
-}
-
-function fieldControl(f) {
-  const field = el('div', 'field');
-  const show = () => {
-    const bad = f.safeAbsMax != null && Math.abs(S.params[f.key]) > f.safeAbsMax;
-    const fv = field.querySelector('.fv');
-    if (fv) { fv.textContent = `${S.params[f.key]}${f.unit || ''}`; fv.classList.toggle('bad', bad); }
-  };
-  if (f.type === 'slider' || f.type === 'number') {
-    field.innerHTML = `<div class="flabel"><span class="fk">${f.key}</span><span class="fv"></span></div>`;
-    const inp = el('input'); inp.type = f.type === 'slider' ? 'range' : 'number'; inp.min = f.min; inp.max = f.max; inp.value = S.params[f.key];
-    inp.oninput = () => { S.params[f.key] = +inp.value; S.valueConfirmed = false; show(); rebuild(); syncConfirm(); };
-    field.appendChild(inp); show();
-  } else if (f.type === 'toggle') {
-    const tg = el('div', 'toggle' + (S.params[f.key] ? ' on' : ''), `<span class="sw"></span><span>${f.key.toUpperCase()}</span>`);
-    tg.onclick = () => { S.params[f.key] = !S.params[f.key]; tg.classList.toggle('on', S.params[f.key]); S.valueConfirmed = false; rebuild(); syncConfirm(); };
-    field.appendChild(tg);
-  }
-  return field;
-}
-function syncConfirm() { const b = document.querySelector('.confirm'); if (b) { b.classList.remove('done'); b.textContent = 'CONFIRM VALUE'; } refreshPills(); }
-function bodyRF(body) {
-  body.appendChild(rfRow('MODULATION', 'modulation', M.options.modulation, (v) => v));
-  body.appendChild(rfRow('BAUD RATE', 'baud', M.options.baud, (v) => v + ' bps'));
-  body.appendChild(rfRow('SAMPLE RATE', 'sampleRate', M.options.sampleRate, (v) => (v / 1000) + ' kSa/s'));
-}
-function rfRow(label, key, opts, fmt) {
-  const row = el('div', 'rfrow'); row.appendChild(el('div', 'rflabel', label));
-  const chips = el('div', 'chips');
-  opts.forEach((v) => {
-    const c = el('button', 'chip' + (S.rf[key] === v ? ' sel' : ''), fmt(v));
-    c.onclick = () => { S.rf[key] = v; markSel(chips, c); refreshPills(); rebuild(); };
-    chips.appendChild(c);
-  });
-  row.appendChild(chips); return row;
-}
-function markSel(row, sel) { row.querySelectorAll('.chip').forEach((c) => c.classList.remove('sel')); sel.classList.add('sel'); }
-
-// ── frame preview ────────────────────────────────────────────────────────────
-let timer = null;
-function rebuild() { clearTimeout(timer); timer = setTimeout(build, 100); }
-async function build() {
-  const st = stepStatus();
-  let bd = null, wf = [];
-  if (S.command) {
-    const r = await postJSON('/api/build', payload());
-    if (r.ok) {
-      bd = r.breakdown; wf = r.waveform || [];
-      const d = $('#danger');
-      if (d) { if (r.danger) { d.textContent = r.danger; d.classList.remove('hidden'); } else d.classList.add('hidden'); }
-    }
-  }
-  renderFrame(bd, st);
-  const rfSet = S.rf.modulation != null && S.rf.baud != null && S.rf.sampleRate != null;
-  const hint = $('#waveHint');
-  if (rfSet && wf.length) {
-    drawWave(wf);
-    if (st[4] === 'ok') hint.classList.add('hidden');
-    else { hint.textContent = '⚠ Signal shown — but RF mismatch: the receiver won\'t decode it.'; hint.classList.remove('hidden'); }
-    $('#frameMeta').textContent = bd ? `${bd.frameBytes.length} bytes · ${bd.sampleCount} IQ samples · ${bd.durationSec}s @ ${S.rf.baud} baud ${S.rf.modulation}` : '';
-  } else { drawWave([]); hint.textContent = 'RF not configured — complete Step 4.'; hint.classList.remove('hidden'); $('#frameMeta').textContent = ''; }
-}
-function renderFrame(bd, st) {
-  const byField = {}; if (bd) bd.segments.forEach((s) => (byField[s.field] = s));
-  const cond = { preamble: true, tc_header: S.scid != null, sp_header: S.command != null, opcode: S.command != null,
-    payload: S.valueConfirmed, crc: S.scid != null && S.command != null && S.valueConfirmed };
-  let filled = 0, total = 0;
-  const wrap = $('#breakdown'); if (!wrap) return; wrap.innerHTML = '';
-  FRAME_MAP.forEach((m) => {
-    const seg = byField[m.field]; const isPre = m.field === 'preamble';
-    const canFill = cond[m.field] && (isPre || !!seg);
-    if (!isPre) { total++; if (canFill) filled++; }
-    const div = el('div', 'seg f-' + m.field + (canFill ? ' filled' : ' pending'));
-    div.appendChild(el('div', 'sl', m.label));
-    const bytes = el('div', 'bytes');
-    if (canFill) {
-      const bs = seg ? seg.bytes : [0xAA, 0xAA];
-      (bs.length ? bs : [null]).forEach((b) => {
-        const chip = el('div', 'byte', b == null ? '—' : b.toString(16).padStart(2, '0').toUpperCase());
-        if (b != null) { chip.onmousemove = (e) => showTip(e, seg || { label: m.label }, b); chip.onmouseleave = hideTip; }
-        bytes.appendChild(chip);
-      });
-    } else { for (let i = 0; i < 2; i++) bytes.appendChild(el('div', 'byte ph', '··')); }
-    div.appendChild(bytes);
-    if (m.anno) div.appendChild(el('div', 'anno', m.anno()));
-    wrap.appendChild(div);
-  });
-  $('#frameProg').textContent = `${filled} / ${total} fields`;
-}
-function showTip(e, seg, b) {
-  const tip = $('#tooltip');
-  const sub = (seg.sub || []).map((x) => `${x.name}: <b>${x.value}${x.unit ? ' ' + x.unit : ''}</b>`).join('<br>');
-  tip.innerHTML = `<b>${seg.label}</b><br>byte 0x${b.toString(16).padStart(2, '0')}` + (sub ? '<br>' + sub : '');
-  tip.classList.remove('hidden');
-  tip.style.left = Math.min(e.clientX + 14, window.innerWidth - 250) + 'px';
-  tip.style.top = (e.clientY + 14) + 'px';
-}
-function hideTip() { $('#tooltip').classList.add('hidden'); }
-function drawWave(w) {
-  const cv = $('#wave'), ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
-  ctx.clearRect(0, 0, W, H);
-  if (!w || !w.length) return;
-  ctx.strokeStyle = '#39c5ff'; ctx.lineWidth = 1.5; ctx.beginPath();
-  const pad = 10, h = H - 2 * pad;
-  w.forEach((v, i) => { const x = (i / (w.length - 1)) * W, y = H - pad - v * h; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
-  ctx.stroke(); ctx.fillStyle = 'rgba(57,197,255,.08)'; ctx.lineTo(W, H - pad); ctx.lineTo(0, H - pad); ctx.fill();
-}
-
-// ── PHASE 2→3: generate the IQ ───────────────────────────────────────────────
-async function doGenerate() {
-  const btn = $('#genBtn'); if (btn.disabled) return;
-  const prev = btn.textContent; btn.textContent = '… GENERATING';
-  const r = await postJSON('/api/generate', payload());
-  if (r.ok && r.saved) { S.generated = true; refreshPills(); }
-  else { S.generated = false; btn.textContent = 'generate blocked: ' + (r.error || '?'); return; }
-  refreshPills();
-}
-
-// ── PHASE 3 · uplink ─────────────────────────────────────────────────────────
 function renderUplinkSummary() {
-  const box = $('#uplinkSummary'); if (!box) return;
-  box.innerHTML = `
-    <div class="usrow"><span>Satellite</span><b>${M.target.satellite}</b></div>
-    <div class="usrow"><span>Command</span><b>orbit_maneuver</b></div>
-    <div class="usrow"><span>Target orbit</span><b>alt ${S.params.altKm} km · inc ${S.params.inc}°</b></div>
-    <div class="usrow"><span>Modulation</span><b>${S.rf.modulation} · ${S.rf.baud} bps · ${S.rf.sampleRate / 1000} kSa/s</b></div>
-    <div class="usrow"><span>Uplink</span><b>${M.target.uplinkFreqMHz.toFixed(3)} MHz</b></div>
-    <div class="usnote">IQ file generated. Press TRANSMIT to uplink the command to ENIGMA-1.</div>`;
-  runLinkSequence();
+  var box = $('#uplinkSummary'); if (!box) return; var g = S.geom || {}, b = S.burn || {}, plan = b.plan || {};
+  box.innerHTML =
+    '<div class="usrow"><span>Target</span><b>' + G.vic.name + '</b></div>' +
+    '<div class="usrow"><span>Execution time</span><b>t = ' + fmtDur(S.execTimeSec) + '</b></div>' +
+    '<div class="usrow"><span>Closing speed</span><b>' + (g.closingKmS || '?') + ' km/s</b></div>' +
+    '<div class="usrow"><span>Burn</span><b>point yaw ' + (plan.yawDeg != null ? plan.yawDeg.toFixed(0) : '?') + '°, ' + (b.thruster ? b.thruster.thrustN : '?') + ' N for ' + (plan.burnSec != null ? plan.burnSec.toFixed(1) : '?') + ' s</b></div>' +
+    '<div class="usrow"><span>Command</span><b>START BURN (FC 0x03)</b></div>' +
+    '<div class="usnote">Packet ready. Press TRANSMIT to command ENIGMA-1 to execute the burn.</div>';
 }
-// animated VSA <-> GPredict auto-link + uplink-file registration (scenario 2 process)
-function runLinkSequence() {
-  const steps = document.querySelectorAll('#linkSteps .lstep');
-  const wire = $('#lnWire'), vsa = $('#lnVsa'), gp = $('#lnGp'), btn = $('#uplinkBtn');
-  steps.forEach((s) => s.classList.remove('on'));
-  if (wire) wire.classList.remove('linked');
-  if (vsa) vsa.classList.remove('on'); if (gp) gp.classList.remove('on');
-  if (btn) { btn.disabled = true; btn.textContent = '… LINKING VSA + GPREDICT'; }
-  let i = 0;
-  const tick = () => {
-    if ($('#phase3').classList.contains('hidden')) return;   // aborted (navigated away)
-    if (i < steps.length) {
-      steps[i].classList.add('on');
-      if (i === 0 && gp) gp.classList.add('on');
-      if (i === 1) { if (vsa) vsa.classList.add('on'); if (wire) wire.classList.add('linked'); }
-      i++;
-      setTimeout(tick, 750);
-    } else if (btn) {
-      btn.disabled = !S.generated;
-      btn.textContent = '⚡ TRANSMIT UPLINK → ENIGMA-1';
-    }
-  };
-  setTimeout(tick, 400);
+function maneuverMsg() {
+  var g = S.geom || {}, b = S.burn || {}, plan = b.plan || {};
+  return { command: 'orbit_collision', satellite: 'ENIGMA-1',
+    collisionPoint: { x: g.cp[0], y: g.cp[1], z: g.cp[2] }, closingKmS: g.closingKmS,
+    victim: G.vic.name, victimNuDeg: Math.round(g.nuV), attackerKep: g.kep.slice(), victimKep: G.vic.kep.slice(),
+    execTimeSec: S.execTimeSec, burnSec: plan.burnSec, propKg: plan.propKg,
+    impactTargetSec: (Scn.simOpts && Scn.simOpts.impactTargetSec) || 18 };
+}
+function postJSON(url, body) {
+  return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function (r) { return r.json(); }).catch(function (e) { return { ok: false, error: String(e) }; });
+}
+var observePoll = null, countdownTimer = null;
+function clearObserveTimers() { if (observePoll) { clearInterval(observePoll); observePoll = null; } if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; } }
+function uplinkAnimHTML() {
+  return '<div class="uplinkanim">' +
+    '<div class="ua-row"><span class="ua-gs">📡</span>' +
+      '<span class="ua-beam"><i></i><i></i><i></i><i></i></span>' +
+      '<span class="ua-sat">🛰</span></div>' +
+    '<div class="ua-label">UPLINKING BURN COMMAND → ENIGMA-1…</div>' +
+    '<div class="ua-sub">C2 command in flight. ENIGMA-1 will execute the burn at the scheduled time.</div>' +
+  '</div>';
 }
 async function doUplink() {
-  const b = $('#uplinkBtn'); if (b.disabled) return;
-  b.disabled = true; b.textContent = '… TRANSMITTING';
-  const r = await postJSON('/api/uplink', payload());
-  const res = $('#uplinkResult');
-  if (r.ok && r.uplink && r.uplink.ok) {
-    const out = (r.uplink.gs && r.uplink.gs.outcome) || {};
-    S.lastOutcome = out;
-    res.className = 'result hit'; res.innerHTML = '⚡ Uplink transmitted to ENIGMA-1.';
-    res.classList.remove('hidden');
-    setTimeout(() => { showPhase(4); renderObserve(out); }, 700);
-  } else {
-    const why = (r.uplink && r.uplink.error) || r.error || 'assembly incomplete';
-    res.className = 'result'; res.textContent = 'uplink blocked: ' + why; res.classList.remove('hidden');
-  }
-  b.disabled = false; b.textContent = '⚡ TRANSMIT UPLINK → ENIGMA-1';
+  var btn = $('#uplinkBtn'); if (btn.disabled) return; btn.disabled = true; btn.textContent = '… TRANSMITTING';
+  var res = $('#observeResult'); res.classList.remove('hidden'); res.className = 'observeresult uplinking'; res.innerHTML = uplinkAnimHTML();
+  var r = await postJSON('/api/uplink-collision', maneuverMsg());
+  if (r && r.ok) { setTimeout(renderObserve, 1700); }   // let the uplink animation play, then start the impact countdown
+  else { res.className = 'observeresult miss'; res.textContent = 'Uplink failed: ' + ((r && r.error) || '?') + ' (is the ground station on?)'; }
+  btn.disabled = false; btn.textContent = '⚡ TRANSMIT BURN COMMAND → ENIGMA-1';
 }
-
-// ── PHASE 4 · observe (impact countdown → confirm via monitor 2 → congrats) ───
-// The uplink already returns a PREDICTED outcome. On a predicted hit we show a live
-// countdown to impact (the same wall-clock time monitor 2's sim uses), then wait for
-// monitor 2 to report it actually played the debris video before declaring success.
-// If nothing is confirmed in time (or the burn was a predicted miss) we offer retry.
-let observePoll = null, countdownTimer = null;
-function clearObserveTimers() {
-  if (observePoll) { clearInterval(observePoll); observePoll = null; }
-  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
-}
-function setRetryVisible(show, label) {
-  const b = $('#retryBtn'); if (!b) return;
-  b.classList.toggle('hidden', !show);
-  if (label) b.textContent = label;
-}
-function renderObserve(out) {
-  const box = $('#observeResult'); if (!box) return;
-  clearObserveTimers();
-  const note = $('#observeNote');
-
-  // predicted MISS → the burn never reaches the constellation; fail + retry now
-  if (!out || !out.collided) {
-    box.className = 'observeresult miss';
-    box.innerHTML = `<div class="obico">✕</div>
-      <div class="obtitle">NO COLLISION</div>
-      <div class="obsub">ENIGMA-1 <b>missed the constellation</b>${out && out.distKm != null ? ` — closest approach <b>${out.distKm} km</b>` : ''}.
-        Reset and re-plan the burn in phase 1 so the orbit crosses a satellite.</div>`;
-    setRetryVisible(true, '↺ RESET & RE-PLAN');
-    if (note) note.textContent = 'ENIGMA-1 missed — reset and recompute the burn in phase 1.';
-    return;
-  }
-
-  // predicted COLLISION → count down to impact, then wait for monitor 2 to confirm
-  let eta = null;
-  try { if (sim && sim.predictCollisionEtaSec) eta = sim.predictCollisionEtaSec({ altKm: +S.params.altKm, inc: +S.params.inc, raan: +S.params.raan }); } catch (e) {}
-  if (!eta || !isFinite(eta) || eta <= 0) eta = (typeof Scenario4 !== 'undefined' && Scenario4.simOpts && Scenario4.simOpts.impactTargetSec) || 18;
-
-  setRetryVisible(false);
-  if (note) note.textContent = 'Watch monitor 2: the maneuver plays out and the debris video confirms the strike.';
-  const t0 = Date.now();
-  const failAt = t0 + (eta + 16) * 1000;      // impact time + slack for the video + polling
-  paintCountdown(box, out, eta, 0);
-  countdownTimer = setInterval(() => paintCountdown(box, out, eta, (Date.now() - t0) / 1000), 100);
-
-  observePoll = setInterval(async () => {
-    let st = null;
-    try { st = await (await fetch('/api/observe-status')).json(); } catch (e) {}
-    if (st && st.videoPlayed) { clearObserveTimers(); showObserveSuccess(out); }
-    else if (Date.now() > failAt) { clearObserveTimers(); showObserveTimeout(out); }
+function renderObserve() {
+  var box = $('#observeResult'); if (!box) return; clearObserveTimers();
+  var eta = (Scn.simOpts && Scn.simOpts.impactTargetSec) || 18, t0 = Date.now(), failAt = t0 + (eta + 16) * 1000, vic = G.vic.name;
+  var paint = function () {
+    var left = Math.max(0, eta - (Date.now() - t0) / 1000);
+    box.className = 'observeresult counting' + (left <= 0.05 ? ' impact' : '');
+    box.innerHTML = left > 0.05
+      ? '<div class="cdtag">⚠ COLLISION COURSE → <b>' + vic + '</b></div><div class="cdclock">IMPACT IN <b>' + left.toFixed(1) + '</b><span>s</span></div><div class="cdrail"><i style="width:' + (100 - left / eta * 100) + '%"></i></div><div class="cdsub">ENIGMA-1 is executing the burn — watch monitor 2.</div>'
+      : '<div class="cdtag danger">⚠ IMPACT</div><div class="cdclock danger">IMPACT</div><div class="cdrail"><i style="width:100%"></i></div><div class="cdsub">Confirming the debris cascade on monitor 2…</div>';
+  };
+  paint();
+  var retry = $('#retryBtn'); if (retry) retry.classList.add('hidden');
+  countdownTimer = setInterval(paint, 100);
+  observePoll = setInterval(async function () {
+    var st = null; try { st = await (await fetch('/api/observe-status')).json(); } catch (e) {}
+    if (st && st.videoPlayed) { clearObserveTimers(); showSuccess(); }
+    else if (Date.now() > failAt) { clearObserveTimers(); showTimeout(); }
   }, 700);
 }
-function paintCountdown(box, out, eta, elapsed) {
-  const left = Math.max(0, eta - elapsed);
-  const pct = Math.max(0, Math.min(100, (1 - left / eta) * 100));
-  const victim = out.victim || 'a constellation satellite';
-  if (left > 0.05) {
-    box.className = 'observeresult counting';
-    box.innerHTML = `<div class="cdtag">⚠ COLLISION COURSE — ENIGMA-1 → <b>${victim}</b></div>
-      <div class="cdclock">IMPACT IN <b>${left.toFixed(1)}</b><span>s</span></div>
-      <div class="cdrail"><i style="width:${pct}%"></i></div>
-      <div class="cdsub">ENIGMA-1 is ramping onto the target orbit — watch it close in on monitor 2.</div>`;
-  } else {
-    box.className = 'observeresult counting impact';
-    box.innerHTML = `<div class="cdtag danger">⚠ IMPACT</div>
-      <div class="cdclock danger">IMPACT</div>
-      <div class="cdrail"><i style="width:100%"></i></div>
-      <div class="cdsub">Confirming the debris cascade on monitor 2…</div>`;
-  }
-}
-function showObserveSuccess(out) {
-  const box = $('#observeResult'); if (!box) return;
+function showSuccess() {
+  var box = $('#observeResult'), vic = G.vic.name, cs = (S.geom && S.geom.closingKmS) || '';
   box.className = 'observeresult hit celebrate';
-  box.innerHTML = `<div class="celebico">🎉</div>
-    <div class="celebtitle">ATTACK SUCCESSFUL</div>
-    <div class="celebsub">ENIGMA-1 collided with <b>${out.victim || 'a constellation satellite'}</b>.
-      Debris is cascading onto the other AURORA satellites — watch it play out on monitor 2.</div>`;
-  setRetryVisible(true, '↺ RESET FOR NEXT ATTEMPT');
-  const note = $('#observeNote'); if (note) note.textContent = 'Reset to run the demonstration again.';
+  box.innerHTML = '<div class="celebico">🎉</div><div class="celebtitle">ATTACK SUCCESSFUL</div><div class="celebsub">ENIGMA-1 struck <b>' + vic + '</b> at ' + cs + ' km/s. Debris is cascading onto the AURORA constellation — watch it on monitor 2.</div>';
+  var retry = $('#retryBtn'); if (retry) { retry.classList.remove('hidden'); retry.textContent = '↺ RESET FOR NEXT ATTEMPT'; }
+  var note = $('#observeNote'); if (note) note.textContent = 'Reset to run the demonstration again.';
 }
-function showObserveTimeout(out) {
-  const box = $('#observeResult'); if (!box) return;
+function showTimeout() {
+  var box = $('#observeResult');
   box.className = 'observeresult miss';
-  box.innerHTML = `<div class="obico">✕</div>
-    <div class="obtitle">COLLISION NOT CONFIRMED</div>
-    <div class="obsub">Monitor 2 did not report a debris cascade in time. Make sure the ground station
-      dashboard (monitor 2) is open and reachable, then reset and transmit again.</div>`;
-  setRetryVisible(true, '↺ RESET & RE-PLAN');
-  const note = $('#observeNote'); if (note) note.textContent = 'Open monitor 2, then reset and re-transmit.';
+  box.innerHTML = '<div class="obico">✕</div><div class="obtitle">COLLISION NOT CONFIRMED</div><div class="obsub">Monitor 2 did not report a debris cascade in time. Make sure the ground station dashboard is open, then reset and transmit again.</div>';
+  var retry = $('#retryBtn'); if (retry) { retry.classList.remove('hidden'); retry.textContent = '↺ RESET & RE-PLAN'; }
 }
 async function doRetry() {
-  const b = $('#retryBtn'); b.disabled = true; b.textContent = '… RESETTING';
+  var b = $('#retryBtn'); if (b) { b.disabled = true; b.textContent = '… RESETTING'; }
   clearObserveTimers();
   await postJSON('/api/reset-target', {});
-  // reset local build state, keep the sim; go back to phase 1
-  S.scid = null; S.command = null; S.cmdDef = null; S.valueConfirmed = false; S.generated = false;
-  S.rf = { modulation: null, baud: null, sampleRate: null }; S.lastOutcome = null;
-  for (const k in collapseOverride) delete collapseOverride[k];
-  if (sim) sim.reset();
-  hintOn = false; { const hb = $('#hintBtn'); if (hb) { hb.classList.remove('on'); hb.textContent = '💡 Hint: show the target satellite orbit'; } }
-  renderSteps();
-  $('#uplinkResult').classList.add('hidden');
-  b.disabled = false; b.textContent = '↺ RESET & RE-PLAN';
-  showPhase(1);
-  updateSimManeuver();
+  var res = $('#observeResult'); if (res) res.classList.add('hidden');
+  if (b) { b.disabled = false; b.classList.add('hidden'); }
+  S.execPassM = null; S.execTimeSec = null;   // force re-picking a pass
+  showPhase(2);
 }
 
-function payload() { return { scid: S.scid, command: S.command, params: S.params, valueConfirmed: S.valueConfirmed, rf: S.rf }; }
-async function postJSON(url, body) {
-  try { return await (await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json(); }
-  catch (e) { return { ok: false, error: String(e) }; }
+// ── boot ─────────────────────────────────────────────────────────────────────
+function boot() {
+  renderTleRaw(); wireNav();
+  var ub = $('#uplinkBtn'); if (ub) ub.onclick = doUplink;
+  var rb = $('#retryBtn'); if (rb) rb.onclick = doRetry;
 }
-
 boot();

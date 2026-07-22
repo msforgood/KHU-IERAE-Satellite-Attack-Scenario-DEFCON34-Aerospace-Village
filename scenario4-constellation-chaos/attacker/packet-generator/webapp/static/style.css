@@ -225,10 +225,20 @@ input[type=number]{background:#0a121c;border:1px solid var(--line);color:#eaf2fb
 .bigbtn:not(:disabled):hover{filter:brightness(1.1)}
 
 /* ═══════════ PHASE B extras ═══════════ */
-.objbar{display:flex;gap:16px;align-items:center;margin:16px 16px 0;padding:14px 20px;
-  background:linear-gradient(90deg,rgba(57,197,255,.08),rgba(19,28,40,.5));
-  border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;font-size:16px;color:#dbe6f2}
+/* per-phase instruction bar: strongly highlighted so participants always see WHAT TO DO */
+.objbar{display:flex;gap:16px;align-items:center;margin:16px 16px 0;padding:16px 22px;
+  background:linear-gradient(90deg,rgba(57,197,255,.17),rgba(19,28,40,.55));
+  border:1px solid rgba(57,197,255,.5);border-left:6px solid var(--accent);border-radius:12px;
+  font-size:16.5px;line-height:1.55;color:#eaf3fb;
+  box-shadow:0 0 0 1px rgba(57,197,255,.12),0 6px 22px rgba(57,197,255,.12);
+  animation:objglow 3.2s ease-in-out infinite}
 .objbar b{color:#fff}
+.objbar .phasetag{margin:0;background:var(--accent);color:#04121e;border-color:var(--accent);
+  box-shadow:0 0 12px rgba(57,197,255,.5);white-space:nowrap}
+.objbar span:not(.phasetag)::before{content:'▶ ';color:var(--accent);font-weight:800}
+@keyframes objglow{0%,100%{box-shadow:0 0 0 1px rgba(57,197,255,.12),0 4px 18px rgba(57,197,255,.08)}
+  50%{box-shadow:0 0 0 1px rgba(57,197,255,.34),0 8px 28px rgba(57,197,255,.24)}}
+@media(prefers-reduced-motion:reduce){.objbar,.todobox{animation:none}}
 #frameProg{color:var(--accent);font-weight:700}
 .wavehint{font-size:14px;color:var(--dim);margin:-6px 0 12px}
 /* progressive frame: pending vs filled segments */
@@ -384,6 +394,21 @@ h2.mt{margin-top:20px}
 .celebsub b{color:#fff}
 .observebtns{margin-top:22px}
 .observenote{margin-top:14px;font-size:14px;color:var(--dim)}
+/* phase 4 · uplink-in-flight animation (command travelling to the satellite) */
+.observeresult.uplinking{border-color:var(--accent);background:rgba(57,197,255,.08)}
+.uplinkanim{padding:10px 4px}
+.ua-row{display:flex;align-items:center;justify-content:center}
+.ua-gs,.ua-sat{font-size:40px;line-height:1}
+.ua-sat{animation:uawiggle 1.5s ease-in-out infinite}
+@keyframes uawiggle{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.ua-beam{position:relative;flex:1;max-width:300px;height:4px;margin:0 16px;border-radius:2px;
+  background:linear-gradient(90deg,rgba(57,197,255,.12),rgba(57,197,255,.28))}
+.ua-beam i{position:absolute;top:50%;margin-top:-6px;width:12px;height:12px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 12px var(--accent);animation:uapacket 1.4s linear infinite}
+.ua-beam i:nth-child(2){animation-delay:.35s}.ua-beam i:nth-child(3){animation-delay:.7s}.ua-beam i:nth-child(4){animation-delay:1.05s}
+@keyframes uapacket{0%{left:-2%;opacity:0}12%{opacity:1}88%{opacity:1}100%{left:100%;opacity:0}}
+.ua-label{margin-top:18px;font-size:19px;font-weight:800;letter-spacing:.04em;color:var(--accent)}
+.ua-sub{margin-top:8px;font-size:14px;color:var(--dim);line-height:1.5}
 /* phase 4 · live impact countdown (predicted hit, waiting for monitor 2 to confirm) */
 .observeresult.counting{border-color:var(--amber);background:rgba(255,176,32,.09)}
 .observeresult.counting.impact{border-color:var(--danger);background:rgba(255,59,78,.12);animation:cdimpact .5s ease-in-out infinite}
@@ -503,5 +528,273 @@ h2.mt{margin-top:20px}
 .passstatus{font-size:14px;color:var(--dim)}
 .passstatus.ok{color:var(--ok)} .passstatus.err{color:var(--danger)}
 @media(max-width:1100px){.uplinkwrap2{grid-template-columns:1fr}}
+
+/* ═══════════ SCENARIO 5 · orbital collision UI ═══════════ */
+.simlegend .lg-tgt{background:var(--danger);box-shadow:0 0 0 1.5px #ff8a95}
+/* phase 1 intel */
+.intelwrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px}
+.tleraw{background:#0a121c;border:1px solid var(--line);border-radius:9px;padding:14px;font-family:var(--mono);font-size:13px;color:#bcd;white-space:pre;overflow:auto;line-height:1.55}
+.inteltable{min-height:120px}
+.intelgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.intelcard{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:14px}
+.intelname{font-size:17px;font-weight:800;color:#eaf2fb;margin-bottom:10px}
+.intelrow{display:flex;justify-content:space-between;padding:6px 0;font-size:14px;border-bottom:1px solid rgba(30,43,58,.5)}
+.intelrow:last-child{border-bottom:none}.intelrow span{color:var(--dim)}.intelrow b{color:#eaf2fb}
+.intelread{margin-top:14px;padding:12px 14px;background:rgba(57,197,255,.08);border:1px solid rgba(57,197,255,.3);border-radius:9px;font-size:14px;line-height:1.6;color:#cfe6f6}
+.intelread b{color:#fff}
+/* phase 2 geometry (stage 1) */
+.stagewrap{display:grid;grid-template-columns:2fr 340px;gap:16px;padding:16px}
+.stagesim{width:100%;height:520px;display:block;border-radius:9px;background:#050b12}
+.stagectl{align-self:start;display:flex;flex-direction:column;gap:14px}
+.ctlblock{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:12px}
+.ctlhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.ctlname{font-size:15px;font-weight:800;letter-spacing:.04em;color:#eaf2fb}
+.ctltag{font-size:12px;color:var(--dim)}
+.axctl{display:flex;gap:8px;align-items:stretch}
+.axinput{flex:1;background:#0a121c;border:1px solid var(--line);border-radius:7px;color:#eaf2fb;font-size:20px;font-family:var(--mono);text-align:center;padding:8px;min-width:0}
+.stepbtn{width:44px;border:1px solid var(--line);border-radius:7px;background:#0f1a26;color:var(--accent);font-size:20px;cursor:pointer}
+.stepbtn:hover{border-color:var(--accent);background:rgba(57,197,255,.12)}
+.ctlunit{margin-top:6px;font-size:12px;color:var(--dim)}
+.moidbox{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:14px;text-align:center}
+.moidbox.locked{border-color:var(--danger);background:rgba(255,59,78,.1);animation:moidpulse 1s ease-in-out infinite}
+@keyframes moidpulse{50%{box-shadow:0 0 30px rgba(255,59,78,.35)}}
+.moidlabel{font-size:11px;letter-spacing:.06em;color:var(--dim)}
+.moidval{margin:6px 0;font-family:var(--mono)}.moidval b{font-size:40px;color:var(--amber)}.moidval span{font-size:18px;color:var(--dim);margin-left:4px}
+.moidbox.locked .moidval b{color:var(--danger)}
+.moidrail{height:8px;border-radius:5px;background:#0a121c;border:1px solid var(--line);overflow:hidden;margin:8px 0}
+.moidrail i{display:block;height:100%;width:3%;background:linear-gradient(90deg,var(--amber),var(--danger));transition:width .1s}
+.moidstate{font-size:13px;color:var(--dim)}.moidbox.locked .moidstate{color:#ffb3bb}
+.hitpanel{background:#0a121c;border:1px solid var(--line);border-radius:9px;padding:12px}
+.hitrow{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:13px;border-bottom:1px solid rgba(30,43,58,.5)}
+.hitrow:last-child{border-bottom:none}.hitrow span{color:var(--dim)}.hitrow b{color:#eaf2fb;font-family:var(--mono);text-align:right}
+.placeholder{margin:40px 16px;padding:40px;text-align:center;color:var(--dim);border:1px dashed var(--line);border-radius:10px;font-size:16px}
+/* phase 3 timing (stage 2) */
+.gapbox{background:var(--panel2);border:1px solid var(--amber);border-radius:9px;padding:14px;text-align:center}
+.gaplabel{font-size:11px;letter-spacing:.06em;color:var(--dim)}
+.gapval{margin:4px 0;font-family:var(--mono)}.gapval b{font-size:34px;color:var(--amber)}.gapval span{font-size:16px;color:var(--dim);margin-left:3px}
+.gapdesc{font-size:13px;color:#cfe6f6;line-height:1.5;margin-top:6px}.gapdesc b{color:#fff}
+.dirtoggle{display:flex;gap:8px}
+.dirbtn{flex:1;padding:9px;border:1px solid var(--line);border-radius:7px;background:#0f1a26;color:var(--dim);font-size:13px;font-weight:700;cursor:pointer}
+.dirbtn.active{border-color:var(--accent);color:var(--accent);background:rgba(57,197,255,.14)}
+.timingcanvas{width:100%;height:200px;display:block;background:#0a121c;border:1px solid var(--line);border-radius:9px}
+.timingnote{margin-top:10px;font-size:13px;color:var(--dim);line-height:1.5}.timingnote b{color:#cfe6f6}
+/* phase 4 packet byte map */
+.pktwrap{display:grid;grid-template-columns:1fr 380px;gap:16px;padding:16px}
+.pkthex{display:flex;flex-wrap:wrap;gap:6px;font-family:var(--mono);margin-bottom:14px}
+.pb{width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:6px;font-size:15px;border:1px solid var(--line);background:#0a121c;color:#cfe0f0}
+.pg-hdr{border-color:#33445a;color:#8fa5c0}
+.pg-fc{border-color:var(--danger);background:rgba(255,59,78,.16);color:#ffb3bb;font-weight:800}
+.pg-time{border-color:var(--amber);background:rgba(255,176,32,.14);color:#ffd9a0}
+.pg-dv{border-color:var(--accent);background:rgba(57,197,255,.14);color:#bfe6ff}
+.pg-mode{border-color:#a06cff;background:rgba(160,108,255,.14);color:#d9c4ff}
+.pg-chk{border-color:#33445a;color:#7f92a6}
+.pktlegend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--dim)}
+.pktlegend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid}
+.pktlegend .pg-hdr{background:#0a121c}.pktlegend .pg-fc{background:rgba(255,59,78,.16)}.pktlegend .pg-time{background:rgba(255,176,32,.14)}
+.pktlegend .pg-dv{background:rgba(57,197,255,.14)}.pktlegend .pg-mode{background:rgba(160,108,255,.14)}.pktlegend .pg-chk{background:#0a121c}
+.pktfields{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
+.pktfield{display:grid;grid-template-columns:52px 1fr auto;gap:8px;align-items:center;padding:7px 9px;border-radius:7px;background:#0a121c;border-left:3px solid var(--line);font-size:12px}
+.pktfield.pg-fc{border-left-color:var(--danger)}.pktfield.pg-time{border-left-color:var(--amber)}.pktfield.pg-dv{border-left-color:var(--accent)}.pktfield.pg-mode{border-left-color:#a06cff}
+.pkoff{font-family:var(--mono);color:var(--dim)}.pklbl{color:#cfe0f0}.pktfield b{font-family:var(--mono);color:#eaf2fb;white-space:nowrap}
+.pktcall{background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.3);border-radius:9px;padding:12px;font-size:13px;line-height:1.7;color:#ffd9a0;margin-bottom:14px}
+.pktcall b{color:#fff}
+@media(max-width:1100px){.stagewrap{grid-template-columns:1fr}.intelwrap{grid-template-columns:1fr}.pktwrap{grid-template-columns:1fr}.solvewrap{grid-template-columns:1fr}}
+
+/* ═══════════ SCENARIO 5 · LIVE FORMULA PANELS ═══════════ */
+/* a full-width band under each stage that shows the ACTUAL orbital-mechanics
+   equations with the participant's live values substituted in real time. */
+.formulasec{margin:0 16px 4px;padding:16px 18px}
+.formulahead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.formulahead h2{margin:0}
+.formulahead .fhsub{font-size:13px;color:var(--dim);letter-spacing:.02em;text-transform:none;font-weight:400}
+/* which knob drives which symbol */
+.knobmap{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 16px}
+.knobchip{font-size:12.5px;padding:6px 11px;border-radius:7px;background:#0a121c;border:1px solid var(--line);color:var(--dim)}
+.knobchip b{color:var(--star)} .knobchip i{color:var(--accent);font-style:normal;font-family:var(--mono)}
+/* equation chain: responsive columns so the whole pipeline is visible at a glance */
+.feqgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.feq{background:#0a121c;border:1px solid var(--line);border-radius:9px;padding:12px 14px;border-left:3px solid var(--line)}
+.feq.drive{border-left-color:var(--star)}      /* equation a knob feeds directly */
+.feqhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:9px}
+.feqt{font-size:13.5px;color:#eaf2fb;font-weight:700;letter-spacing:.02em}
+.feqc{font-size:11.5px;color:var(--dim);white-space:nowrap}
+.feqsym{font-size:19px;color:#cfe0f0;line-height:1.6;letter-spacing:.01em}
+.feqsub{margin-top:8px;font-size:14px;color:var(--dim);line-height:1.7;font-family:var(--mono)}
+.fvar{color:var(--star);font-weight:700}        /* a value the participant controls */
+.fout{color:var(--ok);font-weight:700}          /* the value this equation produces */
+.fconst{color:#8fa5c0}                          /* a physical constant */
+.feqwhy{margin-top:9px;font-size:12.5px;color:#9fb3c8;line-height:1.55}
+/* inline fraction (numerator over denominator with a rule) */
+.frac{display:inline-flex;flex-direction:column;text-align:center;vertical-align:middle;margin:0 4px}
+.frac>.fn{padding:0 6px 1px}
+.frac>.fd{padding:1px 6px 0;border-top:1.5px solid currentColor}
+/* inline square root: a √ glyph plus an overline (vinculum) over the radicand */
+.rt{display:inline-flex;align-items:stretch;vertical-align:middle}
+.rt::before{content:'√';font-size:1.05em;line-height:1}
+.rt>.rb{border-top:1.5px solid currentColor;padding:2px 4px 0;margin-top:.05em}
+/* the "what physically happens" callout under the chain */
+.fx{margin-top:14px;padding:11px 14px;border-left:4px solid var(--amber);background:rgba(255,176,32,.06);
+  border-radius:0 8px 8px 0;font-size:14px;line-height:1.65;color:#ffd9a0}
+.fx b{color:#fff}
+.fx + .fx{margin-top:8px}
+.fx.acc{border-left-color:var(--accent);background:rgba(57,197,255,.06);color:#cfe6f6}
+.fx.acc b{color:#fff}
+@media(max-width:1100px){.feqgrid{grid-template-columns:1fr}}
+
+/* ═══════════ SCENARIO 5 v2 · REVERSED 4-PHASE FLOW ═══════════ */
+/* PHASE 2 · propagate + time */
+.timescrub{margin-top:12px;background:#0a121c;border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+.tsrow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.tslabel{font-size:12px;letter-spacing:.12em;color:var(--dim)}
+.tsrow b{font-family:var(--mono);font-size:18px;color:var(--accent)}
+.tslider{width:100%;-webkit-appearance:none;height:10px;border-radius:6px;background:#0a1622;border:1px solid var(--line);outline:none}
+.tslider::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#eaf2fb;border:4px solid var(--accent);cursor:pointer}
+.tshint{margin-top:8px;font-size:12.5px;color:var(--dim);line-height:1.5}.tshint b{color:#cfe6f6}
+.keplerbox{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:12px}
+.kbtitle{font-size:11px;letter-spacing:.1em;color:var(--accent);font-weight:800;margin-bottom:10px}
+.krow{padding:8px 0;border-bottom:1px solid rgba(30,43,58,.5)}.krow:last-child{border-bottom:none}
+.kname{font-size:13px;font-weight:700;color:#eaf2fb;margin-bottom:5px}
+.kcell{display:inline-flex;flex-direction:column;margin-right:16px;font-family:var(--mono)}
+.kcell span{font-size:11px;color:var(--dim)}.kcell b{font-size:14px;color:#cfe0f0}
+.passbox{margin-top:12px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:12px}
+.passlabel{font-size:11px;letter-spacing:.08em;color:var(--dim);margin-bottom:8px}
+.passintro{font-size:12.5px;color:#9fb3c8;line-height:1.6;margin-bottom:12px;padding:9px 11px;background:rgba(57,197,255,.06);border-left:3px solid var(--accent);border-radius:0 7px 7px 0}
+.passintro b{color:#cfe6f6}
+.passlist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.passrow{display:flex;flex-direction:column;gap:4px;align-items:flex-start;padding:9px 11px;border-radius:8px;background:#0a121c;border:1px solid var(--line);font-size:13px}
+.passrow.ok{cursor:pointer;border-left:3px solid var(--ok)}.passrow.ok:hover{border-color:var(--accent)}
+.passrow.no{opacity:.5;border-left:3px solid var(--line)}
+.passrow.sel{border-color:var(--danger);box-shadow:inset 0 0 0 1px var(--danger)}
+.passrow .pt{font-weight:700;color:#eaf2fb}.passrow .ptime{font-family:var(--mono);color:var(--dim);font-size:12px}
+.passrow .ptag{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--ok)}.passrow.no .ptag{color:var(--dim)}
+.feasnote{margin-top:10px;font-size:12.5px;color:var(--dim);line-height:1.55}.feasnote b{color:#ffd9a0}
+/* phase 2 · task + hint system */
+/* Phase 2 · YOUR TASK: highlighted to match the instruction bar so the action is unmissable */
+.todobox{background:linear-gradient(90deg,rgba(57,197,255,.15),rgba(19,28,40,.5));
+  border:1px solid rgba(57,197,255,.5);border-left:6px solid var(--accent);border-radius:10px;padding:14px 16px;
+  box-shadow:0 0 0 1px rgba(57,197,255,.12),0 6px 20px rgba(57,197,255,.12);
+  animation:objglow 3.2s ease-in-out infinite}
+.todolabel{display:inline-block;font-size:12px;letter-spacing:.12em;color:#04121e;font-weight:800;
+  background:var(--accent);border-radius:6px;padding:4px 11px;margin-bottom:11px;box-shadow:0 0 12px rgba(57,197,255,.45)}
+.todolist{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:7px;font-size:13px;line-height:1.55;color:#c4d3e2}
+.todolist li b{color:#fff}
+.timewindow{margin-top:11px;padding:9px 11px;border-radius:8px;background:#0a121c;border:1px solid var(--line);font-size:13px;line-height:1.5;color:#9fb3c8}
+.timewindow.ok{border-color:var(--ok);background:rgba(51,209,122,.1);color:#a7ecc6}
+.timewindow b{color:#eaf2fb}.timewindow.ok b{color:#dfffdf}
+.hintrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.hintbtn2{padding:9px 10px;border:1px solid var(--star);border-radius:8px;background:rgba(255,210,63,.08);
+  color:var(--star);font-family:var(--mono);font-weight:700;font-size:12.5px;cursor:pointer;line-height:1.3}
+.hintbtn2:hover{background:rgba(255,210,63,.18)}
+/* toggled ON: filled amber so the active state reads at a glance */
+.hintbtn2.on{background:var(--star);border-color:var(--star);color:#0a0f16;box-shadow:0 0 0 1px var(--star)}
+.hintbtn2.on:hover{background:var(--star);filter:brightness(1.05)}
+.hintbtn2.used{border-color:var(--line);color:var(--dim);background:rgba(255,210,63,.04)}
+.hintmsg{padding:10px 12px;border-radius:8px;background:rgba(255,210,63,.08);border:1px solid rgba(255,210,63,.3);
+  font-size:12.5px;line-height:1.6;color:#ffd9a0}
+.hintmsg b{color:#fff}
+
+/* PHASE 3 · solve — left column (sim + equation chain, same width) + right controls */
+.solvewrap{display:grid;grid-template-columns:1fr 372px;gap:16px;padding:16px;align-items:start}
+.puzzlecol{align-self:start}
+.solvesim{width:100%;height:300px;display:block;border-radius:9px;background:#050b12;transition:box-shadow .2s}
+.solvesim.simpulse{animation:simpulse .7s ease-out}
+@keyframes simpulse{0%{box-shadow:0 0 0 0 rgba(57,197,255,.55)}100%{box-shadow:0 0 0 14px rgba(57,197,255,0)}}
+.solvectl{align-self:start;display:flex;flex-direction:column;gap:14px}
+/* equation chain directly under the sim, matching its width */
+.chainhead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:16px 0 12px}
+.chainhead h2{margin:0}
+.chaingrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.chainempty{grid-column:1/-1;color:var(--dim);font-size:14px;font-style:italic;padding:14px;border:1px dashed var(--line);border-radius:9px}
+/* dependency arrows: each result → the next equation that uses it. Faint by default,
+   bright on card hover or while a variable is being tuned (hover/tune highlight). */
+.chainarrows{position:absolute;left:0;top:0;pointer-events:none;z-index:9;overflow:visible;color:var(--accent)}
+/* solve-chain arrows: thin faint guides by default so they never obscure the cards */
+.chainarrow{fill:none;stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 5;opacity:.3;
+  transition:opacity .16s,stroke-width .16s}
+.chainarrow.hot{opacity:1;stroke-width:2.6}
+.chainstart{fill:var(--accent);opacity:.3;transition:opacity .16s}
+.chainstart.hot{opacity:1}
+/* labels are HIDDEN by default (no clutter) and appear large + readable only on hover */
+.chainlabel{opacity:0;transition:opacity .16s}
+.chainlabel.hot{opacity:1}
+.chainlabel rect{fill:#071019;stroke:var(--accent);stroke-width:1.6}
+.chainlabel text{fill:#eafaff;font-family:"Segoe UI",system-ui,sans-serif;font-weight:800;font-size:15px}
+/* perturbation arrows: hidden until you hover the card */
+.chainarrow.pert,.chainstart.pert{opacity:0}
+.chainarrow.pert.hot{opacity:1;stroke-width:2.6}
+.chainstart.pert.hot{opacity:1}
+.chainpool{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
+.ccard{border:1px solid var(--line);border-radius:9px;background:#0a121c;cursor:pointer;transition:.15s}
+.ccard.placed{padding:11px 12px;border-left:3px solid var(--ok);display:flex;flex-direction:column;min-width:0}
+.ccard.placed:hover{border-color:var(--accent)}
+.ccard.pool{padding:10px 13px;display:flex;flex-direction:column;gap:2px}
+.ccard.pool:hover{border-color:var(--accent);background:#0f1a26}
+.ccard.pool .ct{font-size:13px;color:#eaf2fb}.ccard.pool .cpc{font-size:11px;color:var(--dim)}
+.cchead{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.cnum{width:22px;height:22px;border-radius:50%;background:var(--ok);color:#001018;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex:0 0 auto}
+/* perturbation cards (the 섭동력 group expands into these): amber ∿ badge + amber edge */
+.cnum.pgroup{background:rgba(255,210,63,.2);color:var(--star);font-size:15px}
+.ccard.pcard{border-left-color:rgba(255,210,63,.6)}
+.cchead .ct{font-size:13px;font-weight:700;color:#eaf2fb;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cdrv{font-size:10px;color:var(--star);background:rgba(255,210,63,.1);border:1px solid rgba(255,210,63,.3);border-radius:5px;padding:2px 6px;white-space:nowrap}
+.cexp{width:20px;height:20px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--accent);font-size:12px;cursor:pointer;flex:0 0 auto;line-height:1}
+.cexp:hover{background:rgba(57,197,255,.14);border-color:var(--accent)}
+.ccard .csym{font-size:15.5px;color:#cfe0f0;line-height:1.5}
+.ccard .cout{margin-top:8px;font-size:13px;color:#cfe0f0;font-family:var(--mono);border-top:1px dashed rgba(30,43,58,.7);padding-top:7px}
+.cout .colabel{color:var(--dim);font-size:11px;margin-right:4px;font-family:inherit}
+.cfeedchip{margin-top:7px;font-size:11px;color:var(--accent);letter-spacing:.02em}
+.ccard.justplaced{animation:cardpop .75s ease-out}
+@keyframes cardpop{0%{transform:scale(.8);opacity:.2;box-shadow:0 0 0 0 rgba(51,209,122,.6)}
+  45%{transform:scale(1.05);box-shadow:0 0 0 8px rgba(51,209,122,.35)}100%{transform:scale(1);box-shadow:0 0 0 0 rgba(51,209,122,0)}}
+/* detail drawer */
+.cardexplain{margin-top:14px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:14px 16px;min-height:80px}
+.cetitle{font-size:15px;font-weight:700;color:var(--accent);margin-bottom:10px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.cetitle .cesymsm{font-size:17px;color:#cfe0f0;font-weight:400}
+.cesec{margin-bottom:11px}.cesec:last-child{margin-bottom:0}
+.cel{display:block;font-size:10.5px;letter-spacing:.1em;color:var(--dim);font-weight:800;margin-bottom:5px}
+.cet{font-size:13.5px;color:#c4d3e2;line-height:1.6}
+.cevars{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:6px 18px}
+.cev{display:flex;gap:8px;font-size:13px;line-height:1.5}
+.cev b{color:var(--star);font-family:var(--mono);white-space:nowrap;flex:0 0 auto;min-width:64px}
+.cev span{color:#9fb3c8}
+.ceflash{background:rgba(255,176,32,.14);border:1px solid var(--amber);color:#ffd9a0;border-radius:7px;padding:8px 11px;margin-bottom:10px;font-size:13px}
+@media(max-width:1100px){.solvewrap{grid-template-columns:1fr}}
+.ctlblock.locked{opacity:.5;pointer-events:none}
+.ctlblock.locked .ctltag{color:var(--dim)}
+/* label spans two rows on the left; the stepper sits top-right and its unit hint
+   sits directly under it. The control column is 1fr (not auto), so the number input
+   can never push the "+" button past the panel edge. */
+.varrow{display:grid;grid-template-columns:110px minmax(0,1fr);
+  grid-template-areas:"label control" "label unit";column-gap:10px;row-gap:4px;align-items:center;padding:8px 0}
+.varrow .vk{grid-area:label;font-size:13px;color:var(--accent)}
+.varrow .vu{grid-area:unit;font-size:11px;color:var(--dim)}
+.varrow .axctl{grid-area:control;display:flex;gap:6px;min-width:0}
+.varrow .axinput{min-width:0}
+.gaugewrap{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.gauge{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:12px;text-align:center}
+.gauge.lock{border-color:var(--ok);background:rgba(51,209,122,.1)}
+.gauge .gl{font-size:11px;letter-spacing:.05em;color:var(--dim)}
+.gauge .gv{margin:4px 0;font-family:var(--mono)}.gauge .gv b{font-size:30px;color:var(--amber)}.gauge .gv span{font-size:13px;color:var(--dim);margin-left:3px}
+.gauge.lock .gv b{color:var(--ok)}
+.grail{height:7px;border-radius:5px;background:#0a121c;border:1px solid var(--line);overflow:hidden}
+.grail i{display:block;height:100%;width:3%;background:linear-gradient(90deg,var(--amber),var(--ok));transition:width .12s}
+.solvestate{font-size:13.5px;color:var(--dim);padding:10px 12px;border-radius:8px;background:#0a121c;border:1px solid var(--line)}
+.solvestate.lock{color:var(--ok);border-color:var(--ok);background:rgba(51,209,122,.1);font-weight:700}
+.thrsel{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.thropt{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:#0a121c;cursor:pointer}
+.thropt:hover{border-color:var(--accent)}.thropt.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.thropt b{display:block;font-size:14px;color:#eaf2fb}.thropt span{font-family:var(--mono);font-size:13px;color:var(--accent)}
+.thropt i{display:block;font-style:normal;font-size:12px;color:var(--dim);margin-top:3px}
+.burnpanel{background:#0a121c;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.brow{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:13px;border-bottom:1px solid rgba(30,43,58,.5)}
+.brow:last-child{border-bottom:none}.brow span{color:var(--dim)}.brow b{color:#eaf2fb;font-family:var(--mono)}
+.bdim{color:var(--dim)!important;font-weight:400}
+.bnote{margin-top:8px;font-size:11.5px;color:var(--dim);line-height:1.5}
+@media(max-width:1100px){.solvewrap{grid-template-columns:1fr}}
+
+/* PHASE 4 · packet actuation colour (in addition to existing pg-* colours) */
+.pg-act{border-color:#33d17a;background:rgba(51,209,122,.12);color:#a7ecc6}
+.pktlegend .pg-act{background:rgba(51,209,122,.12)}
+.pktfield.pg-act{border-left-color:var(--ok)}
 
 
