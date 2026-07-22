@@ -17,8 +17,19 @@
         <div class="sub">passive intercept / downlink 433.500 MHz / <span id="clock">--:--:--</span></div>
       </div>
     </div>
-    <div class="linkinfo"><span>SCENARIO 1 / EAVESDROP</span><span class="dot"></span><span>RX ONLY</span></div>
+    <div class="linkinfo"><span>SCENARIO 1 / EAVESDROP</span><span class="dot"></span><span>RX ONLY</span>
+      <button id="resetAllBtn" class="resetall" title="Reset gpredict, VSA, GNU Radio and this page to the initial state so the next participant starts identically">⟳ Reset for next participant</button>
+    </div>
   </header>
+
+  <!-- Full-screen overlay shown while the demo resets (containers recreate ~40s) -->
+  <div id="resetOverlay" class="reset-overlay hidden">
+    <div class="reset-box">
+      <div class="reset-spinner"></div>
+      <div class="reset-title">Resetting the demo to the initial state</div>
+      <div class="reset-sub">Recreating gpredict and GNU Radio, clearing the recorded signal. Please wait <span id="resetCountdown">45</span>s ...</div>
+    </div>
+  </div>
 
   <!-- ═══════════ STEP INDICATOR ═══════════ -->
   <nav id="stepper" class="stepper"></nav>
@@ -427,15 +438,15 @@
   <!-- ═══════════ PHASE 7 / RESULT═══════════ -->
   <section id="p-result" class="phase hidden">
     <div class="wrap wide">
-      <div class="phasetag" data-tag="RESULT">PHASE 7 / RESULT</div>
+      <div class="phasetag" data-tag="RESULT">RESULT / RECOVERED IMAGE</div>
       <h1 class="ptitle">Recovered: ENIGMA-1 downlink image</h1>
       <div class="objbar"><span class="phasetag sm">DECODE</span>
         <span>FSK demod → AX.25 deframe → sequence reassembly → DEFLATE. A satellite image recovered by passive reception alone.</span></div>
 
       <div class="resultwrap">
         <div class="resultcard">
-          <div class="rcaption">enigma1_image_org.png / recovered</div>
-          <div class="imgframe"><img id="resultImg" src="/assets/result.png" alt="recovered ENIGMA-1 image"></div>
+          <div class="rcaption">military-airbase.png / recovered by passive reception</div>
+          <div class="imgframe"><img id="resultImg" src="/decoded.png" onerror="this.onerror=null;this.src='/assets/result.png'" alt="recovered ENIGMA-1 image"></div>
           <div class="donebadge">✅ DECODE COMPLETE</div>
         </div>
         <div class="recap">
