@@ -9,7 +9,7 @@ Decoder chain:  slice -> nrzi_decode -> descrambler_bb(0x21,0,16) -> hdlc_defram
 Encoder chain:  hdlc_framer_pb -> scrambler_bb(0x21,0,16) -> nrzi_encode -> GFSK
 
 Frame format (matches the reassembly block):
-  Image 192x128 grayscale('L') raw (24576B)
+  Image 486x320 grayscale('L') raw (155520B)
     -> zlib.compress -> [4B BE length][compressed data] = payload
     -> split payload into CHUNK-sized pieces, prefix each chunk with [2B BE seq]
     -> AX.25 UI frame = [dest7][src7][ctrl 0x03][pid 0xF0][2B seq][chunk]
@@ -38,7 +38,7 @@ FS = 96000        # sample rate (start.sh patches grc samp_rate 0.05e6 -> 0.096e
 BAUD = 9600
 DEV = 2400        # deviation (h = 2*dev/baud = 0.5, GFSK BT=0.5)
 SPS = FS // BAUD  # 10
-IMG_W, IMG_H = 192, 128
+IMG_W, IMG_H = 486, 320
 
 
 def ax25_addr(call, ssid, last):
@@ -99,7 +99,7 @@ def main():
     ap.add_argument('image')
     ap.add_argument('out_cf32')
     ap.add_argument('--reps', type=int, default=2, help='frame burst repetitions (default 2)')
-    ap.add_argument('--chunk', type=int, default=200, help='AX.25 info chunk bytes (default 200)')
+    ap.add_argument('--chunk', type=int, default=250, help='AX.25 info chunk bytes (250 = the demod recovers every frame for military-airbase.png; some sizes hit a demod bit-pattern weakness and drop frames)')
     a = ap.parse_args()
 
     frames, comp_len = build_frames(a.image, a.chunk)
