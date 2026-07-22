@@ -26,9 +26,12 @@ const S = {
 let RFA = null;
 let timerRF = null;
 const RF_FIELDS = [
-  { key: "modulation", label: "MODULATION", text: (t) => t.modulation, val: (t) => t.modulation },
-  { key: "baud", label: "BAUD RATE", text: (t) => t.baud + " bps", val: (t) => t.baud },
-  { key: "sampleRate", label: "SAMPLE RATE", text: (t) => t.sampleRate / 1000 + " kSa/s", val: (t) => t.sampleRate },
+  { key: "modulation", label: "MODULATION", text: (t) => t.modulation, val: (t) => t.modulation,
+    desc: "How bits ride the carrier. DEMOSAT uses <b>OOK</b> (On-Off Keying): carrier on = 1, off = 0 — the simplest scheme." },
+  { key: "baud", label: "BAUD RATE", text: (t) => t.baud + " bps", val: (t) => t.baud,
+    desc: "<b>Symbols per second.</b> The SDR must clock at this exact rate to slice the carrier back into bits." },
+  { key: "sampleRate", label: "SAMPLE RATE", text: (t) => t.sampleRate / 1000 + " kSa/s", val: (t) => t.sampleRate,
+    desc: "<b>I/Q samples captured per second.</b> High enough to faithfully reconstruct the carrier (Nyquist)." },
 ];
 function rfAutoReset() {
   clearTimeout(timerRF);
@@ -412,10 +415,7 @@ function renderBlock(zone) {
     zone.innerHTML = `
       <div class="cblock sub-${sub}">
         <div class="cbrow">
-          <span class="cbkw">send</span>
-          <span class="cbpicktag">${sub} — choose a command${
-            SUB_FULL[sub] ? `<span class="cbsubfull">${SUB_FULL[sub]}</span>` : ""
-          }</span>
+          <span class="cbpicktag">${sub}${SUB_FULL[sub] ? `<span class="cbsubfull">${SUB_FULL[sub]}</span>` : ""}</span>
           <button class="cbx" title="remove block">✕</button>
         </div>
         <div class="cbpicklist"></div>
@@ -442,7 +442,6 @@ function renderBlock(zone) {
       </div>
       <div class="cbargs"></div>
       <div class="cbmsg"></div>
-      <div class="cbdanger hidden" id="danger"></div>
     </div>`;
   zone.querySelector(".cbx").onclick = clearBlock;
   zone.querySelector(".cbchg").onclick = changeCommand;
@@ -464,17 +463,6 @@ function renderArgs(scope) {
     box.appendChild(el("div", "cbnopay", "↳ no payload — this command carries no value"));
     box.appendChild(effectBox(c));
     return;
-  }
-  const goal = c.fields.find((f) => f.safeAbsMax != null);
-  if (goal) {
-    box.appendChild(
-      el(
-        "div",
-        "cbgoal",
-        `🎯 <b>ATTACK GOAL</b> — a <b>safe</b> ${goal.key} is within <b>±${goal.safeAbsMax}${goal.unit || ""}</b>.
-       Abuse it: type a value in the <b>RED</b> zone (e.g. <b>${goal.default}${goal.unit || ""}</b>).`,
-      ),
-    );
   }
   c.fields.forEach((f) => box.appendChild(argRow(f)));
   box.appendChild(effectBox(c));
@@ -499,7 +487,7 @@ function argRow(f) {
   const raw = S.valText[f.key] != null ? S.valText[f.key] : "";
   const p = parseVal(f, raw);
   // a valid-but-over-safe number is the attack goal, not an error → stays "good";
-  // the RED zone tag + pulsing danger banner carry the "armed" signal instead.
+  // the RED zone tag carries the "armed" signal instead.
   const cls = p.ok ? "good" : p.bad ? "bad" : "";
   if (f.type === "toggle") {
     row.innerHTML = `<span class="cbflag">--${f.key}</span>
@@ -509,10 +497,17 @@ function argRow(f) {
     let zone = "";
     if (f.safeAbsMax != null && p.ok)
       zone = p.over ? '<span class="cbzone danger">⚠ RED</span>' : '<span class="cbzone safe">✓ safe</span>';
+    // ATTACK GOAL hint — appears to the RIGHT of the unit only while the value input
+    // is focused (see .cbarg:focus-within .cbgoal in the CSS). Shown only for the
+    // safety-bounded field, since that's the one the visitor abuses.
+    const goalHint =
+      f.safeAbsMax != null
+        ? `<span class="cbgoal">🎯 <b>ATTACK GOAL</b> — a <b>safe</b> ${f.key} is within <b>±${f.safeAbsMax}${f.unit || ""}</b>. Abuse it: type a value in the <b>RED</b> zone (e.g. <b>${f.default}${f.unit || ""}</b>).</span>`
+        : "";
     row.innerHTML = `<span class="cbflag">--${f.key}</span>
        <input class="cbval ${cls}" data-key="${f.key}" data-type="num" inputmode="numeric" spellcheck="false"
               autocomplete="off" placeholder="type ${f.min}…${f.max}" value="${escapeAttr(raw)}">
-       <span class="cbunit">${f.unit || ""}</span>${zone}`;
+       <span class="cbunit">${f.unit || ""}</span>${zone}${goalHint}`;
   }
   return row;
 }
@@ -584,15 +579,12 @@ function withFocusPreserved(fn) {
 function bodyRF(body) {
   if (!RFA) rfAutoReset();
   const t = M.target;
-  body.appendChild(
-    el(
-      "div",
-      "rfauto-intro" + (RFA.done ? " done" : ""),
-      RFA.done
-        ? `🔒 <b>RF LOCKED</b> — parameters recovered from the intercepted carrier.`
-        : `🔍 <b>AUTO-DETECT</b> — sniffing the intercepted carrier… RF parameters lock in automatically.`,
-    ),
-  );
+  // Show the auto-detect intro only while sniffing; once locked, drop the banner.
+  if (!RFA.done) {
+    body.appendChild(
+      el("div", "rfauto-intro", `🔍 <b>AUTO-DETECT</b> — sniffing the intercepted carrier… RF parameters lock in automatically.`),
+    );
+  }
   const active = RFA.started && !RFA.done ? RFA.i : -1;
   RF_FIELDS.forEach((f, i) => {
     const row = el("div", "rfrow");
@@ -605,9 +597,9 @@ function bodyRF(body) {
       `<span class="rfval">${escapeAttr(typed)}</span>${i === active ? '<span class="rfcaret">▌</span>' : ""}${complete ? '<span class="rfok">✓</span>' : ""}`,
     );
     row.appendChild(cell);
+    row.appendChild(el("div", "rfdesc", f.desc)); // explanation to the RIGHT of the value
     body.appendChild(row);
   });
-  body.appendChild(modLegend());
   if (!RFA.started) startRFAuto();
 }
 
@@ -650,19 +642,6 @@ function renderRFBody() {
   b.innerHTML = "";
   bodyRF(b);
 }
-// what the three modulation schemes mean — bits → radio wave
-function modLegend() {
-  return el(
-    "div",
-    "modlegend",
-    `<div><b>OOK</b> · On-Off Keying — switch the carrier <b>on/off</b> (on = 1, off = 0).
-       The simplest scheme (a form of amplitude keying); DEMOSAT's UHF receiver uses this.</div>
-     <div><b>BPSK</b> · Binary Phase-Shift Keying — flip the carrier's <b>phase</b> 180° per bit
-       (one phase = 0, the opposite = 1). Amplitude stays constant, so it resists noise well.</div>
-     <div><b>FSK</b> · Frequency-Shift Keying — shift the carrier's <b>frequency</b> per bit
-       (one tone = 0, another tone = 1). The classic dial-up modem sound.</div>`,
-  );
-}
 // ── frame preview (server build) ────────────────────────────────────────────
 let timer = null;
 // The uplink signal is not drawn live: it stays blank until GENERATE is pressed,
@@ -683,13 +662,6 @@ async function build() {
     if (r.ok) {
       bd = r.breakdown;
       wf = r.waveform || [];
-      const d = $("#danger");
-      if (d) {
-        if (r.danger) {
-          d.textContent = r.danger;
-          d.classList.remove("hidden");
-        } else d.classList.add("hidden");
-      }
     }
   }
   renderFrame(bd, st);
