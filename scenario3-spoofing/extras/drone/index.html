@@ -547,15 +547,6 @@
     border-color: var(--warn);
     box-shadow: 0 0 22px rgba(255, 176, 32, 0.35);
   }
-  .cmphint {
-    color: var(--dim);
-    font-size: 13px;
-    margin: 8px 2px 0;
-    font-family: var(--mono);
-  }
-  .cmphint code {
-    color: var(--cyan);
-  }
 </style>
 
 <header>
@@ -733,7 +724,6 @@
       </div>
       <div class="deck">
         <button id="spoofBtn" class="bigbtn" disabled>▶ TRANSMIT SPOOFED BEACON</button>
-        <div class="cmphint" id="hint">Forge all 5 fields to arm the beacon.</div>
       </div>
     </div>
   </div>
@@ -750,7 +740,6 @@
     var beaconLbl = document.getElementById("beaconLbl");
     var screenState = document.getElementById("screenState");
     var screenNote = document.getElementById("screenNote");
-    var hint = document.getElementById("hint");
     var fieldsEl = document.getElementById("fields");
     var frameEl = document.getElementById("frame");
     var progEl = document.getElementById("prog");
@@ -818,11 +807,6 @@
       progEl.textContent = n + " / " + FIELDS.length + " fields forged";
       pfill.style.width = (n / FIELDS.length) * 100 + "%";
       btn.disabled = active ? false : !complete();
-      if (!active) {
-        hint.innerHTML = complete()
-          ? "Beacon armed — <code>POST /api/spoof {on:true}</code> feeds it to the GS dashboard."
-          : "Forge all " + FIELDS.length + " fields to arm the beacon.";
-      }
       pill.textContent = active ? "SPOOF ACTIVE" : "SPOOF INACTIVE";
       pill.classList.toggle("on", active);
       body.classList.toggle("spoofing", active);
@@ -849,8 +833,7 @@
           renderState();
         })
         .catch(function () {
-          pill.textContent = "GS UNREACHABLE";
-          hint.innerHTML = "Could not reach the victim GS at <code>" + GS + "</code> — is it running?";
+          /* GS unreachable — fail silently (no status/notification shown) */
         });
     }
 
