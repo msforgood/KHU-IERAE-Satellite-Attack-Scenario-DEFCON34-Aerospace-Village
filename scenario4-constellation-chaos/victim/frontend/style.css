@@ -135,3 +135,17 @@ body.collision::after{content:'';position:fixed;inset:0;pointer-events:none;z-in
 
 @media(max-width:1100px){.dash{grid-template-columns:1fr}}
 
+/* scenario 5 · CDM conjunction panel (replaces the telemetry GIF) */
+.cdmpanel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column}
+.cdmhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.cdmhead h2{margin:0;font-size:15px;letter-spacing:.04em}
+.cdmstatus{font-size:12px;font-weight:800;padding:3px 10px;border-radius:6px;letter-spacing:.05em}
+.cdmstatus.clear{background:rgba(51,209,122,.16);color:var(--ok)}
+.cdmstatus.red{background:rgba(255,59,78,.18);color:var(--danger);animation:cdmblink .8s step-end infinite}
+@keyframes cdmblink{50%{opacity:.35}}
+.cdmrow{display:flex;justify-content:space-between;gap:10px;padding:9px 0;font-size:14px;border-bottom:1px solid rgba(30,43,58,.5)}
+.cdmrow span{color:var(--dim)}.cdmrow b{color:#eaf2fb;font-family:var(--mono);text-align:right}
+.cdmnote{margin-top:12px;padding:10px 12px;background:#0a121c;border:1px solid var(--line);border-radius:8px;font-size:12.5px;line-height:1.6;color:var(--dim)}
+.cdmnote b{color:#ffb3bb}
+.simlegend .lg-tgt{background:var(--danger);box-shadow:0 0 0 1.5px #ff8a95}
+

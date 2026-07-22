@@ -34,6 +34,7 @@
       <canvas id="playSim" class="playsim"></canvas>
       <div class="simlegend">
         <span><i class="lg-atk"></i> ENIGMA-1</span>
+        <span><i class="lg-tgt"></i> AURORA-2 (primary)</span>
         <span><i class="lg-nbr"></i> AURORA constellation</span>
       </div>
       <!-- debris-cascade video overlay (plays on collision) -->
@@ -42,16 +43,15 @@
         <div class="vcap">⚠ IMPACT - debris cascade across the AURORA constellation</div>
       </div>
     </section>
-      <aside class="hbpanel">
-        <div class="hbhead"><h2>TT&amp;C TELEMETRY</h2><span id="hbStatus" class="hbstatus live">LIVE</span></div>
-        <div class="hbchan"><div class="hblabel">BEACON <span id="hbDot" class="hbdot"></span></div>
-          <canvas id="hbEcg0" class="hbecg" width="440" height="150"></canvas></div>
-        <div class="hbchan"><div class="hblabel">ATTITUDE RATE (deg/s)</div>
-          <canvas id="hbEcg1" class="hbecg" width="440" height="150"></canvas></div>
-        <div class="hbchan"><div class="hblabel">POWER BUS (V)</div>
-          <canvas id="hbEcg2" class="hbecg" width="440" height="150"></canvas></div>
-        <div class="hbchan"><div class="hblabel">DOWNLINK (dBm)</div>
-          <canvas id="hbEcg3" class="hbecg" width="440" height="150"></canvas></div>
+      <aside class="cdmpanel">
+        <div class="cdmhead"><h2>CONJUNCTION SCREENING (CDM)</h2><span id="cdmStatus" class="cdmstatus clear">CLEAR</span></div>
+        <div class="cdmrow"><span>Primary object</span><b>AURORA-2</b></div>
+        <div class="cdmrow"><span>Secondary object</span><b id="cdmSec">—</b></div>
+        <div class="cdmrow"><span>Miss distance</span><b id="cdmMiss">—</b></div>
+        <div class="cdmrow"><span>Time to closest approach</span><b id="cdmTca">—</b></div>
+        <div class="cdmrow"><span>Relative speed</span><b id="cdmRel">—</b></div>
+        <div class="cdmrow"><span>Collision probability Pc</span><b id="cdmPc">—</b></div>
+        <div id="cdmNote" class="cdmnote">No conjunctions screened. All AURORA members separated.</div>
       </aside>
     </section>
 
@@ -98,6 +98,7 @@
   </div>
 
   <script src="/sim/kepler.js"></script>
+  <script src="/sim/collision-core.js"></script>
   <script src="/sim/vendor/three.min.js"></script>
   <script src="/sim/vendor/OrbitControls.js"></script>
   <script src="/sim/sim.js"></script>

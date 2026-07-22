@@ -81,20 +81,22 @@ function computeOutcome(altKm, inc, raan) {
 }
 
 // ── apply an incoming uplink command ────────────────────────────────────────
+// Scenario 5: the attacker console already solved the whole collision (geometry +
+// timing) and sends it here. We just record it and replay it on monitor 2.
 function handleUplink(msg) {
   const command = msg.command;
-  const payload = msg.payload || [];
-  console.log(`[uplink] RX ${command} payload=${JSON.stringify(payload)} @ ${msg.frequency || "?"} MHz`);
-  if (command !== "orbit_maneuver") {
-    browserWss.broadcast(JSON.stringify({ type: "uplink", command, payload, rejected: false }));
-    return { ok: true, outcome: null, note: "non-maneuver command ignored by sim" };
+  if (command !== "orbit_collision") {
+    browserWss.broadcast(JSON.stringify({ type: "uplink", command: command, rejected: false }));
+    return { ok: true, outcome: null, note: "non-collision command ignored by sim" };
   }
-  const dv = decodeManeuver(payload);
-  const outcome = computeOutcome(dv.altKm, dv.inc, dv.raan);
-  gsState = { status: "maneuvering", maneuver: dv, outcome: outcome, ts: Date.now(), videoPlayed: false };
-  browserWss.broadcast(JSON.stringify({ type: "maneuver", altKm: dv.altKm, inc: dv.inc, raan: dv.raan, outcome }));
-  console.log(`[uplink] maneuver alt=${dv.altKm}km inc=${dv.inc} raan=${dv.raan} -> ` +
-    (outcome.collided ? `COLLISION with ${outcome.victim}` : `no collision (${outcome.distKm}km from nearest)`));
+  const outcome = { collided: true, victim: msg.victim || "AURORA-2",
+                    closingKmS: msg.closingKmS, collisionPoint: msg.collisionPoint };
+  gsState = { status: "collision-course", maneuver: msg, outcome: outcome, ts: Date.now(), videoPlayed: false };
+  browserWss.broadcast(JSON.stringify({ type: "collision",
+    victim: outcome.victim, closingKmS: msg.closingKmS, collisionPoint: msg.collisionPoint,
+    attackerKep: msg.attackerKep, victimKep: msg.victimKep, victimNuDeg: msg.victimNuDeg,
+    collideInSec: msg.collideInSec, impactTargetSec: msg.impactTargetSec || 18 }));
+  console.log(`[uplink] COLLISION course -> ${outcome.victim} @ ${msg.closingKmS} km/s`);
   return { ok: true, outcome };
 }
 
@@ -165,10 +167,12 @@ browserWss.on("connection", (ws) => {
   ws.send(JSON.stringify({ type: "hello", state: gsState, scenario: {
     altKm: Scenario4.altKm, constellation: Scenario4.target.constellation,
     count: Scenario4.target.constellationCount, neighbors: Scenario4.neighborsInfo } }));
-  // resume an in-progress maneuver (e.g. a page refresh mid-collision)
-  if (gsState.maneuver) {
-    ws.send(JSON.stringify({ type: "maneuver", altKm: gsState.maneuver.altKm,
-      inc: gsState.maneuver.inc, raan: gsState.maneuver.raan, outcome: gsState.outcome, resume: true }));
+  // resume an in-progress collision (e.g. a page refresh mid-impact)
+  if (gsState.maneuver && gsState.status === "collision-course") {
+    const m = gsState.maneuver;
+    ws.send(JSON.stringify({ type: "collision", victim: m.victim, closingKmS: m.closingKmS,
+      collisionPoint: m.collisionPoint, attackerKep: m.attackerKep, victimKep: m.victimKep,
+      victimNuDeg: m.victimNuDeg, collideInSec: m.collideInSec, impactTargetSec: m.impactTargetSec || 18, resume: true }));
   }
 });
 
