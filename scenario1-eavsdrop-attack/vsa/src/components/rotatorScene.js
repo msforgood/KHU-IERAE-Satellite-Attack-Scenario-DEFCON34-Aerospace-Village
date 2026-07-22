@@ -339,6 +339,18 @@ export function createRotatorScene({ container, store, antennaTypes }) {
   // ── Satellite position & beam attenuation ────────────────────────────────
   let satAz           = null;
   let satEl           = null;
+  // Displayed antenna angle: slewed toward the commanded (gpredict) az/el at a steady angular rate
+  // every frame, so the 3D antenna glides continuously between the coarse gpredict position steps
+  // (e.g. 14 -> 39 deg) instead of teleporting straight to each new value and then sitting still.
+  let dispAz          = null;
+  let dispEl          = null;
+  // Slew estimator: remember the last commanded target and how fast it moved, so the glide is paced
+  // to the satellite's actual angular speed (continuous, no jump-then-pause).
+  let _tgtAzPrev      = null;
+  let _tgtElPrev      = null;
+  let _tgtChangeT     = 0;
+  let _slewRateAz     = 8;   // deg/sec, adapted from the observed motion
+  let _slewRateEl     = 6;   // deg/sec
   let satDopplerHz    = 0;
   let satRangeKm      = null;
 
@@ -464,10 +476,14 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     const satPol = SAT_POLARIZATION[state.targetSat] ?? "linear";
     const antPol = ant.polarization ?? "linear";
     let polLoss = 0;
-    if ((satPol === "RHCP" && antPol === "LHCP") || (satPol === "LHCP" && antPol === "RHCP")) {
-      polLoss = -60; // cross-polarized - signal blocked
+    if (satPol === "RHCP" || satPol === "LHCP") {
+      // Circularly polarized downlink (ENIGMA-1 is RHCP): ONLY the matching circular antenna
+      // (Helix) receives it. A linear (Yagi / Dish / Dipole) or opposite-hand antenna is
+      // cross-polarized and gets no usable signal. Use a penalty large enough that even the
+      // highest-gain antenna is pushed below the -60 dB signal floor (so the waterfall is blank).
+      if (antPol !== satPol) polLoss = -120;
     } else if (satPol !== antPol) {
-      polLoss = -3;  // circular-linear mismatch
+      polLoss = -3;  // linear downlink vs a circular antenna: mild mismatch only
     }
 
     return Math.max(-60, peakGain + beamLoss + atmLoss + polLoss);
@@ -1181,14 +1197,14 @@ export function createRotatorScene({ container, store, antennaTypes }) {
     const antKey = uplinkMode && uplinkAntennaType ? uplinkAntennaType : state.antennaType;
     const antenna = antennaTypes[antKey];
     renderer.render({
-      azimuth:      state.azimuth,
-      elevation:    state.elevation,
+      azimuth:      dispAz ?? state.azimuth,
+      elevation:    dispEl ?? state.elevation,
       antennaParts: antenna.buildModel(state),
       extraParts:   uplinkMode ? buildAmplifierModel() : [],
     });
     roAntenna.textContent      = antenna.label;
-    roAz.textContent           = `${Math.round(state.azimuth)}°`;
-    roEl.textContent           = `${Math.round(state.elevation)}°`;
+    roAz.textContent           = `${Math.round(dispAz ?? state.azimuth)}°`;
+    roEl.textContent           = `${Math.round(dispEl ?? state.elevation)}°`;
     specName.textContent       = antenna.label;
     specDesc.textContent       = antenna.description;
     specBeamwidth.textContent  = `${antenna.beamwidthDeg}°`;
@@ -1216,15 +1232,41 @@ export function createRotatorScene({ container, store, antennaTypes }) {
 
   function tick(time) {
     const state = store.getState();
+    if (prevTime === 0) prevTime = time;
+    const dt = Math.min(0.1, (time - prevTime) / 1000);
 
+    // Ease the displayed antenna angle toward the commanded az/el (framerate-independent, ~0.18s
+    // time constant) so the 3D antenna slews smoothly instead of stepping on each gpredict update.
+    if (dispAz === null) {
+      dispAz = state.azimuth; dispEl = state.elevation;
+      _tgtAzPrev = state.azimuth; _tgtElPrev = state.elevation; _tgtChangeT = time;
+    }
     if (state.autoRotate) {
-      if (prevTime === 0) prevTime = time;
-      const dt = (time - prevTime) / 1000;
       store.setState((s) => ({
         ...s,
         azimuth: (s.azimuth + s.rotationSpeed * dt) % 360,
       }));
+      dispAz = store.getState().azimuth; dispEl = state.elevation;   // manual spin: no lag
     } else {
+      const tgtAz = state.azimuth, tgtEl = state.elevation;
+      // A new gpredict position arrived (target moved): estimate the angular speed it implies so the
+      // glide is paced to the satellite's real motion and finishes about when the next step lands.
+      const dTgtAz = _shortAngle(_tgtAzPrev, tgtAz);
+      const dTgtEl = tgtEl - _tgtElPrev;
+      if (Math.abs(dTgtAz) > 0.02 || Math.abs(dTgtEl) > 0.02) {
+        const dtT = Math.max(0.05, (time - _tgtChangeT) / 1000);
+        _slewRateAz = Math.min(40, Math.max(3, Math.abs(dTgtAz) / dtT * 1.3));
+        _slewRateEl = Math.min(40, Math.max(2, Math.abs(dTgtEl) / dtT * 1.3));
+        _tgtAzPrev = tgtAz; _tgtElPrev = tgtEl; _tgtChangeT = time;
+      }
+      // Move toward the target at that steady rate (real rotators turn at a constant speed). A big
+      // error - initial acquisition or an az wrap - gets a faster rate so it does not crawl for seconds.
+      const azErr = _shortAngle(dispAz, tgtAz);
+      const elErr = tgtEl - dispEl;
+      const rateAz = Math.abs(azErr) > 30 ? Math.max(_slewRateAz, 24) : _slewRateAz;
+      const rateEl = Math.abs(elErr) > 30 ? Math.max(_slewRateEl, 18) : _slewRateEl;
+      dispAz = _wrap360(dispAz + Math.max(-rateAz * dt, Math.min(rateAz * dt, azErr)));
+      dispEl = dispEl + Math.max(-rateEl * dt, Math.min(rateEl * dt, elErr));
       // Still redraw every frame so satellite and other animations keep moving
       updateScene(state);
     }
