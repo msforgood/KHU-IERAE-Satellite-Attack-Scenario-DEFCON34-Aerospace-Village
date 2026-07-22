@@ -21,6 +21,16 @@
 #   BUILDER_PORT    command builder port. Default 8000
 #   UPLINK_OUT_DIR  attack.cf32 output folder. Default ~/uplink
 #   NO_OPEN         1 = do not auto-open the browser
+#   ENABLE_GPREDICT 1 = also start the phase-3 gpredict container (:6080). OFF by default:
+#                   scenario 5's uplink is software-simulated and the console never
+#                   embeds gpredict, so starting it just wastes time (docker info stall +
+#                   container spin-up).
+#   ENABLE_BRIDGE   1 = also start the antenna/Doppler node bridge (:4542-4545). OFF by
+#                   default for the same reason.
+#
+# Fast start: 'all' skips the codec roundtrip test and re-installing numpy when the venv
+# already has it, so a warm launch is a couple of seconds instead of ~20s. Run
+# './start-attacker.sh check' when you want the full codec verification.
 
 set -uo pipefail
 cd "$(dirname "$0")/attacker"
@@ -62,10 +72,17 @@ free_port() {
 install() {
   say "1/3  first-time setup"
   have python3 || die "python3 not found"
-  echo "[1/1] Command Builder python deps (numpy) -> $VENV"
   if [ ! -d "$VENV" ]; then
+    echo "[1/1] creating venv -> $VENV"
     python3 -m venv "$VENV" || die "venv creation failed (Debian: 'sudo apt install python3-venv')"
   fi
+  # Fast path: numpy already present -> skip the ~20s network pip round trip entirely.
+  if "$VENV/bin/python" -c "import numpy" 2>/dev/null; then
+    c_ok "numpy $("$VENV/bin/python" -c 'import numpy;print(numpy.__version__)') already present -> skip pip"
+    echo "setup done."
+    return 0
+  fi
+  echo "[1/1] installing Command Builder python deps (numpy) -> $VENV"
   "$VENV/bin/python" -m pip install --quiet --upgrade pip \
     && "$VENV/bin/python" -m pip install --quiet numpy \
     || die "numpy install failed"
@@ -99,32 +116,34 @@ up() {
   free_port "$BUILDER_PORT"
   mkdir -p "$UPLINK_OUT_DIR"
 
-  # scenario-4 dedicated antenna/Doppler bridge on ISOLATED ports (rot 4543 / rig
-  # 4542 / ws 4544 / status 4545). Scenario 1 owns :4532-4535; keeping scenario 4
-  # on its own block means a second gpredict (scenario 1 or another) can run at the
-  # same time without stomping this rotor state, so the phase-3 antenna tracking is
-  # never dragged back to the parked position by the other instance.
-  if have node; then
-    if ! curl -fsS "http://localhost:4545/status" >/dev/null 2>&1; then
-      say "starting scenario-4 antenna bridge (rot 4543 / rig 4542 / ws 4544 / status 4545)"
-      ( node rotctld-bridge/server.js ) >/tmp/scn4-bridge.log 2>&1 &
+  # Antenna/Doppler node bridge (:4542-4545) and the gpredict container (:6080) are
+  # scenario-4 leftovers. Scenario 5's uplink is software-simulated and the console never
+  # embeds them, so they stay OFF by default (checking/starting them adds a docker-info
+  # stall plus a container spin-up for nothing). Opt in with ENABLE_BRIDGE=1 / ENABLE_GPREDICT=1.
+  if [ "${ENABLE_BRIDGE:-0}" = "1" ]; then
+    if have node; then
+      if ! curl -fsS --max-time 2 "http://localhost:4545/status" >/dev/null 2>&1; then
+        say "starting antenna bridge (rot 4543 / rig 4542 / ws 4544 / status 4545)"
+        ( node rotctld-bridge/server.js ) >/tmp/scn4-bridge.log 2>&1 &
+      else
+        c_ok "antenna bridge already running on :4545"
+      fi
     else
-      c_ok "antenna bridge already running on :4545"
+      c_warn "node not found -> antenna bridge skipped"
     fi
-  else
-    c_warn "node not found -> phase 3 antenna/Doppler sim disabled (install Node.js to enable)"
   fi
 
-  # phase 3 gpredict (real gpredict in Docker, noVNC :6080) — optional, needs Docker
-  if have docker && docker info >/dev/null 2>&1; then
-    if ! curl -fsS "http://localhost:6080/" >/dev/null 2>&1; then
-      say "starting gpredict container (:6080) for phase 3"
-      ( cd gpredict-web && ./run.sh ) >/tmp/scn4-gpredict.log 2>&1 &
+  if [ "${ENABLE_GPREDICT:-0}" = "1" ]; then
+    if have docker && docker info >/dev/null 2>&1; then
+      if ! curl -fsS --max-time 2 "http://localhost:6080/" >/dev/null 2>&1; then
+        say "starting gpredict container (:6080)"
+        ( cd gpredict-web && ./run.sh ) >/tmp/scn4-gpredict.log 2>&1 &
+      else
+        c_ok "gpredict already running on :6080"
+      fi
     else
-      c_ok "gpredict already running on :6080"
+      c_warn "docker not available -> gpredict embed skipped"
     fi
-  else
-    c_warn "docker not available -> phase 3 gpredict embed disabled (rest of the console is fine)"
   fi
 
   local URL="http://localhost:$BUILDER_PORT/"
@@ -135,7 +154,7 @@ case "$MODE" in
   install) install ;;
   check)   check ;;
   up)      up ;;
-  all)     install; check
+  all)     install
            say "opening the console"
            ( sleep 1.5; open_url "http://localhost:$BUILDER_PORT/" ) &
            up ;;
