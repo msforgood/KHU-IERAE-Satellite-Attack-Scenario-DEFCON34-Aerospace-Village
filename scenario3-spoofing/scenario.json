@@ -1,0 +1,40 @@
+{
+  "id": "scn3",
+  "name": "Telemetry Spoofing",
+  "phaseCount": 4,
+  "victim": { "simulator": true },
+  "briefing": {
+    "title": "Break the satellite, then impersonate it",
+    "sections": [
+      {
+        "h": "① Telemetry beacon — the satellite's \"I'm fine\" broadcast",
+        "p": "<b>DEMOSAT</b> continuously downlinks a <b>telemetry beacon</b> reporting its health — mode, battery %, sun-tracking, comm link. The ground-station dashboard simply <b>displays whatever beacon it hears</b>."
+      },
+      {
+        "h": "② The trust — it can't tell real from fake",
+        "p": "The dashboard has <b>no way to prove</b> the beacon truly came from DEMOSAT. There is <b>no authentication</b> — whatever telemetry it receives, it <b>believes</b>. <span class=\"hl\">That blind trust is the whole vulnerability.</span>"
+      },
+      {
+        "h": "③ Step 1 — break it (uplink attack)",
+        "p": "You uplink <b>adcs_torque</b> with an abused value (999 mNm). The reaction wheels overspin, the satellite <b>tumbles</b>, the panels lose the sun, <b>power collapses</b> — and the ground-station <b>alarm fires</b>."
+      },
+      {
+        "h": "④ Step 2 — impersonate it (spoofing)",
+        "p": "A rogue <b>drone impersonates DEMOSAT</b> and replays a forged <b>\"healthy\" beacon</b>. Every telemetry field is a lie: <b>NOMINAL, battery 98%, sun-tracking, comm connected</b>."
+      },
+      {
+        "h": "⑤ Why it works — the spoof beats the alarm",
+        "p": "The dashboard believes the forged beacon and the <b>alarm goes quiet</b> — while the real satellite keeps tumbling and the physical motors never stop. <span class=\"hl\">The operator never sees the crisis.</span>"
+      }
+    ],
+    "ack": "I understand I'll first break the satellite by uplink, then hide the damage by spoofing a forged healthy beacon."
+  },
+  "extras": [
+    {
+      "id": "phase4",
+      "label": "④ DRONE SPOOF → HIDE THE ALARM",
+      "path": "/extra/drone/index.html",
+      "enterFrom": "phase3"
+    }
+  ]
+}

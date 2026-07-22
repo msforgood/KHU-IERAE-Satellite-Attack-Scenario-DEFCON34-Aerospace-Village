@@ -1,0 +1,282 @@
+:root{
+  --bg:#0a0e14; --panel:#0f1620; --panel2:#131c28; --line:#1e2b3a;
+  --ink:#c7d3e0; --dim:#7f92a6; --accent:#39c5ff; --amber:#ffb020;
+  --danger:#ff3b4e; --ok:#33d17a; --star:#ffd23f;
+  --f-pre:#5a6b7d; --f-tc:#39c5ff; --f-sp:#8a7dff; --f-op:#33d17a;
+  --f-pl:#ffb020; --f-crc:#ff6ad5;
+  --mono:'SFMono-Regular',ui-monospace,'Cascadia Code','Consolas',monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:18px;line-height:1.5}
+h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-weight:700}
+.hidden{display:none!important}
+.muted{color:var(--dim);font-size:16px}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;
+  padding:16px 22px;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{display:flex;gap:14px;align-items:center}
+.sat{font-size:34px}
+.sat-ico{width:34px;height:34px;display:block}
+.title{font-weight:700;letter-spacing:.06em;color:#eaf2fb;font-size:22px}
+.sub{font-size:15px;color:var(--dim)}
+.linkinfo{display:flex;gap:12px;align-items:center;font-size:16px;color:var(--dim)}
+.linkinfo .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+
+/* ── MISSION briefing ── */
+.mission{display:flex;gap:18px;align-items:flex-start;margin:16px 16px 0;padding:18px 22px;
+  background:linear-gradient(90deg,rgba(57,197,255,.08),rgba(19,28,40,.5));
+  border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px}
+.mtag{font-size:16px;font-weight:800;letter-spacing:.1em;color:var(--accent);white-space:nowrap;padding-top:2px}
+.mtext{font-size:18px;line-height:1.6;color:#dbe6f2;max-width:1200px}
+.mtext b{color:#fff}
+
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 540px;gap:16px;padding:16px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+
+/* ── mission-load error note (dossier styles retained for that fallback) ── */
+.dnote{margin-top:12px;font-size:15px;color:var(--amber)}
+.dnote.dim{color:var(--dim)}
+.progresswrap{margin-bottom:16px}
+.prow{display:flex;justify-content:space-between;font-size:15px;color:var(--dim);letter-spacing:.08em}
+.prail{height:10px;background:#0a121c;border:1px solid var(--line);border-radius:6px;margin:8px 0;overflow:hidden}
+.prail > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--ok));transition:.3s}
+.phint{font-size:15px;color:var(--dim)}
+
+/* ── step cards ── */
+.steps #stepList{display:flex;flex-direction:column;gap:14px}
+.step{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--panel2);
+  border-left:4px solid var(--line)}
+.step.done{border-left-color:var(--ok)}
+.step.mismatch{border-left-color:var(--danger)}
+.step.locked{opacity:.5}
+.step.locked .stitle{color:var(--dim)}
+/* collapsible steps — completed ones fold to a one-line recap */
+.step:not(.locked) > .shead{cursor:pointer}
+.step.collapsed > .shead{margin-bottom:0}
+.step.collapsed .sbody{display:none}
+.ssum{font-size:14px;color:var(--dim);font-family:var(--mono);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
+.step:not(.collapsed) .ssum{display:none}
+.chev{color:var(--dim);font-size:13px;margin-left:4px}
+.lockmsg{padding:16px;text-align:center;color:var(--dim);font-size:15px;
+  border:1px dashed var(--line);border-radius:8px;background:#0a121c}
+.pill.locked{background:rgba(127,146,166,.12);color:var(--dim)}
+.shead{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.snum{width:30px;height:30px;border-radius:50%;background:#0a121c;border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;color:var(--dim)}
+.step.done .snum{background:var(--ok);color:#001018;border-color:var(--ok)}
+.step.mismatch .snum{background:var(--danger);color:#fff;border-color:var(--danger)}
+.stitle{flex:1;font-weight:700;letter-spacing:.05em;color:#eaf2fb;font-size:18px}
+.pill{font-size:14px;padding:4px 11px;border-radius:6px;letter-spacing:.05em;font-weight:700}
+.pill.pending{background:rgba(127,146,166,.2);color:var(--dim)}
+.pill.ok{background:rgba(51,209,122,.18);color:var(--ok)}
+.pill.bad{background:rgba(255,59,78,.2);color:var(--danger)}
+.sprompt{margin-top:12px;font-size:15px;color:var(--dim)}
+
+.rfrow{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.rflabel{flex:0 0 130px;font-size:15px;color:var(--dim);letter-spacing:.05em}
+
+/* ── STEP 2 · SDR auto-detect (magic typing, no participant input) ── */
+.rfauto-intro{margin-bottom:12px;padding:9px 12px;border-radius:7px;font-size:14px;
+  border:1px solid var(--accent);background:rgba(57,197,255,.08);color:var(--ink)}
+.rfauto-intro.done{border-color:var(--ok);background:rgba(51,209,122,.1)}
+.rfauto{flex:0 0 180px;display:flex;align-items:center;gap:6px;min-height:40px;padding:8px 12px;border-radius:7px;
+  background:#070d15;border:1px solid var(--line);font-family:var(--mono);font-size:18px;font-weight:700;
+  color:var(--accent);transition:border-color .2s}
+.rfauto.done{border-color:var(--ok);color:var(--ok)}
+.rfauto .rfval{white-space:pre}
+.rfauto .rfok{margin-left:auto;color:var(--ok);font-weight:800}
+.rfcaret{color:var(--accent);animation:rfblink .8s steps(1) infinite;font-weight:400}
+@keyframes rfblink{50%{opacity:0}}
+/* per-field explanation shown to the RIGHT of each auto-filled RF value, so the
+   Step-2 card stays short instead of stacking a legend underneath. */
+.rfdesc{flex:1 1 auto;min-width:0;font-size:13px;line-height:1.45;color:var(--dim)}
+.rfdesc b{color:var(--ink)}
+
+.star{color:var(--star);font-size:13px}
+
+/* ═══════════ STEP 1 · Scratch-style command composer ═══════════ */
+/* Click a subsystem block to load it into the script, then TYPE the real
+   command and its value into the block's slots. Subsystem colour-coding:
+   ADCS=cyan · POWER=amber · COMM=green · OBC=violet. */
+.composer{display:grid;grid-template-columns:196px 1fr;gap:16px;margin-top:4px}
+.palette{display:flex;flex-direction:column;gap:10px}
+.palcap,.scriptcap{font-size:13px;letter-spacing:.14em;color:var(--dim);font-weight:800;margin-bottom:2px}
+.palblock{position:relative;display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:9px;
+  color:#04121a;font-weight:800;font-size:15px;cursor:pointer;user-select:none;
+  box-shadow:0 3px 0 rgba(0,0,0,.4);transition:transform .1s,filter .1s,box-shadow .1s}
+.palblock:hover{filter:brightness(1.06)}
+.palblock:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.4)}
+.palblock.active{box-shadow:0 0 0 2px #eaf2fb,0 3px 0 rgba(0,0,0,.4)}
+.palblock .pbgrip{opacity:.5;font-size:13px;letter-spacing:-2px}
+.palhint{margin-top:6px;font-size:13px;color:var(--dim);line-height:1.5}
+.sub-ADCS{background:#39c5ff}.sub-POWER{background:#ffb020}.sub-COMM{background:#33d17a}.sub-OBC{background:#8a7dff}
+
+.script{background:#08111b;border:1px solid var(--line);border-radius:12px;padding:14px;min-height:230px}
+.hat{display:inline-block;background:#c02234;color:#fff;font-weight:800;letter-spacing:.05em;font-size:15px;
+  padding:10px 20px;border-radius:11px 11px 3px 3px;box-shadow:0 3px 0 rgba(0,0,0,.4)}
+.dropzone{margin-top:-3px;border:2px dashed var(--line);border-radius:0 10px 10px 10px;min-height:130px;
+  padding:12px;transition:.15s}
+.dropzone.empty{display:flex;align-items:center;justify-content:center;min-height:120px}
+.dzhint{color:var(--dim);font-size:15px;font-style:italic}
+
+.cblock{border-radius:10px;padding:12px 14px;box-shadow:0 3px 0 rgba(0,0,0,.35)}
+.cbrow{display:flex;align-items:center;gap:9px}
+.cbkw{font-weight:800;color:#04121a;font-size:16px}
+/* the chosen command name, and the tag shown above the command list */
+.cbcmd{flex:1;min-width:120px;font-family:var(--mono);font-size:18px;font-weight:800;padding:9px 11px;
+  border-radius:7px;background:#fff;color:#0a0e14;border:2px solid #0b7a3f;box-shadow:0 0 0 2px rgba(11,122,63,.4)}
+.cbpicktag{flex:1;font-weight:800;color:#04121a;font-size:15px;letter-spacing:.02em}
+/* full name of the subsystem acronym, shown one line under the "choose a command" tag */
+.cbsubfull{display:block;margin-top:3px;font-weight:600;font-size:12.5px;letter-spacing:0;opacity:.72}
+.cbchg{background:rgba(0,0,0,.28);color:#fff;border:none;border-radius:7px;padding:0 11px;height:30px;
+  font-size:13px;font-weight:700;cursor:pointer;flex:none;white-space:nowrap}
+.cbchg:hover{background:rgba(0,0,0,.45)}
+.cbx{margin-left:2px;background:rgba(0,0,0,.28);color:#fff;border:none;border-radius:7px;width:30px;height:30px;
+  font-size:14px;cursor:pointer;flex:none}
+.cbx:hover{background:rgba(0,0,0,.45)}
+/* click-to-pick command list */
+.cbpicklist{margin-top:11px;display:flex;flex-direction:column;gap:7px}
+.cmdpick{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;width:100%;
+  padding:9px 12px;border:2px solid rgba(0,0,0,.18);border-radius:8px;background:rgba(255,255,255,.55);
+  cursor:pointer;transition:.12s}
+.cmdpick:hover{background:#fff;border-color:#0a0e14;transform:translateX(2px)}
+.cmdpick code{font-family:var(--mono);font-size:16px;font-weight:800;color:#0a0e14;background:none;padding:0}
+.cmdpick .cmddesc{font-size:13px;color:#04121a;opacity:.72;line-height:1.4}
+.cbargs{margin-top:11px;display:flex;flex-direction:column;gap:9px}
+.cbarg{display:flex;align-items:center;gap:9px}
+.cbflag{font-family:var(--mono);font-weight:800;color:#04121a;min-width:92px}
+.cbval{width:130px;font-family:var(--mono);font-size:17px;font-weight:700;padding:8px 10px;
+  border:2px solid transparent;border-radius:7px;background:#fff;color:#0a0e14;outline:none}
+.cbval::placeholder{color:#8aa;font-weight:500;font-size:14px}
+.cbval.good{border-color:#0b7a3f;box-shadow:0 0 0 2px rgba(11,122,63,.35)}
+.cbval.bad{background:#ffe1e4;color:#b3001b;border-color:var(--danger)}
+.cbunit{color:#04121a;font-weight:800}
+.cbzone{font-size:13px;font-weight:800}.cbzone.safe{color:#0b5a2e}.cbzone.danger{color:#7a0010}
+.cbmsg{margin-top:9px;font-size:14px;color:#4a0713;font-weight:700}
+.cbmsg:empty{margin:0}
+.cbnopay{color:#04121a;font-weight:700;font-size:14px}
+/* ATTACK GOAL hint: hidden until the value input is clicked/focused, then shown to
+   the right of the unit (mNm). :focus-within survives the per-keystroke re-render. */
+.cbgoal{display:none;flex:1;min-width:0;padding:8px 11px;border-radius:8px;
+  background:rgba(0,0,0,.16);color:#04121a;font-size:13px;line-height:1.5}
+.cbarg:focus-within .cbgoal{display:block}
+.cbgoal b{color:#000}
+.cbeffect{margin-top:4px;padding:10px 12px;border-left:4px solid rgba(0,0,0,.4);background:rgba(0,0,0,.14);
+  border-radius:0 8px 8px 0;font-size:14px;color:#04121a}
+.cbeffect b{color:#000}
+
+/* "완료" gate button — arms Step 2's RF auto-detect */
+.s1foot{margin-top:14px;display:flex;justify-content:flex-end}
+.s1done{padding:11px 20px;border:none;border-radius:8px;font-family:var(--mono);font-size:15px;font-weight:800;
+  letter-spacing:.02em;cursor:pointer;transition:.15s}
+.s1done.disabled{background:#0e1722;color:var(--dim);border:1px solid var(--line);cursor:not-allowed}
+.s1done.ready{background:var(--accent);color:#001018;box-shadow:0 3px 0 rgba(0,0,0,.4)}
+.s1done.ready:hover{filter:brightness(1.08)}
+.s1done.ready:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.4)}
+.s1done.committed{background:rgba(51,209,122,.14);color:var(--ok);border:1px solid var(--ok);cursor:default}
+
+/* frame breakdown */
+.breakdown{display:flex;flex-wrap:wrap;gap:8px;min-height:44px}
+.await{color:var(--dim);font-size:16px;font-style:italic}
+.seg{border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:var(--panel2)}
+.seg .sl{font-size:13px;letter-spacing:.05em;color:var(--dim);margin-bottom:6px;white-space:nowrap;text-transform:uppercase}
+.seg .bytes{display:flex;gap:5px}
+.byte{font-size:16px;padding:4px 7px;border-radius:5px;background:#0a121c;color:#eaf2fb;cursor:default;border-bottom:3px solid transparent}
+.f-preamble .byte{border-color:var(--f-pre)} .f-preamble .sl{color:var(--f-pre)}
+.f-tc_header .byte{border-color:var(--f-tc)} .f-tc_header .sl{color:var(--f-tc)}
+.f-sp_header .byte{border-color:var(--f-sp)} .f-sp_header .sl{color:var(--f-sp)}
+.f-opcode .byte{border-color:var(--f-op)} .f-opcode .sl{color:var(--f-op)}
+.f-payload .byte{border-color:var(--f-pl)} .f-payload .sl{color:var(--f-pl)}
+.f-crc .byte{border-color:var(--f-crc)} .f-crc .sl{color:var(--f-crc)}
+.metaline{margin-top:12px;font-size:15px;color:var(--dim)}
+
+#wave{width:100%;height:100px;background:#070c12;border:1px solid var(--line);border-radius:8px;margin-bottom:14px}
+
+.genbtn{width:100%;padding:16px;border:none;border-radius:9px;cursor:pointer;font-family:var(--mono);
+  font-weight:700;font-size:19px;letter-spacing:.04em}
+.genbtn.locked{background:#131c28;color:var(--dim);border:1px solid var(--line);cursor:not-allowed}
+.genbtn.armed{background:linear-gradient(90deg,var(--danger),#c02234);color:#fff}
+.genbtn.armed:hover{filter:brightness(1.1)}
+.result{margin-top:14px;padding:14px;border:1px solid var(--ok);border-radius:8px;background:rgba(51,209,122,.08);font-size:16px}
+.result a{color:var(--accent)} .result .path{color:#eaf2fb;word-break:break-all}
+
+.tooltip{position:fixed;z-index:50;background:#050a10;border:1px solid var(--accent);border-radius:6px;
+  padding:10px 12px;font-size:15px;color:var(--ink);max-width:280px;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+.tooltip b{color:var(--accent)}
+
+/* ═══════════ PHASE A · BRIEFING ═══════════ */
+.phase{}
+.briefwrap{max-width:none;margin:0;padding:26px 32px 40px}
+.phasetag{display:inline-block;font-size:14px;font-weight:800;letter-spacing:.14em;color:var(--accent);
+  border:1px solid var(--accent);border-radius:6px;padding:5px 12px;margin-bottom:16px}
+.brieftitle{font-size:30px;color:#eaf2fb;margin:0 0 26px;font-weight:700;letter-spacing:.02em}
+.briefgrid{display:grid;grid-template-columns:480px 1fr;gap:34px;align-items:start}
+
+.scene{background:linear-gradient(180deg,#0b1220,#070c14);border:1px solid var(--line);
+  border-radius:14px;padding:16px}
+.satscene{width:100%;height:auto;display:block}
+:root{--dur:10s}
+.sat{transform-box:fill-box;transform-origin:center;animation:tumble var(--dur) linear infinite}
+/* (removed dead .panel/.pgrid SVG solar-panel styles — the drawn satellite is now
+   sat.png. The .panel stroke:#39c5ff leaked into <section class="panel"> and its SVG,
+   giving the phase-2 sun a sky-blue outline via CSS stroke inheritance.) */
+.rays{animation:raysfade var(--dur) ease-in-out infinite}
+.cmdflash{opacity:0;animation:cmdpop var(--dur) ease-out infinite}
+@keyframes tumble{0%,22%{transform:rotate(0)}100%{transform:rotate(720deg)}}
+@keyframes raysfade{0%,24%{opacity:.85}46%,100%{opacity:.1}}
+@keyframes cmdpop{0%,19%{opacity:0;transform:translateY(8px)}23%{opacity:1;transform:none}
+  54%{opacity:1}60%{opacity:.85}100%{opacity:.85}}
+.statebar{position:relative;height:26px;margin-top:12px;text-align:center}
+.stlabel{position:absolute;left:0;right:0;font-size:16px;font-weight:700;letter-spacing:.04em}
+.stlabel.ok{color:var(--ok);animation:okfade var(--dur) ease-in-out infinite}
+.stlabel.bad{color:var(--danger);animation:badfade var(--dur) ease-in-out infinite}
+@keyframes okfade{0%,26%{opacity:1}33%,100%{opacity:0}}
+@keyframes badfade{0%,26%{opacity:0}33%,100%{opacity:1}}
+.powerwrap{display:flex;align-items:center;gap:12px;margin-top:14px;font-size:15px;color:var(--dim)}
+.powerbar{flex:1;height:14px;border-radius:7px;background:#0a121c;border:1px solid var(--line);overflow:hidden}
+.powerfill{display:block;height:100%;width:100%;background:var(--ok);animation:powerdrop var(--dur) ease-in-out infinite}
+@keyframes powerdrop{0%,25%{width:100%;background:var(--ok)}45%{width:46%;background:var(--amber)}
+  65%,100%{width:7%;background:var(--danger)}}
+
+/* compact persistent scene inside the builder's intel panel */
+/* phase-2 mini "WHAT YOUR UPLINK DOES" reminder — kept as compact as possible so the
+   CCSDS packet builder below stays in view: minimal top margin, tight padding, and a
+   capped scene height. */
+.minisc{margin-top:2px;padding:8px 10px}
+.minisc .scenecap{font-size:13px;font-weight:800;letter-spacing:.1em;color:var(--accent);margin-bottom:4px}
+.minisc .satscene{max-height:120px}
+.minisc .statebar{height:18px;margin-top:4px}
+.minisc .stlabel{font-size:14px}
+.minisc .powerwrap{margin-top:5px;font-size:14px}
+/* ...but give the CCSDS PACKET / OOK headings extra breathing room above them */
+.wire h2{margin-top:16px}
+
+.brieftext{display:flex;flex-direction:column;gap:20px}
+.bsec h3{margin:0 0 6px;font-size:18px;color:var(--accent);letter-spacing:.03em}
+.bsec p{margin:0;font-size:17px;line-height:1.6;color:#dbe6f2}
+.bsec b{color:#fff}
+.hl{display:inline;color:#ff6a78;font-weight:700}
+.understand{display:flex;gap:12px;align-items:flex-start;margin:30px 0 18px;padding:16px 18px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:17px;color:#dbe6f2}
+.understand input{width:22px;height:22px;margin-top:1px;accent-color:var(--accent);cursor:pointer}
+.bigbtn{padding:16px 34px;border:none;border-radius:10px;font-family:var(--mono);font-weight:700;
+  font-size:19px;letter-spacing:.04em;cursor:pointer;background:linear-gradient(90deg,var(--accent),#2a8fd0);color:#001018}
+.bigbtn:disabled{background:#131c28;color:var(--dim);cursor:not-allowed}
+.bigbtn:not(:disabled):hover{filter:brightness(1.1)}
+
+/* ═══════════ PHASE B extras ═══════════ */
+.objbar{display:flex;gap:16px;align-items:center;margin:16px 16px 0;padding:14px 20px;
+  background:linear-gradient(90deg,rgba(57,197,255,.08),rgba(19,28,40,.5));
+  border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;font-size:16px;color:#dbe6f2}
+.objbar b{color:#fff}
+#frameProg{color:var(--accent);font-weight:700}
+.wavehint{font-size:14px;color:var(--dim);margin:-6px 0 12px}
+/* progressive frame: pending vs filled segments */
+.seg.pending{border-style:dashed;opacity:.6}
+.seg.pending .bytes{opacity:.5}
+.byte.ph{color:var(--dim);background:#0a121c;border-bottom-color:transparent}
+.seg .anno{font-size:13px;color:var(--ok);margin-top:4px}
+.seg.pending .anno{color:var(--amber)}
+
+@media(max-width:1300px){.grid{grid-template-columns:1fr}.briefgrid{grid-template-columns:1fr}}

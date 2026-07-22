@@ -1,8 +1,14 @@
 
-## Scenario 2: `Uplink Attack`
+## Scenario 3: `Telemetry Spoofing` (Drone "I'm fine")
 
 > We don't need to develop "real communication".
-> 
+>
+> Built on Scenario 2 (uplink attack, phases ①②③ identical). New in Scenario 3:
+> phase ④ — a rogue drone impersonates the satellite and replays a forged "all
+> nominal" beacon at the ground station, so the operator's alarm is suppressed while
+> the satellite keeps tumbling. The drone is not physically wired; the spoof is
+> software-simulated. Core message: **a satellite can be failing while every screen
+> says it's fine — telemetry you can't trust is telemetry you can't defend.**
 
 ### Equipments
 
