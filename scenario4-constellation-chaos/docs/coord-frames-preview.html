@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>좌표계 지도 (미리보기)</title>
+<title>Coordinate frame map (preview)</title>
 <style>
   :root{
     --bg:#070b14; --panel:#0d1524; --line:#1e2c44; --ink:#dbe6f5;
@@ -37,13 +37,13 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>좌표계 지도 <span class="badge">우리 시나리오는 관성계 + RTN 사용</span></h1>
-  <div class="sub">궤도요소에서 시작해 관성계, 지구고정계, 지평계로 이어지는 흐름과, 위성에 붙는 국소 프레임(RTN)과 본체계까지 한 장에 정리</div>
+  <h1>Coordinate frame map <span class="badge">Our scenario uses the inertial frame plus RTN</span></h1>
+  <div class="sub">A single view that lays out the flow from orbital elements into the inertial frame, the Earth-fixed frame, and the topocentric frame, together with the local frame attached to the satellite (RTN) and the body frame</div>
 
   <div class="grid">
     <!-- LEFT: schematic -->
     <div class="card">
-      <h2>기하 그림</h2>
+      <h2>Geometry diagram</h2>
       <svg viewBox="0 0 560 470" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <radialGradient id="earth" cx="42%" cy="38%" r="70%">
@@ -88,39 +88,39 @@
         <!-- ECI triad from Earth center -->
         <!-- z (north / spin axis) -->
         <line x1="280" y1="250" x2="280" y2="120" stroke="#dbe6f5" stroke-width="2" marker-end="url(#ah)"/>
-        <text x="286" y="118" fill="#dbe6f5" font-size="12">z (자전축, 북극)</text>
+        <text x="286" y="118" fill="#dbe6f5" font-size="12">z (spin axis, north pole)</text>
         <!-- x (vernal equinox) -->
         <line x1="280" y1="250" x2="470" y2="318" stroke="#dbe6f5" stroke-width="2" marker-end="url(#ah)"/>
-        <text x="446" y="338" fill="#dbe6f5" font-size="12">x (춘분점 ♈)</text>
+        <text x="446" y="338" fill="#dbe6f5" font-size="12">x (vernal equinox ♈)</text>
         <!-- y -->
         <line x1="280" y1="250" x2="150" y2="322" stroke="#8fa6c8" stroke-width="1.6" marker-end="url(#ah)"/>
         <text x="98" y="336" fill="#8fa6c8" font-size="12">y</text>
-        <text x="150" y="150" fill="#8fa6c8" font-size="11">ECI / J2000 / GCRF (관성계)</text>
+        <text x="150" y="150" fill="#8fa6c8" font-size="11">ECI / J2000 / GCRF (inertial frame)</text>
 
         <!-- ECEF x' rotated by GMST (amber, dashed) -->
         <line x1="280" y1="250" x2="452" y2="250" stroke="#ffcf5c" stroke-width="1.8"
           stroke-dasharray="4 3" marker-end="url(#aha)"/>
         <path d="M 360 250 A 80 80 0 0 0 336 226" fill="none" stroke="#ffcf5c" stroke-width="1.4"/>
-        <text x="366" y="242" fill="#ffcf5c" font-size="11">θ 항성시</text>
-        <text x="410" y="268" fill="#ffcf5c" font-size="11">ECEF x′ (그리니치)</text>
+        <text x="366" y="242" fill="#ffcf5c" font-size="11">θ sidereal time</text>
+        <text x="410" y="268" fill="#ffcf5c" font-size="11">ECEF x′ (Greenwich)</text>
 
         <!-- satellite on orbit -->
         <g>
           <circle cx="437" cy="150" r="5.5" fill="#35e0d0"/>
           <!-- R radial from center through sat -->
           <line x1="280" y1="250" x2="470" y2="118" stroke="#35e0d0" stroke-width="2" marker-end="url(#ahc)"/>
-          <text x="392" y="120" fill="#35e0d0" font-size="12">R (반경)</text>
+          <text x="392" y="120" fill="#35e0d0" font-size="12">R (radial)</text>
           <!-- T in-track (tangent) -->
           <line x1="437" y1="150" x2="510" y2="176" stroke="#35e0d0" stroke-width="2" marker-end="url(#ahc)"/>
-          <text x="470" y="200" fill="#35e0d0" font-size="12">T (진행방향)</text>
+          <text x="470" y="200" fill="#35e0d0" font-size="12">T (along-track)</text>
           <!-- N cross-track -->
           <line x1="437" y1="150" x2="470" y2="96" stroke="#35e0d0" stroke-width="1.7" marker-end="url(#ahc)"/>
-          <text x="474" y="92" fill="#35e0d0" font-size="12">N (면 밖)</text>
-          <text x="330" y="86" fill="#35e0d0" font-size="11">RTN / RIC (위성 국소)</text>
+          <text x="474" y="92" fill="#35e0d0" font-size="12">N (out of plane)</text>
+          <text x="330" y="86" fill="#35e0d0" font-size="11">RTN / RIC (satellite local)</text>
           <!-- body frame mini triad (violet) -->
           <line x1="437" y1="150" x2="415" y2="138" stroke="#b98cff" stroke-width="1.5" marker-end="url(#ahv)"/>
           <line x1="437" y1="150" x2="447" y2="132" stroke="#b98cff" stroke-width="1.5" marker-end="url(#ahv)"/>
-          <text x="352" y="196" fill="#b98cff" font-size="11">본체계(자세)</text>
+          <text x="352" y="196" fill="#b98cff" font-size="11">body frame (attitude)</text>
         </g>
 
         <!-- ground station + topocentric -->
@@ -129,70 +129,70 @@
           <line x1="235" y1="176" x2="235" y2="140" stroke="#5cff9d" stroke-width="1.6" marker-end="url(#ahg)"/>
           <line x1="235" y1="176" x2="205" y2="184" stroke="#5cff9d" stroke-width="1.4" marker-end="url(#ahg)"/>
           <line x1="235" y1="176" x2="437" y2="150" stroke="#5cff9d" stroke-width="1.2" stroke-dasharray="3 3"/>
-          <text x="150" y="168" fill="#5cff9d" font-size="11">지상국</text>
+          <text x="150" y="168" fill="#5cff9d" font-size="11">ground station</text>
           <text x="300" y="172" fill="#5cff9d" font-size="10.5">Az / El, range</text>
-          <text x="150" y="126" fill="#5cff9d" font-size="11">SEZ / ENU (지평계)</text>
+          <text x="150" y="126" fill="#5cff9d" font-size="11">SEZ / ENU (topocentric frame)</text>
         </g>
       </svg>
 
       <div class="lg">
-        <div><span class="sw" style="border-color:#dbe6f5"></span>관성계 축 (ECI/J2000/GCRF)</div>
-        <div><span class="sw" style="border-color:#ffcf5c"></span>지구고정계 (ECEF/ITRF, 항성시 회전)</div>
-        <div><span class="sw" style="border-color:#35e0d0"></span>위성 국소 (RTN/RIC)</div>
-        <div><span class="sw" style="border-color:#5cff9d"></span>지평계 (SEZ/ENU)</div>
-        <div><span class="sw" style="border-color:#b98cff"></span>본체계 (자세)</div>
-        <div><span class="sw" style="border-color:#2a63d6"></span>궤도</div>
+        <div><span class="sw" style="border-color:#dbe6f5"></span>Inertial frame axes (ECI/J2000/GCRF)</div>
+        <div><span class="sw" style="border-color:#ffcf5c"></span>Earth-fixed frame (ECEF/ITRF, sidereal rotation)</div>
+        <div><span class="sw" style="border-color:#35e0d0"></span>Satellite local (RTN/RIC)</div>
+        <div><span class="sw" style="border-color:#5cff9d"></span>Topocentric frame (SEZ/ENU)</div>
+        <div><span class="sw" style="border-color:#b98cff"></span>Body frame (attitude)</div>
+        <div><span class="sw" style="border-color:#2a63d6"></span>Orbit</div>
       </div>
     </div>
 
     <!-- RIGHT: transformation flow -->
     <div class="card">
-      <h2>변환 흐름</h2>
+      <h2>Transformation flow</h2>
       <div class="flow">
         <div class="box" style="border-color:#4aa3ff">
-          <b>궤도요소 (Keplerian)</b>
-          <span>a, e, i, Ω, ω, ν  —  궤도를 적는 6개 값</span>
+          <b>Orbital elements (Keplerian)</b>
+          <span>a, e, i, Ω, ω, ν  —  the 6 values that describe the orbit</span>
         </div>
-        <div class="row"><span class="arrow">⇅ 변환</span></div>
+        <div class="row"><span class="arrow">⇅ convert</span></div>
         <div class="box" style="border-color:#8fa6c8">
-          <b>상태벡터 · 관성계</b>
-          <span>J2000 / GCRF, TLE면 TEME  —  위치(3)+속도(3)</span>
+          <b>State vector, inertial frame</b>
+          <span>J2000 / GCRF, TEME if from TLE  —  position(3)+velocity(3)</span>
         </div>
         <div class="row">
           <span class="arrow">→</span>
           <div class="box" style="border-color:#35e0d0;flex:1">
-            <b>RTN / RIC (위성 국소)</b>
-            <span>반경 R, 진행 T, 면 밖 N  —  기동 Δv, 충돌 miss</span>
+            <b>RTN / RIC (satellite local)</b>
+            <span>radial R, along-track T, out of plane N  —  maneuver Δv, miss distance</span>
           </div>
         </div>
         <div class="row">
           <span class="arrow">→</span>
           <div class="box" style="border-color:#b98cff;flex:1">
-            <b>본체계</b>
-            <span>추력기 · 센서 지향 (자세)</span>
+            <b>Body frame</b>
+            <span>thruster and sensor pointing (attitude)</span>
           </div>
         </div>
-        <div class="row"><span class="arrow k">↓ 항성시(GMST)로 회전</span></div>
+        <div class="row"><span class="arrow k">↓ rotate by sidereal time (GMST)</span></div>
         <div class="box" style="border-color:#ffcf5c">
-          <b>ECEF / ITRF · 지구고정계</b>
-          <span>지구와 함께 자전, x축 그리니치</span>
+          <b>ECEF / ITRF, Earth-fixed frame</b>
+          <span>rotates with the Earth, x axis at Greenwich</span>
         </div>
         <div class="row"><span class="arrow">⇅</span></div>
         <div class="box" style="border-color:#8fa6c8">
-          <b>측지좌표</b>
-          <span>위도 / 경도 / 고도 (WGS84 타원체)</span>
+          <b>Geodetic coordinates</b>
+          <span>latitude / longitude / altitude (WGS84 ellipsoid)</span>
         </div>
         <div class="row"><span class="arrow">⇅</span></div>
         <div class="box" style="border-color:#5cff9d">
-          <b>지평계 (SEZ / ENU)</b>
-          <span>지상국 기준 방위각 / 고도각 / 거리</span>
+          <b>Topocentric frame (SEZ / ENU)</b>
+          <span>azimuth / elevation / range relative to the ground station</span>
         </div>
       </div>
 
       <div class="note">
-        핵심 다리: <span class="k">관성계 ↔ 지구고정계</span>는 <span class="k">항성시(지구 자전각)</span>만큼의 회전으로 이어집니다.
-        <span class="k">RTN</span>은 관성계 상태벡터에서 바로 뽑아내고, 우리 시나리오의 Δv 분해(진행방향, 면 밖)와 충돌 거리 계산이 여기서 이뤄집니다.
-        데모에서는 회색 경로(지구고정 / 측지 / 지평)를 생략하고 지구를 장식으로 처리했습니다.
+        Key bridge: <span class="k">inertial frame ↔ Earth-fixed frame</span> are linked by a rotation of <span class="k">sidereal time (the Earth rotation angle)</span>.
+        <span class="k">RTN</span> is pulled directly from the inertial state vector, and this is where our scenario's Δv breakdown (along-track, out of plane) and collision distance are computed.
+        In the demo the gray paths (Earth-fixed / geodetic / topocentric) are omitted and the Earth is treated as decoration.
       </div>
     </div>
   </div>
