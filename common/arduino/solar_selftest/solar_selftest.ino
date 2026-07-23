@@ -21,8 +21,11 @@
 
 const uint8_t SERVO_PIN = 11;   // 실측 신호핀(D9 아님)
 const uint8_t LED_PIN   = 13;
-const int     STEP_DEG  = 3;    // 왕복 시 각 스텝(작을수록 부드럽게)
-const int     STEP_MS   = 20;   // 스텝 간 대기(서보 이동 시간)
+// 전원 부족(USB) 대비 stopgap: 끝단(0/180)을 피하고 저속으로 → 기동/스톨 전류 스파이크 완화.
+const int     ANG_LO    = 40;   // 왕복 하한(0 대신 — 끝단 스톨 회피)
+const int     ANG_HI    = 140;  // 왕복 상한(180 대신)
+const int     STEP_DEG  = 2;    // 스텝 작게(전류 완만)
+const int     STEP_MS   = 25;   // 스텝 느리게
 
 Servo panel;
 
@@ -30,21 +33,22 @@ void setup() {
   Serial.begin(9600);
   pinMode(LED_PIN, OUTPUT);
   panel.attach(SERVO_PIN);
-  panel.write(0);
-  Serial.println(F("SOLAR SELFTEST — MG90S 0..180 계속 왕복(명령 불필요)"));
+  panel.write(ANG_LO);           // 중앙 근처에서 시작(0 슬램 회피)
+  delay(400);
+  Serial.println(F("SOLAR SELFTEST (gentle) — D11, 40..140 저속 왕복. 전원부족 대비."));
 }
 
 void loop() {
-  Serial.println(F("→ 180"));
-  for (int a = 0; a <= 180; a += STEP_DEG) {
+  Serial.println(F("→ HI"));
+  for (int a = ANG_LO; a <= ANG_HI; a += STEP_DEG) {
     panel.write(a);
-    digitalWrite(LED_PIN, (a / 15) % 2);   // 이동 중 LED 깜빡임
+    digitalWrite(LED_PIN, (a / 15) % 2);
     delay(STEP_MS);
   }
   delay(300);
 
-  Serial.println(F("→ 0"));
-  for (int a = 180; a >= 0; a -= STEP_DEG) {
+  Serial.println(F("→ LO"));
+  for (int a = ANG_HI; a >= ANG_LO; a -= STEP_DEG) {
     panel.write(a);
     digitalWrite(LED_PIN, (a / 15) % 2);
     delay(STEP_MS);
