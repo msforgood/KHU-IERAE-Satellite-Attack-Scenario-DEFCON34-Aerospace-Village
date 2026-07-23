@@ -47,8 +47,15 @@ const int SPIN_US_DEFAULT = 2000;   // full-speed continuous rotation (1500 = st
 Servo panel;
 int  targetAngle  = 90;   // sun-track default
 int  currentAngle = 90;
-int  mode         = 0;    // 0 nominal (positional) · 1 attack (positional) · 2 continuous spin
+int  mode         = 0;    // 0 nominal(태양추적) · 1 attack(무한 왕복) · 2 continuous spin
 int  spinUs       = SPIN_US_DEFAULT;
+// 공격 왕복 파라미터. 실측: 0/180 끝단을 때리면 기계적 스톨→과전류→브라운아웃으로 서보가
+// "잠깐 돌다 죽는다". 끝단을 피한 저속 구간(=self-test 로 실제 도는 걸 확인한 프로파일)을
+// 쓰면 스톨이 없어 같은 전원에서도 안정적으로 계속 왕복한다.
+const int ATTACK_LO  = 10;   // 공격 왕복 하한(0 대신 — 끝단 스톨 회피). 브라운아웃 시 20~30 으로 올릴 것
+const int ATTACK_HI  = 170;  // 공격 왕복 상한(180 대신). 브라운아웃 시 160~150 으로 내릴 것
+const int SWEEP_STEP = 2;    // loop당 이동각(작게 = 전류 완만)
+int  sweepDir     = 1;    // +1: LO→HI, -1: HI→LO
 char lineBuf[48];
 uint8_t lineLen = 0;
 
@@ -73,10 +80,17 @@ void loop() {
     }
   }
 
-  // 2) continuous spin (mode 2) drives a constant pulse; otherwise ease the
-  //    positional servo toward the target so it never slams.
+  // 2) 구동 모드 분기:
+  //    mode 2 = 연속회전 서보(SPIN 펄스)
+  //    mode 1 = 공격(transmit ADCS_TORQUE 999 와 같은 조건) → 각도값 무시, 0→180→0 무한 왕복
+  //    mode 0 = 태양추적(위치제어, targetAngle 로 부드럽게 이동)
   if (mode == 2) {
     panel.writeMicroseconds(spinUs);
+  } else if (mode == 1) {
+    currentAngle += sweepDir * SWEEP_STEP;
+    if (currentAngle >= ATTACK_HI) { currentAngle = ATTACK_HI; sweepDir = -1; }
+    if (currentAngle <= ATTACK_LO) { currentAngle = ATTACK_LO; sweepDir = +1; }
+    panel.write(currentAngle);
   } else if (currentAngle != targetAngle) {
     int diff = targetAngle - currentAngle;
     int step = diff;
