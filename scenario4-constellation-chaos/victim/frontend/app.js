@@ -5,7 +5,8 @@
 'use strict';
 var $ = function (s) { return document.querySelector(s); };
 var sim = null, collided = false, collisionReported = false, evtTimers = [];
-var Scn = window.Scenario5, K = window.SatKepler;
+var Scn = window.Scenario5, K = window.SatKepler, CCv = window.CollisionCore;
+var livePos = {};   // last ECI position of every satellite, for the live telemetry (nearest object)
 
 setInterval(function () { var c = $('#clock'); if (c) c.textContent = new Date().toTimeString().slice(0, 8); }, 1000);
 
@@ -27,11 +28,42 @@ var nominalTimer = null, nominalT = 0, atkKep = null, converging = false;
 function orbitPos(kep, t) { var nu = K.trueAnomalyAdvance(kep[0], kep[1], kep[5], t); return K.keplerianToECI(kep[0], kep[1], kep[2], kep[3], kep[4], nu); }
 function propagateAll() {
   if (!sim || !sim.engine) return;
+  var atk = null, atkNu = null;
   Scn.satellites().forEach(function (s) {
     if (converging && (s.role === 'attacker' || s.target)) return;   // these two are being driven to the impact point
     var kep = (s.role === 'attacker' && atkKep) ? atkKep : s.kep;
-    sim.engine.setSatPosition(s.id, orbitPos(kep, nominalT));
+    var nu = K.trueAnomalyAdvance(kep[0], kep[1], kep[5], nominalT);
+    var pos = K.keplerianToECI(kep[0], kep[1], kep[2], kep[3], kep[4], nu);
+    sim.engine.setSatPosition(s.id, pos);
+    livePos[s.id] = pos;
+    if (s.role === 'attacker') { atk = kep; atkNu = nu; }
   });
+  updateTelemetry(atk, atkNu);   // when converging the event tick drives ENIGMA-1 speed instead
+}
+// live telemetry: ENIGMA-1 speed (vis-viva from its current orbit + true anomaly) and the
+// distance to the nearest other satellite (min over the last known positions of everything).
+function enigmaSpeedKmS(kep, nu) {
+  if (!CCv || !CCv.stateFromElements || !kep) return null;
+  var s = CCv.stateFromElements(kep[0], kep[1], kep[2], kep[3], kep[4], nu);
+  return Math.hypot(s.v[0], s.v[1], s.v[2]) / 1000;
+}
+function updateTelemetry(kep, nu) {
+  if (kep != null && nu != null) {
+    var sp = enigmaSpeedKmS(kep, nu);
+    if (sp != null) setVal('#mSpeed', sp.toFixed(3) + ' km/s', converging ? 'warn' : 'nominal');
+  }
+  var ep = livePos['demosat']; if (!ep) return;
+  var best = Infinity;
+  Object.keys(livePos).forEach(function (id) {
+    if (id === 'demosat') return;
+    var p = livePos[id]; if (!p) return;
+    var d = Math.hypot(ep.x - p.x, ep.y - p.y, ep.z - p.z);
+    if (d < best) best = d;
+  });
+  if (best < Infinity) {
+    var km = Math.round(best / 1000);
+    setVal('#mNear', km + ' km', km < 30 ? 'danger' : (km < 300 ? 'warn' : 'nominal'));
+  }
 }
 function startNominal() {
   if (!sim) return;
@@ -57,43 +89,63 @@ function onCollision(m) {
   collided = false; collisionReported = false; aftermathShown = false;
   clearEvtTimers();
   document.body.classList.remove('collision'); hideVideo(); hideAlarm();
+  var hit = m.collided !== false;                                    // collide-vs-miss verdict from the console difficulty
   var vic = m.victim || 'AURORA-2', eta = m.impactTargetSec || 18;   // orbit morphs gradually below, not instantly
-  setBanner('warn', 'BURN COMMAND EXECUTED — ENIGMA-1 on a collision course with ' + vic + '. Impact in ' + eta + ' s.');
-  setTag('#orbitTag', 'warn', 'MANEUVERING');
-  setTag('#threatTag', 'danger blink', 'COLLISION IMMINENT');
+  var missKm = Math.round((m.missM || 0) / 1000);
+  if (hit) {
+    setBanner('warn', 'BURN COMMAND EXECUTED - ENIGMA-1 on a collision course with ' + vic + '. Impact in ' + eta + ' s.');
+    setTag('#orbitTag', 'warn', 'MANEUVERING'); setTag('#threatTag', 'danger blink', 'COLLISION IMMINENT');
+    set('#cClosest', '0 km (impact)'); cdm(vic, m, eta);
+  } else {
+    setBanner('warn', 'BURN COMMAND EXECUTED - ENIGMA-1 maneuvering near ' + vic + '. Screening conjunction, predicted miss about ' + missKm + ' km.');
+    setTag('#orbitTag', 'warn', 'MANEUVERING'); setTag('#threatTag', 'warn', 'CONJUNCTION');
+    set('#cClosest', 'screening'); cdmNearMiss(vic, m, eta, missKm);
+  }
   if (m.attackerKep) {
-    setVal('#mAlt', Math.round((m.attackerKep[0] - K.EarthRadius) / 1000) + ' km', 'danger');
+    setVal('#mAlt', Math.round((m.attackerKep[0] - K.EarthRadius) / 1000) + ' km', hit ? 'danger' : 'warn');
     setVal('#mInc', m.attackerKep[2].toFixed(1) + '°', 'nominal');
     setVal('#mRaan', m.attackerKep[3].toFixed(1) + '°', 'nominal');
   }
-  set('#cClosest', '0 km · IMPACT');
-  cdm(vic, m, eta);
   // drive ENIGMA-1 and AURORA-2 together to the impact point over the countdown, moving
   // ALONG their orbits (interpolating true anomaly), so they stay on the orbit lines and
   // never cut a straight chord through the Earth. Neighbours keep orbiting via nominal.
   converging = true;
-  var vid = findVictimId(), CCv = window.CollisionCore;
+  var vid = findVictimId();
   var baseKep = (Scn.satellites().filter(function (x) { return x.role === 'attacker'; })[0] || {}).kep;
   var targetKep = m.attackerKep || baseKep;
+  atkKep = targetKep;   // keep ENIGMA-1 on its maneuvered orbit once nominal orbiting resumes
   var vKep = m.victimKep || (Scn.satellites().filter(function (x) { return x.target; })[0] || {}).kep;
   var P = m.collisionPoint ? [m.collisionPoint.x, m.collisionPoint.y, m.collisionPoint.z] : null;
   var aStartNu = K.trueAnomalyAdvance(baseKep[0], baseKep[1], baseKep[5], nominalT);
   var vStartNu = K.trueAnomalyAdvance(vKep[0], vKep[1], vKep[5], nominalT);
   var aEndNu = (P && CCv) ? CCv.nuAtPoint(targetKep, P) : aStartNu;
-  var vEndNu = (P && CCv) ? CCv.nuAtPoint(vKep, P) : vStartNu;
+  // near-miss: nudge AURORA-2 off the crossing so it is NOT there when ENIGMA-1 arrives. A geometry
+  // miss already leaves a gap (their closest points differ); a timing miss needs this offset.
+  var vTimeOff = (!hit && m.timingOffSec && vKep) ? (m.timingOffSec / K.period(vKep[0]) * 360) : 0;
+  var vEndNu = (P && CCv) ? (CCv.nuAtPoint(vKep, P) + vTimeOff) : vStartNu;
   var shortArc = function (from, to) { var d = ((to - from) % 360 + 360) % 360; return d > 180 ? d - 360 : d; };
   var aArc = shortArc(aStartNu, aEndNu), vArc = shortArc(vStartNu, vEndNu);
   // how far a satellite sweeps at the NOMINAL (slow) rate over the countdown, and how many
   // whole extra revolutions bring an arc up to that pace (full revs keep the endpoint on P).
   var nomSweep = function (kep) { return NOMINAL_STEP * (eta * 1000 / NOMINAL_TICK) / K.period(kep[0]) * 360; };
   var revsToward = function (arc, sweep) { return Math.max(0, Math.round((sweep - arc) / 360)); };
+  // how hard was the commanded burn? |Δv| = velocity on the maneuvered orbit minus velocity on
+  // the base orbit at the burn point (m/s) — exactly the Δv the attacker dialed in on monitor 1.
+  var dvMag = (function () {
+    if (!CCv || !CCv.stateFromElements) return 0;
+    var sB = CCv.stateFromElements(baseKep[0], baseKep[1], baseKep[2], baseKep[3], baseKep[4], aStartNu);
+    var sT = CCv.stateFromElements(targetKep[0], targetKep[1], targetKep[2], targetKep[3], targetKep[4], aStartNu);
+    return Math.hypot(sT.v[0] - sB.v[0], sT.v[1] - sB.v[1], sT.v[2] - sB.v[2]);
+  })();
   // AURORA-2 keeps roughly its normal (now slow) pace on the way to the crossing, so it no
-  // longer looks singled-out and frozen. ENIGMA-1 gets an EXTRA revolution plus an ease-in,
-  // so right after the burn it visibly SPEEDS UP and races around to the impact point.
-  var ENIGMA_EXTRA_REVS = 1;
+  // longer looks singled-out and frozen. ENIGMA-1 speeds up AFTER the burn, and HOW MUCH scales
+  // with the commanded Δv: a light nudge adds ~1 extra lap, a hard burn adds up to 4 (whole laps
+  // keep the endpoint exactly on P), and the ease-in also sharpens with the burn.
+  var ENIGMA_EXTRA_REVS = Math.max(1, Math.min(4, Math.round(Math.sqrt(dvMag) / 9)));
+  var accel = Math.max(0, Math.min(1, dvMag / 900));   // 0..1 burn-scaled acceleration sharpness
   var vTotal = vArc + 360 * revsToward(vArc, nomSweep(vKep));
   var aTotal = aArc + 360 * (revsToward(aArc, nomSweep(baseKep)) + ENIGMA_EXTRA_REVS);
-  var easeIn = function (f) { return f * (0.35 + 0.65 * f); };   // starts near baseline, then accelerates
+  var easeIn = function (f) { var a0 = 0.35 - 0.22 * accel; return f * (a0 + (1 - a0) * f); };   // starts near baseline, then accelerates (harder for a bigger burn)
   // the burn takes time: interpolate ENIGMA-1's orbit from its current (base) orbit to the
   // maneuvered orbit over the countdown, so the ring visibly grows and tilts as it fires.
   var lerpKep = function (f) { var k = []; for (var i = 0; i < 6; i++) k[i] = baseKep[i] + (targetKep[i] - baseKep[i]) * f; return k; };
@@ -111,16 +163,22 @@ function onCollision(m) {
   var t0 = Date.now();
   var tick = function () {
     var el = (Date.now() - t0) / 1000, frac = Math.min(1, el / eta), left = Math.max(0, eta - el), sb = $('#simbar');
-    if (sb) { sb.textContent = left > 0.1 ? ('⚠ BURN IN PROGRESS - orbit changing · impact in ' + left.toFixed(1) + ' s') : '⚠ IMPACT'; sb.className = 'simbar danger'; }
+    if (sb) {
+      if (left > 0.1) { sb.textContent = '⚠ BURN IN PROGRESS - orbit changing, ' + (hit ? 'impact' : 'closest approach') + ' in ' + left.toFixed(1) + ' s'; }
+      else { sb.textContent = hit ? '⚠ IMPACT' : 'CLOSEST APPROACH'; }
+      sb.className = 'simbar ' + (hit ? 'danger' : 'warn');
+    }
     if (sim && sim.engine) {
       var kepF = lerpKep(frac);
-      var aPos = K.keplerianToECI(kepF[0], kepF[1], kepF[2], kepF[3], kepF[4], aStartNu + aTotal * easeIn(frac));
+      var nuE = aStartNu + aTotal * easeIn(frac);
+      var aPos = K.keplerianToECI(kepF[0], kepF[1], kepF[2], kepF[3], kepF[4], nuE);
+      var vPos = K.keplerianToECI(vKep[0], vKep[1], vKep[2], vKep[3], vKep[4], vStartNu + vTotal * frac);
       sim.engine.setOrbitLine('demosat', kepF);
       sim.engine.setSatPosition('demosat', aPos);
-      sim.engine.setSatPosition(vid, K.keplerianToECI(vKep[0], vKep[1], vKep[2], vKep[3], vKep[4], vStartNu + vTotal * frac));
+      sim.engine.setSatPosition(vid, vPos);
+      livePos['demosat'] = aPos; livePos[vid] = vPos; updateTelemetry(kepF, nuE);   // live speed + nearest object
       if (sim.engine.lockCamera) sim.engine.lockCamera(aPos);   // monitor 2 locks on and follows ENIGMA-1 to impact
       if (sim.engine.setPlume) {   // gas plume firing per the commanded burn direction
-        var nuE = aStartNu + aTotal * easeIn(frac);
         var ramp = Math.min(1, el / 0.6);                                 // quick ignition
         var cut = frac > 0.85 ? Math.max(0, (0.98 - frac) / 0.13) : 1;    // engine cut-off just before impact
         var flick = 0.72 + 0.28 * Math.sin(el * 26);                      // flame flicker
@@ -130,7 +188,29 @@ function onCollision(m) {
     if (left > 0.1) evtTimers.push(setTimeout(tick, 60));
   };
   tick();
-  evtTimers.push(setTimeout(function () { detonate(m); }, eta * 1000));
+  evtTimers.push(setTimeout(function () { hit ? detonate(m) : nearMissEnd(m); }, eta * 1000));
+}
+// near-miss resolution: ENIGMA-1 passed AURORA-2 without colliding. No explosion, no debris; the
+// two keep orbiting (ENIGMA-1 on its maneuvered ring), and the console offers a retry.
+function nearMissEnd(m) {
+  converging = false;
+  var vic = m.victim || 'AURORA-2', missKm = Math.round((m.missM || 0) / 1000);
+  setBanner('warn', 'NEAR MISS - ENIGMA-1 passed ' + vic + ' with a closest approach of about ' + missKm + ' km. No collision.');
+  setTag('#orbitTag', 'nominal', 'STATION-KEEPING'); setTag('#threatTag', 'warn', 'NEAR MISS');
+  var sb = $('#simbar'); if (sb) { sb.textContent = 'NEAR MISS - closest approach about ' + missKm + ' km'; sb.className = 'simbar warn'; }
+  set('#cClosest', missKm + ' km (near miss)');
+  var st = $('#cdmStatus'); if (st) { st.textContent = 'YELLOW - SCREENED'; st.className = 'cdmstatus'; }
+  set('#cdmMiss', missKm + ' km'); set('#cdmPc', 'below threshold');
+  var n = $('#cdmNote'); if (n) n.innerHTML = 'Conjunction with AURORA-2 screened: <b>closest approach outside the collision threshold</b>. No impact; the operator can retry with a tighter burn.';
+  if (sim && sim.engine && sim.engine.setPlume) sim.engine.setPlume(null);   // engine off after the pass
+  startNominal();   // both satellites resume orbiting so they visibly separate again
+}
+// CDM shown while a near-miss conjunction is being screened (before the pass resolves)
+function cdmNearMiss(vic, m, tcaSec, missKm) {
+  var st = $('#cdmStatus'); if (st) { st.textContent = 'YELLOW - SCREENING'; st.className = 'cdmstatus'; }
+  set('#cdmSec', 'ENIGMA-1'); set('#cdmMiss', '~' + missKm + ' km (predicted)'); set('#cdmTca', tcaSec + ' s');
+  set('#cdmRel', (m.closingKmS || '?') + ' km/s'); set('#cdmPc', 'below threshold');
+  var n = $('#cdmNote'); if (n) n.innerHTML = 'Conjunction screened against AURORA-2: predicted miss <b>outside the collision threshold</b> for this difficulty. Impact not expected.';
 }
 function findVictimId() { var s = Scn.satellites().filter(function (x) { return x.target; })[0]; return s ? s.id : 'aurora-2'; }
 function detonate(m) {
@@ -195,11 +275,12 @@ function doReset() {
   collided = false; collisionReported = false; aftermathShown = false; clearEvtTimers();
   document.body.classList.remove('collision'); hideVideo(); hideAlarm();
   if (sim) { sim.setSatellites(Scn.satellites()); sim.lockOn('demosat'); setTimeout(function () { if (sim) sim.lockId = null; }, 150); if (sim.engine && sim.engine.setPlume) sim.engine.setPlume(null); }
-  atkKep = null; converging = false; nominalT = 0; startNominal();
+  atkKep = null; converging = false; nominalT = 0; livePos = {}; startNominal();
   setBanner('nominal', 'NOMINAL - all satellites separated and station-keeping');
   setTag('#orbitTag', 'nominal', 'STATION-KEEPING'); setTag('#threatTag', 'nominal', 'NONE');
   var st = (Scn && Scn.attackerStart) || { altKm: 600, inc: 97.8, raan: 25 };
   setVal('#mAlt', st.altKm + ' km', 'nominal'); setVal('#mInc', st.inc + '°', 'nominal'); setVal('#mRaan', st.raan + '°', 'nominal');
+  setVal('#mSpeed', '— km/s', 'nominal'); setVal('#mNear', '— km', 'nominal');
   var cnt = (Scn && Scn.target && Scn.target.constellationCount) || 3;
   setVal('#cMembers', String(cnt)); updateConstellation(cnt, cnt); set('#cClosest', '—');
   var cst = $('#cdmStatus'); if (cst) { cst.textContent = 'CLEAR'; cst.className = 'cdmstatus clear'; }
@@ -216,7 +297,7 @@ function connect() {
   ws.onmessage = function (e) {
     var msg; try { msg = JSON.parse(e.data); } catch (x) { return; }
     if (msg.type === 'hello') { if (msg.scenario) { var c = msg.scenario.count; setVal('#cMembers', String(c)); updateConstellation(c, c); } }
-    else if (msg.type === 'collision') { addLog('START BURN', 'collision course · ' + (msg.closingKmS || '?') + ' km/s'); onCollision(msg); }
+    else if (msg.type === 'collision') { addLog('START BURN', (msg.collided !== false ? 'collision course, ' : 'maneuver near miss, ') + (msg.closingKmS || '?') + ' km/s'); onCollision(msg); }
     else if (msg.type === 'reset') { doReset(); }
     else if (msg.type === 'uplink') { addLog(msg.command || 'command', 'received'); }
   };
