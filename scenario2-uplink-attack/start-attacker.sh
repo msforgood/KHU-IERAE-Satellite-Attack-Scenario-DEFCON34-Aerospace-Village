@@ -98,6 +98,21 @@ free_port() {
   [ -n "$pids" ] && { echo "$pids" | xargs kill -9 2>/dev/null || true; sleep 1; }
 }
 
+# 이전 실행이 남긴 Arduino 브리지(node bridge.js)를 정리한다. TCP 가 아니라 시리얼 포트를 물기
+# 때문에 free_port 로는 안 잡힌다. 안 죽이면 그 좀비 브리지가 포트를 계속 쥐고 있어:
+#   ① 새 브리지와 '동시에 같은 시리얼에 write' → 명령이 바이트 단위로 뒤섞여(MODE/ANG 깨짐)
+#      서보·모터가 제대로 안 돈다.  ② flash 업로드가 'Resource busy' 로 실패한다.
+# 그래서 detect/flash/selftest/새 브리지 이전에 반드시 정리한다. 데모 전용이라 bridge.js 매칭 안전.
+free_serial_bridge() {
+  have pkill || return 0
+  local victims; victims="$(pgrep -f 'bridge\.js' 2>/dev/null || true)"
+  [ -z "$victims" ] && return 0
+  c_warn "이전 Arduino 브리지 정리(시리얼 중복 write 방지) → kill: $(echo $victims | tr '\n' ' ')"
+  pkill -f 'bridge\.js' 2>/dev/null || true
+  sleep 1
+  pgrep -f 'bridge\.js' >/dev/null 2>&1 && { pkill -9 -f 'bridge\.js' 2>/dev/null || true; sleep 1; }
+}
+
 # gpredict(③ 조준)는 Docker 컨테이너로만 뜨기 때문에 데몬이 꺼져 있으면 화면이 안 열린다.
 # 그래서 여기서 데몬을 자동 기동하고 올라올 때까지 기다린다. Docker CLI 자체가 없으면(미설치)
 # 조용히 실패(1) → 호출부가 gpredict 없이 진행. 성공 0 / 실패 1. 최대 DOCKER_WAIT(기본 90)초 대기.
@@ -296,6 +311,7 @@ start_bridge() {
     c_warn "시리얼 보드 없음/미식별 → Arduino 브리지 건너뜀(모터 미구동, 화면은 정상). 필요 시 ANT_PORT=/dev/cu.xxx 로 지정."
     return 0
   fi
+  free_serial_bridge   # 진입 시 재확인: 어떤 좀비 브리지도 없이 '단 하나'의 브리지만 뜨게 보장
   # 데모는 항상 nominal 에서 시작해야 한다(transmit 전엔 솔라 정지, transmit 해야 회전).
   # 이전 실행의 tumbling/solarAttacked 가 GS 에 latch 돼 있으면 브리지가 켜지자마자 MODE 1 을
   # 보내 솔라가 상시 회전한다. 그래서 브리지 기동 직전에 피해 GS 를 nominal 로 되돌린다(best-effort).
@@ -458,6 +474,7 @@ up() {
   #   피해 GS(:4540) /api/state 를 폴링해 물리 안테나(AZ/EL)·솔라 '모터'를 구동한다.
   #   보드가 USB로 연결돼 있어야 실제로 돈다. 없으면 경고만 하고 건너뜀(화면은 정상).
   if grep -q '"arduinoBridge"[[:space:]]*:[[:space:]]*true' "$SCENARIO_CONFIG" 2>/dev/null; then
+    free_serial_bridge # 이전 실행의 좀비 브리지 정리(포트 해제) → 업로드/자가진단/새 브리지 충돌 방지
     detect_boards      # 시리얼 포트 1회 탐지(WHOAMI 역할 분류) → ANT_DEV/SOLAR_DEV
     flash_boards       # antenna_gimbal / solar 스케치 자동 업로드(arduino-cli)
     motor_selftest     # az·el 모터 왕복 테스트 후 준비 자세 정렬
