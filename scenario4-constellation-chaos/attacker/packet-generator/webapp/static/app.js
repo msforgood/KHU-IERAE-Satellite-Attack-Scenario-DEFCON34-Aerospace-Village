@@ -1,4 +1,4 @@
-// app.js — ENIGMA-1 orbital-collision console (scenario 5, monitor 1), reversed flow.
+// app.js — ENIGMA-1 orbital-collision console (scenario 4, monitor 1), reversed flow.
 //   PHASE 1 INTEL      parse both TLEs into the six classical orbital elements
 //   PHASE 2 PROPAGATE  advance the clock (Kepler chain), pick the collision pass = execution time
 //   PHASE 3 SOLVE      assemble the equation chain, tune the real delta-v, back-solve the burn
@@ -295,14 +295,14 @@ var CARDS = [
               ['μ', 'Earth\'s gravitational parameter, 3.986×10¹⁴ (fixed)'] ],
       effect: 'Raise Δv prograde → v<sub>new</sub> grows → a<sub>new</sub> grows → the far side of the orbit (apogee) climbs toward AURORA-2. This is the knob that makes the two rings touch (MOID → 0).' } },
   { id: 'pert', order: 1, group: ['pert-drag', 'pert-srp', 'pert-j2', 'pert-3b'],
-    t: '섭동력 (Perturbations)', c: '선택하면 4개 힘으로 확장',
+    t: 'Perturbations', c: 'selecting it expands into 4 forces',
     sym: 'a<sub>tot</sub> = −μ ' + frac('r', '|r|³') + ' + a<sub>drag</sub> + a<sub>SRP</sub> + a<sub>J2</sub> + a<sub>3b</sub>',
-    detail: { purpose: '2체 중력 외에 궤도에 실제로 작용하는 힘들. 선택하면 4개 힘 카드로 펼쳐지고, 각 힘이 체인의 어느 요소에 작용하는지 화살표로 이어집니다.',
-      vars: [ ['대기 항력', 'a<sub>drag</sub>, 고도 a에 작용'],
-              ['태양복사압', 'a<sub>SRP</sub>, 이심률 e에 작용'],
-              ['지구 편평률 J2', 'dΩ/dt, 궤도면 Ω와 ω 세차'],
-              ['제3체 중력', 'a<sub>3b</sub>, 여러 요소 장기 섭동'] ],
-      effect: '실제 비행역학은 이 힘들까지 넣어 궤도를 전파합니다.' } },
+    detail: { purpose: 'The forces that actually act on the orbit beyond two-body gravity. Selecting it expands into 4 force cards, linked by arrows that show which chain element each force acts on.',
+      vars: [ ['Atmospheric drag', 'a<sub>drag</sub>, acts on altitude a'],
+              ['Solar radiation pressure', 'a<sub>SRP</sub>, acts on eccentricity e'],
+              ['Earth oblateness (J2)', 'dΩ/dt, precession of the orbital plane Ω and ω'],
+              ['Third-body gravity', 'a<sub>3b</sub>, long-term perturbation of several elements'] ],
+      effect: 'Real flight dynamics propagates the orbit with these forces included.' } },
   { id: 'period', order: 2, t: 'Orbital period', c: 'Kepler III',
     sym: 'T = 2π ' + rt(frac('a³', 'μ')),
     out: function (c) { return 'T = ' + fo(c.TinsMin + ' min'); },
@@ -321,16 +321,16 @@ var CARDS = [
               ['Δv⊥', 'cross-track burn (perpendicular to the orbit plane)'],
               ['v', 'orbital speed at the burn point'] ],
       effect: 'A small nudge slides the crossing point along AURORA-2. The big 13 km/s closing speed already comes from the fixed 125° plane difference (like Iridium-Cosmos), not from this burn — large cross-track values just pull the orbits apart and break the crossing.' } },
-  { id: 'shift', order: 3, drive: true, t: 'Arrival-time shift', c: 'phasing, k laps',
+  { id: 'shift', order: 3, drive: true, t: 'Arrival-time shift', c: 'phasing maneuver',
     sym: 'Δt = k · (T<sub>new</sub> − T₀)',
     out: function (c) { return 'Δt = ' + fo(c.shiftS + ' s') + ' (off ' + c.offS + ' s)'; },
-    feed: 'match the pass', driver: 'Δv phasing, k',
-    detail: { purpose: 'The phasing maneuver: a brief burn onto a slightly different orbit for k laps, then back. Same orbit, but you arrive earlier or later.',
+    feed: 'match the pass', driver: 'Δv phasing',
+    detail: { purpose: 'The phasing maneuver: a brief burn onto a slightly different orbit for a fixed number of laps, then back. Same orbit, but you arrive earlier or later.',
       vars: [ ['Δt', 'total arrival-time shift you gain'],
-              ['k', 'number of phasing laps (revolutions)'],
+              ['k', 'number of phasing laps — fixed at 12 for this maneuver'],
               ['T<sub>new</sub>', 'period of the temporary phasing orbit (set by Δv phasing)'],
               ['T₀', 'original orbital period'] ],
-      effect: 'More laps (k) or a bigger phasing Δv → a bigger shift. ENIGMA-1 passes the crossing every orbit, so tune Δt until one of those passes lands exactly when AURORA-2 is there (the timing gauge → 0).' } },
+      effect: 'A bigger phasing Δv → a bigger shift. ENIGMA-1 passes the crossing every orbit, so tune the phasing Δv until one of those passes lands exactly when AURORA-2 is there (the timing gauge → 0).' } },
   { id: 'point', order: 5, t: 'Burn pointing', c: 'attitude',
     sym: 'yaw = atan2(Δv<sub>R</sub>, Δv<sub>T</sub>),  pitch = asin(' + frac('Δv<sub>N</sub>', '|Δv|') + ')',
     out: function (c) { return 'yaw ' + fo(c.yaw + '°') + ', pitch ' + fo(c.pitch + '°'); },
@@ -354,39 +354,39 @@ var CARDS = [
               ['t<sub>burn</sub>', 'burn duration = Δm / ṁ'] ],
       effect: 'A bigger total Δv burns more propellant. A smaller thruster (low F) means the same burn takes much longer. Pick the thruster to trade burn time against realism.' } }
 ];
-// the 4 cards the 섭동력 group expands into. Each acts on a maneuver-chain element (shown by a
+// the 4 cards the Perturbations group expands into. Each acts on a maneuver-chain element (shown by a
 // hover arrow). Outputs are display-only; the collision solve never reads them.
 var PERTURBATIONS = [
-  { id: 'pert-drag', pgroup: true, t: '대기 항력 (drag)', feed: 'orbit (a, 고도)', card: 'orbit',
+  { id: 'pert-drag', pgroup: true, t: 'Atmospheric drag', feed: 'orbit (a, altitude)', card: 'orbit',
     sym: 'a<sub>drag</sub> = −½ ρ ' + frac('C<sub>d</sub> A', 'm') + ' v²',
     out: function (c) { var b = window.G && G.base; if (!b) return ''; var a = b[0], h = a - K.EarthRadius,
         rho = 1.3e-11 * Math.exp(-(h - 180000) / 60000), v = Math.sqrt(K.MuEarth / a);
       return 'a<sub>drag</sub> ≈ ' + fo(sci(0.5 * rho * v * v * 0.022, 2) + ' m/s²'); },
-    detail: { purpose: '희박한 대기와의 마찰이 만드는 감속. LEO 궤도가 서서히 낮아지는 주원인.',
-      vars: [ ['ρ', '대기밀도 (고도와 태양활동에 따라 변함)'], ['C<sub>d</sub>', '항력계수 (마찰)'],
-              ['A / m', '단면적 대 질량비 (탄도계수 B = C<sub>d</sub>A/m)'], ['v', '대기에 대한 상대속도'] ],
-      effect: '반장축 a가 줄어든다. 항력은 속도 반대 방향으로 작용한다.' } },
-  { id: 'pert-srp', pgroup: true, t: '태양복사압 (SRP)', feed: 'orbit (e, 이심률)', card: 'orbit',
+    detail: { purpose: 'The deceleration from friction with the thin upper atmosphere. It is the main reason LEO orbits slowly decay.',
+      vars: [ ['ρ', 'atmospheric density (varies with altitude and solar activity)'], ['C<sub>d</sub>', 'drag coefficient (friction)'],
+              ['A / m', 'area-to-mass ratio (ballistic coefficient B = C<sub>d</sub>A/m)'], ['v', 'velocity relative to the atmosphere'] ],
+      effect: 'The semi-major axis a shrinks. Drag acts opposite to the velocity direction.' } },
+  { id: 'pert-srp', pgroup: true, t: 'Solar radiation pressure (SRP)', feed: 'orbit (e, eccentricity)', card: 'orbit',
     sym: 'a<sub>SRP</sub> = −P<sub>⊙</sub> ' + frac('C<sub>r</sub> A', 'm') + ' ŝ',
     out: function (c) { return 'a<sub>SRP</sub> ≈ ' + fo(sci(4.56e-6 * 1.3 * 0.01, 2) + ' m/s²'); },
-    detail: { purpose: '햇빛(광자)의 압력이 위성을 미는 힘. 하전입자인 태양풍과는 다르다.',
-      vars: [ ['P<sub>⊙</sub>', '1 AU 복사압 ≈ 4.56×10' + sup('-') + sup(6) + ' N/m²'], ['C<sub>r</sub>', '반사계수'],
-              ['A / m', '단면적 대 질량비'], ['ŝ', '태양 방향'] ],
-      effect: '이심률 e와 궤도면을 천천히 바꾼다.' } },
-  { id: 'pert-j2', pgroup: true, t: '지구 편평률 J2', feed: 'plane (Ω, ω)', card: 'plane',
+    detail: { purpose: 'The push of sunlight (photons) on the satellite. It is different from the solar wind, which is charged particles.',
+      vars: [ ['P<sub>⊙</sub>', 'radiation pressure at 1 AU ≈ 4.56×10' + sup('-') + sup(6) + ' N/m²'], ['C<sub>r</sub>', 'reflectivity coefficient'],
+              ['A / m', 'area-to-mass ratio'], ['ŝ', 'direction to the Sun'] ],
+      effect: 'It slowly changes the eccentricity e and the orbital plane.' } },
+  { id: 'pert-j2', pgroup: true, t: 'Earth oblateness (J2)', feed: 'plane (Ω, ω)', card: 'plane',
     sym: frac('dΩ', 'dt') + ' = −' + frac('3', '2') + ' n J₂ ' + frac('R<sub>e</sub>²', 'p²') + ' cos i',
     out: function (c) { var b = window.G && G.base; if (!b) return ''; var a = b[0], e = b[1], inc = b[2] * Math.PI / 180,
         n = Math.sqrt(K.MuEarth / (a * a * a)), p = a * (1 - e * e), rr = K.EarthRadius / p;
       return 'dΩ/dt = ' + fo((-1.5 * n * 1.0826e-3 * rr * rr * Math.cos(inc) * 180 / Math.PI * 86400).toFixed(3) + '°/day'); },
-    detail: { purpose: '지구 적도가 볼록해서 생기는 섭동. 궤도면을 돌린다.',
-      vars: [ ['J₂', '≈ 1.083×10' + sup('-') + sup(3)], ['n', '평균 운동'], ['p = a(1−e²)', '반통경'], ['i', '경사각'] ],
-      effect: '승교점 Ω와 근점편각 ω를 세차시킨다. 태양동기궤도는 이 세차로 유지된다.' } },
-  { id: 'pert-3b', pgroup: true, t: '제3체 중력 (Moon/Sun)', feed: 'orbit (a, e, i)', card: 'orbit',
+    detail: { purpose: 'A perturbation caused by the bulge at Earth\'s equator. It rotates the orbital plane.',
+      vars: [ ['J₂', '≈ 1.083×10' + sup('-') + sup(3)], ['n', 'mean motion'], ['p = a(1−e²)', 'semi-latus rectum'], ['i', 'inclination'] ],
+      effect: 'It precesses the ascending node Ω and the argument of perigee ω. Sun-synchronous orbits are maintained by this precession.' } },
+  { id: 'pert-3b', pgroup: true, t: 'Third-body gravity (Moon/Sun)', feed: 'orbit (a, e, i)', card: 'orbit',
     sym: 'a<sub>3b</sub> = μ₃ [ ' + frac('r₃−r', '|r₃−r|³') + ' − ' + frac('r₃', '|r₃|³') + ' ]',
     out: function (c) { var b = window.G && G.base; if (!b) return ''; return 'a<sub>3b</sub> ≈ ' + fo(sci(2 * 4.903e12 * b[0] / Math.pow(3.844e8, 3), 2) + ' m/s²'); },
-    detail: { purpose: '달과 태양의 인력이 만드는 조석형 섭동.',
-      vars: [ ['μ₃', '제3체(달/태양) 중력계수'], ['r₃', '제3체 위치'], ['r', '위성 위치'] ],
-      effect: '여러 궤도 요소(a, e, i)를 장기적으로 흔든다.' } }
+    detail: { purpose: 'A tidal-type perturbation produced by the gravity of the Moon and the Sun.',
+      vars: [ ['μ₃', 'gravitational parameter of the third body (Moon/Sun)'], ['r₃', 'position of the third body'], ['r', 'position of the satellite'] ],
+      effect: 'It slowly disturbs several orbital elements (a, e, i) over the long term.' } }
 ];
 var PERT_LINKS = PERTURBATIONS.map(function (p) { return { from: p.id, to: p.card }; });
 var lastCtx = null;
@@ -575,7 +575,7 @@ function renderVarBlock() { /* markup is static in index.html; just enable/disab
 function lockVars(on) {
   var blk = $('#varBlock'); if (blk) blk.classList.toggle('locked', !on);
   $('#varLock').textContent = on ? 'chain assembled — tune away' : 'assemble the chain first';
-  ['#inPg', '#inCr', '#inPh', '#inK'].forEach(function (s) { var e = $(s); if (e) e.disabled = !on; });
+  ['#inPg', '#inCr', '#inPh'].forEach(function (s) { var e = $(s); if (e) e.disabled = !on; });
   document.querySelectorAll('#varBlock .stepbtn').forEach(function (b) { b.disabled = !on; });
 }
 function lockThruster(lock) {
@@ -583,16 +583,16 @@ function lockThruster(lock) {
   $('#thrLock').textContent = lock ? 'lock geometry + timing first' : 'choose the thruster';
 }
 function syncVarInputs() {
-  var m = { '#inPg': S.dv.prograde, '#inCr': S.dv.cross, '#inPh': S.dv.phase, '#inK': S.dv.k };
+  var m = { '#inPg': S.dv.prograde, '#inCr': S.dv.cross, '#inPh': S.dv.phase };
   Object.keys(m).forEach(function (s) { var e = $(s); if (e) e.value = m[s]; });
 }
 function wireSolveControls() {
-  var inMap = { prograde: '#inPg', cross: '#inCr', phase: '#inPh', k: '#inK' };
+  var inMap = { prograde: '#inPg', cross: '#inCr', phase: '#inPh' };
   Object.keys(inMap).forEach(function (key) {
     var el = $(inMap[key]); if (el) el.oninput = function () { S.dv[key] = clampVar(key, +el.value || 0); updateSolve(); };
   });
-  var STEP = { prograde: 10, cross: 20, phase: 1, k: 1 };
-  var KEYOF = { pg: 'prograde', cr: 'cross', ph: 'phase', k: 'k' };
+  var STEP = { prograde: 10, cross: 20, phase: 1 };
+  var KEYOF = { pg: 'prograde', cr: 'cross', ph: 'phase' };
   document.querySelectorAll('#varBlock .stepbtn').forEach(function (b) {
     b.onclick = function () {
       var a = b.dataset.act, sign = a.indexOf('+') >= 0 ? 1 : -1, key = KEYOF[a.replace(/[+-]/g, '')];
@@ -686,7 +686,7 @@ function updateSolve() {
   var st = $('#solveState');
   if (geomLocked && timeLocked) { st.textContent = 'GEOMETRY + TIMING LOCKED — choose a thruster and confirm the burn.'; st.className = 'solvestate lock'; }
   else if (!geomLocked) { st.textContent = 'Geometry: raise Δv prograde so the orbits cross (MOID → 0). MOID ' + moidKm + ' km — try Δv prograde ≈ ' + G.nominal.dvp + ' m/s.'; st.className = 'solvestate'; }
-  else { var sug = suggestPhaseDv(kep[0], tA, S.execTimeSec, S.dv.k); st.textContent = 'Timing: ENIGMA-1\'s pass is off by ' + Math.round(residual) + ' s. Set phasing Δv ≈ ' + sug + ' m/s at k=' + S.dv.k + ' (more revs = smaller Δv per lap).'; st.className = 'solvestate'; }
+  else { var sug = suggestPhaseDv(kep[0], tA, S.execTimeSec, S.dv.k); st.textContent = 'Timing: ENIGMA-1\'s pass is off by ' + Math.round(residual) + ' s. Set phasing Δv ≈ ' + sug + ' m/s to slide the arrival onto AURORA-2.'; st.className = 'solvestate'; }
   lockThruster(!(geomLocked && timeLocked));
   if (geomLocked && timeLocked) renderBurn(); else { $('#burnPanel').innerHTML = ''; S.burn = null; }
   var tb = $('#toTransmit'); if (tb) tb.disabled = !(geomLocked && timeLocked && S.burn);
@@ -721,7 +721,7 @@ function renderBurn() {
     '<div class="brow"><span>Point thruster</span><b>yaw ' + plan.yawDeg.toFixed(1) + '°, pitch ' + plan.pitchDeg.toFixed(1) + '°' + (plan.retrograde ? ' (retro)' : ' (prograde)') + '</b></div>' +
     '<div class="brow"><span>Thrust · Isp</span><b>' + th.thrustN + ' N · ' + th.ispSec + ' s</b></div>' +
     '<div class="brow"><span>Burn duration</span><b>' + plan.burnSec.toFixed(1) + ' s</b></div>' +
-    '<div class="brow"><span>Phasing Δv (k=' + S.dv.k + ')</span><b>' + phaseDvTotal.toFixed(1) + ' m/s</b></div>' +
+    '<div class="brow"><span>Phasing Δv</span><b>' + phaseDvTotal.toFixed(1) + ' m/s</b></div>' +
     '<div class="brow"><span>Propellant total</span><b>' + totalProp.toFixed(2) + ' kg</b> <span class="bdim">(of ' + Scn.spacecraft.massKg + ' kg)</span></div>' +
     '<div class="bnote">' + (plan.burnSec > CC.period(G.base[0]) / 4 ?
       'The small 22 N thruster makes this a long finite burn — the high-thrust option shortens it. ' : '') +

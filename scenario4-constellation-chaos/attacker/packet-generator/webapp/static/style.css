@@ -529,7 +529,7 @@ h2.mt{margin-top:20px}
 .passstatus.ok{color:var(--ok)} .passstatus.err{color:var(--danger)}
 @media(max-width:1100px){.uplinkwrap2{grid-template-columns:1fr}}
 
-/* ═══════════ SCENARIO 5 · orbital collision UI ═══════════ */
+/* ═══════════ SCENARIO 4 · orbital collision UI ═══════════ */
 .simlegend .lg-tgt{background:var(--danger);box-shadow:0 0 0 1.5px #ff8a95}
 /* phase 1 intel */
 .intelwrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px}
@@ -600,7 +600,7 @@ h2.mt{margin-top:20px}
 .pktcall b{color:#fff}
 @media(max-width:1100px){.stagewrap{grid-template-columns:1fr}.intelwrap{grid-template-columns:1fr}.pktwrap{grid-template-columns:1fr}.solvewrap{grid-template-columns:1fr}}
 
-/* ═══════════ SCENARIO 5 · LIVE FORMULA PANELS ═══════════ */
+/* ═══════════ SCENARIO 4 · LIVE FORMULA PANELS ═══════════ */
 /* a full-width band under each stage that shows the ACTUAL orbital-mechanics
    equations with the participant's live values substituted in real time. */
 .formulasec{margin:0 16px 4px;padding:16px 18px}
@@ -641,7 +641,7 @@ h2.mt{margin-top:20px}
 .fx.acc b{color:#fff}
 @media(max-width:1100px){.feqgrid{grid-template-columns:1fr}}
 
-/* ═══════════ SCENARIO 5 v2 · REVERSED 4-PHASE FLOW ═══════════ */
+/* ═══════════ SCENARIO 4 v2 · REVERSED 4-PHASE FLOW ═══════════ */
 /* PHASE 2 · propagate + time */
 .timescrub{margin-top:12px;background:#0a121c;border:1px solid var(--line);border-radius:9px;padding:12px 14px}
 .tsrow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
@@ -732,7 +732,7 @@ h2.mt{margin-top:20px}
 .ccard.pool .ct{font-size:13px;color:#eaf2fb}.ccard.pool .cpc{font-size:11px;color:var(--dim)}
 .cchead{display:flex;align-items:center;gap:8px;margin-bottom:7px}
 .cnum{width:22px;height:22px;border-radius:50%;background:var(--ok);color:#001018;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex:0 0 auto}
-/* perturbation cards (the 섭동력 group expands into these): amber ∿ badge + amber edge */
+/* perturbation cards (the perturbation force group expands into these): amber ∿ badge + amber edge */
 .cnum.pgroup{background:rgba(255,210,63,.2);color:var(--star);font-size:15px}
 .ccard.pcard{border-left-color:rgba(255,210,63,.6)}
 .cchead .ct{font-size:13px;font-weight:700;color:#eaf2fb;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
