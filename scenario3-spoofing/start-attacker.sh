@@ -225,6 +225,13 @@ up() {
 
   # ── preflight: 이전 실행이 남긴 좀비가 포트를 물고 있으면 정리(bind 실패 사고 예방) ──
   free_port "$BUILDER_PORT" "Command Builder"
+  # OpenVSA 백엔드(node server.js)가 물던 포트도 함께 정리한다. 이걸 안 하면 좀비 OpenVSA가
+  # WS :4534 를 물고 있어 새 server.js 가 bind 실패로 조용히 죽고 → /vsa 렌더러의 WS 연결이
+  # 안 돼 STEP 2 'VIRTUAL ANTENNA UPLINK' 패널이 백지로 남는다(② 위성 조준 화면 안 열림).
+  #   :4532 rigctld · :4533 rotctld · :4534 WS(렌더러). (:4536 은 피해 GS 목적지라 바인딩 안 함)
+  free_port 4534 "OpenVSA WS"
+  free_port 4533 "OpenVSA rotctld"
+  free_port 4532 "OpenVSA rigctld"
   local DOCKER_OK=0; ensure_docker && DOCKER_OK=1   # 꺼져 있으면 Docker 데몬 자동 기동+대기(③ gpredict용)
   [ "$DOCKER_OK" = 1 ] && free_gpredict   # 잔존 gpredict 컨테이너가 :GP_PORT/:CTRL_PORT 물면 내림(③ 사고 예방)
 
@@ -256,6 +263,19 @@ up() {
   #   OpenVSA UI(렌더러)는 :8000 이 /vsa 로 서빙한다 — 별도 :8090 프록시·데스크탑 창 없음.
   ( cd openvsa && UPLINK_DEST="$UPLINK_DEST" node server.js ) >/tmp/demosat-openvsa.log 2>&1 &
   pids+=($!)
+  # WS :4534 가 실제로 떴는지 확인 — 안 뜨면 STEP 2 'VIRTUAL ANTENNA UPLINK' 가 백지로 남으므로
+  # 조용히 넘어가지 않고 원인을 명시한다(대개 포트 잔존·bind 실패).
+  local VSA_OK=0
+  for _ in $(seq 1 25); do
+    lsof -tiTCP:4534 -sTCP:LISTEN >/dev/null 2>&1 && { VSA_OK=1; break; }
+    grep -qiE "EADDRINUSE|address already in use" /tmp/demosat-openvsa.log 2>/dev/null && break
+    sleep 0.2
+  done
+  if [ "$VSA_OK" = 1 ]; then
+    c_ok "OpenVSA 백엔드 준비됨 (WS :4534) — STEP 2 Virtual Antenna 활성"
+  else
+    c_err "OpenVSA WS :4534 안 뜸 → STEP 2 'VIRTUAL ANTENNA UPLINK' 백지. /tmp/demosat-openvsa.log 확인(대개 포트 잔존/bind 실패)."
+  fi
 
   # 단일 진입점 = :8000 하나. ① 명령 조립 → ② IQ 생성 → ③ 위성 조준 이 한 앱 안에서 전부.
   #   ③ 조준: 콘솔=:8000 /targeting · OpenVSA=:8000 /vsa · gpredict noVNC=Docker(:GP_PORT) 직접 iframe.
