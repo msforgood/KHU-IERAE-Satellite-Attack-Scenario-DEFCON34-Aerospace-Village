@@ -18,7 +18,7 @@
       </div>
     </div>
     <div class="linkinfo"><span>SCENARIO 1 / EAVESDROP</span><span class="dot"></span><span>RX ONLY</span>
-      <button id="resetAllBtn" class="resetall" title="Reset gpredict, VSA, GNU Radio and this page to the initial state so the next participant starts identically">⟳ Reset for next participant</button>
+      <button id="resetAllBtn" class="resetall" title="Reset gpredict, Virtual Antenna, GNU Radio and this page to the initial state so the next participant starts identically">⟳ Reset for next participant</button>
     </div>
   </header>
 
@@ -95,7 +95,7 @@
           <div class="bsec"><h3>② RF sync (SYNC)</h3>
             <p>Match the receiver to the satellite's RF: <b>433.5 MHz center</b>, Doppler
             correction, <b>9600 baud GFSK</b>. Any mismatch and demodulation fails. Confirm these
-            values in the <b>VSA</b>.</p></div>
+            values in the <b>Virtual Antenna</b>.</p></div>
           <div class="bsec"><h3>③ Demodulate (DEMOD)</h3>
             <p>Feed the received IQ into a <b>GNU Radio</b> flowgraph: FSK demod → AX.25 deframe
             (G3RUH descramble) → frame reassembly. The original <b>image</b> comes back to life.</p></div>
@@ -118,11 +118,11 @@
       <div class="phasetag" data-tag="TARGET">PHASE 2 / TARGET</div>
       <h1 class="ptitle">Target satellite: <span class="accent">ENIGMA-1</span></h1>
       <div class="objbar"><span class="phasetag sm">INTEL</span>
-        <span>These specs were confirmed inside the <b>VSA</b>. Later steps tune the receiver to them.</span></div>
+        <span>These specs were confirmed inside the <b>Virtual Antenna</b>. Later steps tune the receiver to them.</span></div>
       <div id="dossierFull" class="dossier-full"></div>
       <div class="navrow">
         <button class="ghostbtn" data-goto="mission">← Mission</button>
-        <button id="toTrack" class="bigbtn">Antenna tracking / VSA →</button>
+        <button id="toTrack" class="bigbtn">Antenna tracking / Virtual Antenna →</button>
       </div>
     </div>
   </section>
@@ -140,18 +140,18 @@
       <section class="satinfo">
         <div class="satinfo-head">
           <div class="sih-left"><span class="etitle">🛰 SAT INFO / ENIGMA-1</span>
-            <span class="ehint">Specs confirmed in the VSA: the tracking / sync target</span></div>
+            <span class="ehint">Specs confirmed in the Virtual Antenna: the tracking / sync target</span></div>
           <button id="trackHint" class="ghostbtn sm">💡 Hint: how to track &amp; sync</button>
         </div>
         <div id="satInfoStrip" class="satinfo-strip"></div>
         <div id="trackHintBox" class="trackhint hidden">
           <div class="th-title">Press each control, then watch for this</div>
           <ol class="th-steps">
-            <li><b>Track satellite</b> → the VSA highlights and the antenna starts moving on its own to follow the satellite.</li>
+            <li><b>Track satellite</b> → the Virtual Antenna highlights and the antenna starts moving on its own to follow the satellite.</li>
             <li><b>Apply</b> (center frequency) → a signal appears in the waterfall.</li>
             <li><b>Doppler correction</b> → the signal stays centered in the waterfall.</li>
             <li><b>Record</b> → the received signal is saved to a file.</li>
-            <li><b>Antenna</b> → pick a type; the 3D antenna in the VSA changes to match.</li>
+            <li><b>Antenna</b> → pick a type; the 3D antenna in the Virtual Antenna changes to match.</li>
             <li><b>Sample rate</b> → adjust until the signal looks wide enough in the waterfall.</li>
           </ol>
         </div>
@@ -170,10 +170,10 @@
 
       <!-- Antenna: drives the embedded VSA 3D antenna (above the panes) -->
       <div class="autoctl">
-        <div class="autoctl-title">📡 Antenna <span class="autoctl-sub">(drives the VSA 3D antenna below)</span></div>
+        <div class="autoctl-title">📡 Antenna <span class="autoctl-sub">(drives the Virtual Antenna below)</span></div>
         <div class="autoctl-row">
           <label class="autoctl-label" for="antSelect">Antenna</label>
-          <select id="antSelect" class="antsel" title="Choose the antenna type; the 3D antenna in the VSA changes to match"></select>
+          <select id="antSelect" class="antsel" title="Choose the antenna type; the 3D antenna in the Virtual Antenna changes to match"></select>
           <span id="antStat" class="passstat"></span>
         </div>
       </div>
@@ -186,10 +186,10 @@
           <div id="gpredictSlot" class="embedbody"></div>
         </div>
         <div class="embedcard">
-          <div class="embedhead"><span class="etitle">📡 VSA / Antenna / RF</span>
-            <span class="ehint">scenario1 VSA / ENIGMA-1 auto-load</span></div>
+          <div class="embedhead"><span class="etitle">📡 Virtual Antenna / RF</span>
+            <span class="ehint">scenario1 Virtual Antenna / ENIGMA-1 auto-load</span></div>
           <div class="embedbody">
-            <iframe id="vsaFrame" class="embedframe" title="VSA" loading="lazy"></iframe>
+            <iframe id="vsaFrame" class="embedframe" title="Virtual Antenna" loading="lazy"></iframe>
           </div>
         </div>
       </div>
@@ -223,23 +223,23 @@
 
       <!-- Bandwidth / sample rate: drives the VSA waterfall width -->
       <div class="autoctl">
-        <div class="autoctl-title">📶 Bandwidth <span class="autoctl-sub">(sample rate; drives the VSA waterfall)</span></div>
+        <div class="autoctl-title">📶 Bandwidth <span class="autoctl-sub">(sample rate; drives the Virtual Antenna waterfall)</span></div>
         <div class="autoctl-row">
           <label class="autoctl-label" for="srInput">Sample rate</label>
           <div class="freqwrap">
             <input id="srInput" class="freqinput" type="number" step="0.1" min="0.1" max="20" value="1" inputmode="decimal" />
             <span class="frequnit">MSps</span>
           </div>
-          <button id="btnSampleRate" class="passbtn" title="Applies the sample rate (bandwidth) to the VSA so the signal looks wide enough in the waterfall">Apply <span class="bsub">bandwidth</span></button>
+          <button id="btnSampleRate" class="passbtn" title="Applies the sample rate (bandwidth) to the Virtual Antenna so the signal looks wide enough in the waterfall">Apply <span class="bsub">bandwidth</span></button>
           <span id="srStat" class="passstat"></span>
         </div>
       </div>
 
       <!-- Signal recording: triggers the VSA's own IQ recorder (saves the signal playing in the VSA) -->
       <div class="autoctl recblock">
-        <div class="autoctl-title">⏺ Signal recording <span class="autoctl-sub">(saves the IQ signal playing in the VSA, same as the VSA REC button)</span></div>
+        <div class="autoctl-title">⏺ Signal recording <span class="autoctl-sub">(saves the IQ signal playing in the Virtual Antenna, same as the Virtual Antenna REC button)</span></div>
         <div class="autoctl-row">
-          <button id="btnRecord" class="passbtn recbtn" title="Records the IQ signal playing in the VSA and saves it. Click again to stop and save.">⏺ Record</button>
+          <button id="btnRecord" class="passbtn recbtn" title="Records the IQ signal playing in the Virtual Antenna and saves it. Click again to stop and save.">⏺ Record</button>
           <span id="btnRecordStat" class="passstat"></span>
         </div>
       </div>
@@ -257,7 +257,7 @@
       <div class="phasetag" data-tag="CAPTURE &amp; ANALYZE">PHASE 4 / CAPTURE &amp; ANALYZE</div>
       <h1 class="ptitle">Capture and analyze the downlink</h1>
       <div class="objbar"><span class="phasetag sm">ANALYZE</span>
-        <span>Upload the <code>.cf32</code> (complex float32 IQ) you recorded in the PHASE 3 VSA. The browser
+        <span>Upload the <code>.cf32</code> (complex float32 IQ) you recorded in the PHASE 3 Virtual Antenna. The browser
         runs a <b>spectrum</b> and a <b>waterfall</b> on it so you can read the carrier, the occupied bandwidth,
         and the packet bursts before you build the demod chain.</span></div>
 
@@ -267,7 +267,7 @@
           <div class="ug-badge">STEP 0 / UPLOAD</div>
           <div class="ug-icon">📡⬇</div>
           <div class="ug-title">Load your recorded downlink signal</div>
-          <div class="ug-desc">The signal you recorded in the PHASE 3 VSA was saved on the server. Press the
+          <div class="ug-desc">The signal you recorded in the PHASE 3 Virtual Antenna was saved on the server. Press the
             button to load it; the <b>spectrum and waterfall analysis</b> below opens.</div>
           <button id="useRecordingBtn" class="bigbtn ug-usebtn">⬆ Use the signal recorded in Phase 3</button>
           <div class="ug-or-row">or upload a <code>.cf32</code> file manually</div>
@@ -326,7 +326,7 @@
       </div>
 
       <div class="navrow">
-        <button class="ghostbtn" data-goto="track">← Tracking / VSA</button>
+        <button class="ghostbtn" data-goto="track">← Tracking / Virtual Antenna</button>
         <button id="toPuzzle" class="bigbtn" disabled>🔒 Build the demod flowgraph →</button>
       </div>
     </div>
@@ -453,7 +453,7 @@
           <h2>Reception chain summary</h2>
           <ol class="recaplist">
             <li><b>TRACK</b>: GPredict tracked ENIGMA-1 from the TLE and drove antenna az/el</li>
-            <li><b>SYNC</b>: VSA confirmed 433.5 MHz / 9600 baud GFSK, Doppler corrected</li>
+            <li><b>SYNC</b>: Virtual Antenna confirmed 433.5 MHz / 9600 baud GFSK, Doppler corrected</li>
             <li><b>DEMOD</b>: Frequency Xlating FIR → FSK Demodulator → AX.25 Deframer (G3RUH)</li>
             <li><b>REASSEMBLE</b>: Concatenated the Info fields in sequence, DEFLATE → image</li>
           </ol>
