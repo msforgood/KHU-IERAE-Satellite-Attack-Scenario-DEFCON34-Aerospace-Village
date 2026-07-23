@@ -55,9 +55,10 @@ int  spinUs       = SPIN_US_DEFAULT;
 const int ATTACK_LO  = 10;   // 공격 왕복 하한(0 대신 — 끝단 스톨 회피). 브라운아웃 시 20~30 으로 올릴 것
 const int ATTACK_HI  = 170;  // 공격 왕복 상한(180 대신). 브라운아웃 시 160~150 으로 내릴 것
 // 왕복 속도 = SWEEP_STEP° 를 SWEEP_INTERVAL_MS 마다. 값이 몸체에 비해 너무 빠르면(휘둘림)
-// STEP 을 줄이거나 INTERVAL 을 키운다. 현재 1°/30ms ≈ 33°/s (10-170 한 번에 ~4.8s, 느긋하게).
+// STEP 을 줄이거나 INTERVAL 을 키운다. 현재 1°/60ms ≈ 17°/s (10-170 한 번에 ~9.6s, 아주 느긋).
+// 더 느리게: INTERVAL 을 80·100 으로. 더 빠르게: 40·30 으로.
 const int SWEEP_STEP        = 1;
-const int SWEEP_INTERVAL_MS = 30;
+const int SWEEP_INTERVAL_MS = 100;
 int  sweepDir     = 1;    // +1: LO→HI, -1: HI→LO
 char lineBuf[48];
 uint8_t lineLen = 0;
@@ -128,6 +129,7 @@ void applyLine(char *line) {
     targetAngle = constrain(arg, ANGLE_MIN, ANGLE_MAX);
   } else if (strncmp(line, "MODE", 4) == 0 && hasArg) {
     mode = arg ? 1 : 0;
+    if (mode == 0) targetAngle = currentAngle;   // 정지: 태양추적 안 하고 현재 위치 그대로 유지
   } else if (strncmp(line, "SUN", 3) == 0) {
     targetAngle = 90; mode = 0;
   } else if (strncmp(line, "OFFSUN", 6) == 0) {
