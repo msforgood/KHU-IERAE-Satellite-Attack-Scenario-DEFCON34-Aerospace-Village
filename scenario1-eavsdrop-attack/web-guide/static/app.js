@@ -232,7 +232,7 @@ function wireRecord() {
     const frame = $('#vsaFrame');
     let vbtn = null;
     try { vbtn = frame && frame.contentDocument && frame.contentDocument.getElementById('btn-record-iq'); } catch (e) {}
-    if (!vbtn) { stat.className = 'passstat err'; stat.textContent = '✗ VSA not ready yet'; return; }
+    if (!vbtn) { stat.className = 'passstat err'; stat.textContent = '✗ Virtual Antenna not ready yet'; return; }
     vbtn.click();   // toggle the VSA recorder
     const recording = vbtn.classList.contains('recording');
     btn.classList.toggle('recording', recording);
@@ -307,7 +307,7 @@ function wireVsaControls() {
     antSel.dataset.wired = '1';
     antSel.addEventListener('change', () => {
       const vsel = vsaEl('ctrl-type');
-      if (!vsel) { antStat.className = 'passstat err'; antStat.textContent = '✗ VSA not ready'; return; }
+      if (!vsel) { antStat.className = 'passstat err'; antStat.textContent = '✗ Virtual Antenna not ready'; return; }
       vsel.value = antSel.value;
       vsel.dispatchEvent(new Event('change', { bubbles: true }));
       markAntenna(antSel.value);
@@ -317,7 +317,7 @@ function wireVsaControls() {
     srBtn.dataset.wired = '1';
     srBtn.addEventListener('click', () => {
       const vin = vsaEl('ctrl-samplerate');
-      if (!vin) { srStat.className = 'passstat err'; srStat.textContent = '✗ VSA not ready'; return; }
+      if (!vin) { srStat.className = 'passstat err'; srStat.textContent = '✗ Virtual Antenna not ready'; return; }
       const v = parseFloat(srInput.value);
       if (!isFinite(v) || v <= 0) { srStat.className = 'passstat err'; srStat.textContent = '✗ invalid'; return; }
       vin.value = String(v);
@@ -782,7 +782,7 @@ async function handleRecFile(file) {
   const name = file.name, size = file.size;
   const okExt = /\.(cf32|iq|raw|c64|dat)$/i.test(name);
   if (size < 4096 || size % 8 !== 0) {
-    return ugError(`not complex float32 (IQ) format - size ${fmtBytes(size)} (not a multiple of 8 bytes, or too small). Upload the .cf32 recorded in the VSA.`);
+    return ugError(`not complex float32 (IQ) format - size ${fmtBytes(size)} (not a multiple of 8 bytes, or too small). Upload the .cf32 recorded in the Virtual Antenna.`);
   }
   let ok = true, peak = 0;                              // read the beginning as float32 to check it is real IQ
   try {
@@ -791,7 +791,7 @@ async function handleRecFile(file) {
     for (let i = 0; i < f.length; i++) { const v = f[i]; if (!Number.isFinite(v)) { ok = false; break; } const a = Math.abs(v); if (a > peak) peak = a; }
     if (peak === 0 || peak > 1e6) ok = false;   // NaN/Inf already blocked by isFinite above; un-normalized captures are also allowed
   } catch (e) { ok = false; }
-  if (!ok) return ugError('Cannot be read as IQ data. Check that it is a .cf32 (complex float32) file recorded in the VSA.');
+  if (!ok) return ugError('Cannot be read as IQ data. Check that it is a .cf32 (complex float32) file recorded in the Virtual Antenna.');
   const samples = size / 8, durAt50k = samples / 50000;
   state.recUploaded = true; state.recFile = { name, size, samples }; state.recFileObj = file;   // keep the File for in-browser analysis
   BLOCKS.file_source.sub = name.length > 26 ? name.slice(0, 25) + '…' : name;   // puzzle's first block + PHASE 6 File Source label
@@ -1524,7 +1524,7 @@ function drawReassemble() {
 // signal and recovered image on the server, then reload the page. Shared by the topbar "Reset for
 // next participant" button and the result-page "Restart ↺" button so both give a clean slate.
 async function doFullReset() {
-  if (!confirm('Reset the whole demo (gpredict, VSA, GNU Radio, and this page) to the initial state for the next participant?')) return;
+  if (!confirm('Reset the whole demo (gpredict, Virtual Antenna, GNU Radio, and this page) to the initial state for the next participant?')) return;
   const ov = $('#resetOverlay'); if (ov) ov.classList.remove('hidden');
   // Clear the client-side upload / Analyze / Puzzle state immediately so the recording and its
   // file-source labels disappear at once, instead of only after the deferred reload (which can lag
