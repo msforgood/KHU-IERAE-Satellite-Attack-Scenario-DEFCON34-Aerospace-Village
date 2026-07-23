@@ -67,6 +67,15 @@
     dvRanges: { prograde: [-500, 3000], radial: [-500, 500], cross: [-120, 120], phase: [0, 300] },
     // MOID below this (m) counts as an orbit intersection (geometry satisfied).
     moidThreshold: 20000,
+    // Difficulty presets. The chosen level sets BOTH the geometry gate (MOID) and the
+    // timing gate (arrival tolerance) that decide collision vs near-miss. Easier = more
+    // forgiving thresholds; harder = you must tune the burn precisely.
+    difficulties: [
+      { id: 'easy',   name: 'Easy',   moidThreshold: 80000, timingTolSec: 120 },
+      { id: 'normal', name: 'Normal', moidThreshold: 20000, timingTolSec: 45  },
+      { id: 'hard',   name: 'Hard',   moidThreshold: 5000,  timingTolSec: 15  }
+    ],
+    defaultDifficulty: 'normal',
 
     // ── spacecraft + thrusters (burn-plan actuation step) ─────────────────────
     // Default is a small monopropellant thruster typical of a ~500 kg LEO smallsat;
