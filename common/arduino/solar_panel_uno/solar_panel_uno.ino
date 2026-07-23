@@ -54,7 +54,10 @@ int  spinUs       = SPIN_US_DEFAULT;
 // 쓰면 스톨이 없어 같은 전원에서도 안정적으로 계속 왕복한다.
 const int ATTACK_LO  = 10;   // 공격 왕복 하한(0 대신 — 끝단 스톨 회피). 브라운아웃 시 20~30 으로 올릴 것
 const int ATTACK_HI  = 170;  // 공격 왕복 상한(180 대신). 브라운아웃 시 160~150 으로 내릴 것
-const int SWEEP_STEP = 2;    // loop당 이동각(작게 = 전류 완만)
+// 왕복 속도 = SWEEP_STEP° 를 SWEEP_INTERVAL_MS 마다. 값이 몸체에 비해 너무 빠르면(휘둘림)
+// STEP 을 줄이거나 INTERVAL 을 키운다. 현재 1°/30ms ≈ 33°/s (10-170 한 번에 ~4.8s, 느긋하게).
+const int SWEEP_STEP        = 1;
+const int SWEEP_INTERVAL_MS = 30;
 int  sweepDir     = 1;    // +1: LO→HI, -1: HI→LO
 char lineBuf[48];
 uint8_t lineLen = 0;
@@ -87,10 +90,15 @@ void loop() {
   if (mode == 2) {
     panel.writeMicroseconds(spinUs);
   } else if (mode == 1) {
-    currentAngle += sweepDir * SWEEP_STEP;
-    if (currentAngle >= ATTACK_HI) { currentAngle = ATTACK_HI; sweepDir = -1; }
-    if (currentAngle <= ATTACK_LO) { currentAngle = ATTACK_LO; sweepDir = +1; }
-    panel.write(currentAngle);
+    // SWEEP_INTERVAL_MS 마다 SWEEP_STEP° 씩만 이동 → 느긋한 왕복(작은 몸체가 안 휘둘리게).
+    static unsigned long _lastStep = 0;
+    if (millis() - _lastStep >= (unsigned long)SWEEP_INTERVAL_MS) {
+      _lastStep = millis();
+      currentAngle += sweepDir * SWEEP_STEP;
+      if (currentAngle >= ATTACK_HI) { currentAngle = ATTACK_HI; sweepDir = -1; }
+      if (currentAngle <= ATTACK_LO) { currentAngle = ATTACK_LO; sweepDir = +1; }
+      panel.write(currentAngle);
+    }
   } else if (currentAngle != targetAngle) {
     int diff = targetAngle - currentAngle;
     int step = diff;
