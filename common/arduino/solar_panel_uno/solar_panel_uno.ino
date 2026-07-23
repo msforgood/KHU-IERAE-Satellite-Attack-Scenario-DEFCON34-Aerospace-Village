@@ -29,13 +29,13 @@
 //   modified SG90 (remove the stopper tab + fix the feedback pot).
 //
 // ── Wiring ──────────────────────────────────────────────────────────────────
-//   Servo signal → D9      Servo V+ → external 5V (NOT the Uno 5V pin for load)
+//   Servo signal → D11     Servo V+ → external 5V (NOT the Uno 5V pin for load)
 //   Servo GND    → common GND (Uno GND + external supply GND tied together)
 //   Status LED   → D13 (on-board)
 
 #include <Servo.h>
 
-const uint8_t  SERVO_PIN   = 9;
+const uint8_t  SERVO_PIN   = 11;   // 실측 신호핀(D9 아님 — 부스 배선 기준)
 const uint8_t  LED_PIN     = 13;
 const int      ANGLE_MIN   = 0;
 const int      ANGLE_MAX   = 180;
@@ -116,6 +116,8 @@ void applyLine(char *line) {
   } else if (strncmp(line, "STOP", 4) == 0) {
     mode = 0; targetAngle = currentAngle;   // hold where it is
     panel.writeMicroseconds(1500);          // neutral pulse halts a continuous-rotation servo
+  } else if (strncmp(line, "WHOAMI", 6) == 0) {
+    Serial.println(F("ID=SOLAR_PANEL"));    // role identity for host auto-routing (detect_boards)
   } else if (strncmp(line, "PING", 4) == 0) {
     Serial.print(F("SOLAR READY angle="));
     Serial.print(targetAngle);
