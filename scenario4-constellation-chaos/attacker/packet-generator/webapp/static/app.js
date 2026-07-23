@@ -18,8 +18,16 @@ var S = {
   execTimeSec: null, execPassM: null,
   dv: { prograde: 0, cross: 0, phase: 0, k: 5 },
   thrusterId: Scn.defaultThruster,
+  difficulty: (Scn.defaultDifficulty || 'normal'),
+  collided: false, missM: 0,
   geom: null, timing: null, burn: null, packet: null
 };
+// the collision thresholds for the currently selected difficulty (MOID gate + timing tolerance)
+function curDiff() {
+  var list = Scn.difficulties || [];
+  for (var i = 0; i < list.length; i++) if (list[i].id === S.difficulty) return list[i];
+  return { id: 'normal', name: 'Normal', moidThreshold: (Scn.moidThreshold || 20000), timingTolSec: 45 };
+}
 
 // ── formula rendering helpers ────────────────────────────────────────────────
 var SUP = { '-': '⁻', '.': '·', '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
@@ -400,6 +408,7 @@ function enterSolve() {
   // start with every delta-v at 0 so ENIGMA-1 begins exactly where Phase 2 left it
   // (its un-maneuvered orbit at time T); the participant then tunes the values up.
   S.dv = { prograde: 0, cross: 0, phase: 0, k: 12 };
+  gaugeHintOn = false; applyGaugeHint();       // gauges start hidden each time you enter Phase 3
   renderChain(); renderVarBlock(); syncVarInputs();
   wireSolveControls();
   renderThrusterSel();
@@ -629,8 +638,9 @@ function updateSolve() {
   // zero delta-v => the un-maneuvered base orbit exactly (avoids state<->elements round-trip drift,
   // so Phase 3 starts on the very same orbit/position Phase 2 showed)
   var kep = (S.dv.prograde === 0 && S.dv.cross === 0) ? base.slice() : CC.applyManeuver3D(base, S.dv.prograde, 0, S.dv.cross);
+  var dd = curDiff();
   var mo = CC.numericMOID(kep, G.vic.kep, 480);
-  var geomLocked = mo.moid <= (Scn.moidThreshold || 20000);
+  var geomLocked = mo.moid <= dd.moidThreshold;
   var P = G.P;   // the fixed collision point chosen in Phase 2 (where AURORA-2 is at time T)
   // closing speed + geometry anchored on that fixed point
   var nuA = CC.nuAtPoint(kep, P), nuV = CC.nuAtPoint(G.vic.kep, P);
@@ -649,8 +659,12 @@ function updateSolve() {
   var arrival = tA + shift;
   var offset = arrival - S.execTimeSec;
   var residual = centeredMod(offset, Tins);                  // how far ENIGMA-1's nearest pass is from T
-  var timeLocked = Math.abs(residual) < 45;
+  var timeLocked = Math.abs(residual) < dd.timingTolSec;
   S.timing = { tA: tA, dvSigned: dvSigned, shift: shift, arrival: arrival, offset: offset, residual: residual, dvTotal: ps ? ps.dvTotal : 0, aNew: ps ? ps.aNew : kep[0] };
+  S.collided = geomLocked && timeLocked;
+  // closest approach for the miss report: if the orbits do not cross it is the MOID; if they
+  // cross but arrive at different times it is the along-track gap (time offset times closing speed).
+  S.missM = S.collided ? 0 : (geomLocked ? Math.abs(residual) * closing : mo.moid);
   // live sim AT the Phase-2 execution time T: draw ENIGMA-1's new orbit and place it where
   // it actually is at T. Raising Δv reshapes the ring; phasing (offset) slides ENIGMA-1
   // along it. Locked geometry + timing => ENIGMA-1 sits on P, on top of AURORA-2.
@@ -687,9 +701,9 @@ function updateSolve() {
   if (geomLocked && timeLocked) { st.textContent = 'GEOMETRY + TIMING LOCKED — choose a thruster and confirm the burn.'; st.className = 'solvestate lock'; }
   else if (!geomLocked) { st.textContent = 'Geometry: raise Δv prograde so the orbits cross (MOID → 0). MOID ' + moidKm + ' km — try Δv prograde ≈ ' + G.nominal.dvp + ' m/s.'; st.className = 'solvestate'; }
   else { var sug = suggestPhaseDv(kep[0], tA, S.execTimeSec, S.dv.k); st.textContent = 'Timing: ENIGMA-1\'s pass is off by ' + Math.round(residual) + ' s. Set phasing Δv ≈ ' + sug + ' m/s to slide the arrival onto AURORA-2.'; st.className = 'solvestate'; }
-  lockThruster(!(geomLocked && timeLocked));
-  if (geomLocked && timeLocked) renderBurn(); else { $('#burnPanel').innerHTML = ''; S.burn = null; }
-  var tb = $('#toTransmit'); if (tb) tb.disabled = !(geomLocked && timeLocked && S.burn);
+  lockThruster(false);                 // thruster + burn are always available so a packet can be built
+  renderBurn();                        // compute the burn plan for whatever values are set (even a near-miss)
+  var tb = $('#toTransmit'); if (tb) tb.disabled = !S.burn;   // transmit always allowed; victim shows collide vs miss
   drawChainArrows(); markChainTuning();   // keep arrows aligned + flag the live recompute
 }
 function renderThrusterSel() {
@@ -817,11 +831,14 @@ function renderUplinkSummary() {
     '<div class="usnote">Packet ready. Press TRANSMIT to command ENIGMA-1 to execute the burn.</div>';
 }
 function maneuverMsg() {
-  var g = S.geom || {}, b = S.burn || {}, plan = b.plan || {};
+  var g = S.geom || {}, b = S.burn || {}, plan = b.plan || {}, t = S.timing || {}, dd = curDiff();
   return { command: 'orbit_collision', satellite: 'ENIGMA-1',
     collisionPoint: { x: g.cp[0], y: g.cp[1], z: g.cp[2] }, closingKmS: g.closingKmS,
     victim: G.vic.name, victimNuDeg: Math.round(g.nuV), attackerKep: g.kep.slice(), victimKep: G.vic.kep.slice(),
     execTimeSec: S.execTimeSec, burnSec: plan.burnSec, propKg: plan.propKg,
+    // outcome fields (difficulty-dependent): the victim animates a hit or a near-miss from these
+    collided: !!S.collided, moidM: Math.round(g.moid || 0), timingOffSec: Math.round(t.residual || 0),
+    missM: Math.round(S.missM || 0), moidThreshold: dd.moidThreshold, timingTolSec: dd.timingTolSec, difficulty: dd.name,
     impactTargetSec: (Scn.simOpts && Scn.simOpts.impactTargetSec) || 18 };
 }
 function postJSON(url, body) {
@@ -843,7 +860,8 @@ async function doUplink() {
   var btn = $('#uplinkBtn'); if (btn.disabled) return; btn.disabled = true; btn.textContent = '… TRANSMITTING';
   var res = $('#observeResult'); res.classList.remove('hidden'); res.className = 'observeresult uplinking'; res.innerHTML = uplinkAnimHTML();
   var r = await postJSON('/api/uplink-collision', maneuverMsg());
-  if (r && r.ok) { setTimeout(renderObserve, 1700); }   // let the uplink animation play, then start the impact countdown
+  // collide vs near-miss is decided by the difficulty thresholds (S.collided): play the matching countdown
+  if (r && r.ok) { setTimeout(S.collided ? renderObserve : renderObserveMiss, 1700); }
   else { res.className = 'observeresult miss'; res.textContent = 'Uplink failed: ' + ((r && r.error) || '?') + ' (is the ground station on?)'; }
   btn.disabled = false; btn.textContent = '⚡ TRANSMIT BURN COMMAND → ENIGMA-1';
 }
@@ -865,6 +883,30 @@ function renderObserve() {
     if (st && st.videoPlayed) { clearObserveTimers(); showSuccess(); }
     else if (Date.now() > failAt) { clearObserveTimers(); showTimeout(); }
   }, 700);
+}
+// near-miss path: no debris to confirm, so the console shows the result straight after the countdown
+function renderObserveMiss() {
+  var box = $('#observeResult'); if (!box) return; clearObserveTimers();
+  var eta = (Scn.simOpts && Scn.simOpts.impactTargetSec) || 18, t0 = Date.now(), vic = G.vic.name;
+  var missKm = Math.round((S.missM || 0) / 1000);
+  var paint = function () {
+    var left = Math.max(0, eta - (Date.now() - t0) / 1000);
+    if (left > 0.05) {
+      box.className = 'observeresult counting';
+      box.innerHTML = '<div class="cdtag">BURN EXECUTING → watch <b>' + vic + '</b> on monitor 2</div><div class="cdclock">CLOSEST APPROACH IN <b>' + left.toFixed(1) + '</b><span>s</span></div><div class="cdrail"><i style="width:' + (100 - left / eta * 100) + '%"></i></div><div class="cdsub">ENIGMA-1 is executing the burn.</div>';
+    } else { clearObserveTimers(); showMiss(missKm); }
+  };
+  paint();
+  var retry = $('#retryBtn'); if (retry) retry.classList.add('hidden');
+  countdownTimer = setInterval(paint, 100);
+}
+function showMiss(missKm) {
+  var box = $('#observeResult'), vic = G.vic.name;
+  box.className = 'observeresult miss';
+  box.innerHTML = '<div class="obico">🛰</div><div class="obtitle">NO COLLISION (NEAR MISS)</div>' +
+    '<div class="obsub">ENIGMA-1 passed <b>' + vic + '</b> with a closest approach of about <b>' + missKm + ' km</b>, outside the collision threshold for this difficulty. Adjust your Δv and timing, then try again.</div>';
+  var retry = $('#retryBtn'); if (retry) { retry.classList.remove('hidden'); retry.textContent = '↺ TRY AGAIN'; }
+  var note = $('#observeNote'); if (note) note.textContent = 'Try again with a tighter burn.';
 }
 function showSuccess() {
   var box = $('#observeResult'), vic = G.vic.name, cs = (S.geom && S.geom.closingKmS) || '';
@@ -889,9 +931,35 @@ async function doRetry() {
   showPhase(2);
 }
 
+// ── difficulty picker (intro) ─────────────────────────────────────────────────
+function renderDiffSel() {
+  var box = $('#diffOpts'); if (!box) return;
+  var list = Scn.difficulties || [];
+  box.innerHTML = list.map(function (d) {
+    return '<button class="diffopt' + (d.id === S.difficulty ? ' sel' : '') + '" data-diff="' + d.id + '">' +
+      '<b>' + d.name + '</b><span>MOID ' + Math.round(d.moidThreshold / 1000) + ' km, timing ' + d.timingTolSec + ' s</span></button>';
+  }).join('');
+  box.querySelectorAll('.diffopt').forEach(function (b) {
+    b.onclick = function () {
+      S.difficulty = b.dataset.diff;
+      box.querySelectorAll('.diffopt').forEach(function (x) { x.classList.toggle('sel', x === b); });
+    };
+  });
+}
+// ── Phase 3 lock-gauge hint (TOGGLE: the MOID + timing gauges are hidden until you ask) ──
+var gaugeHintOn = false;
+function applyGaugeHint() {
+  var box = $('#lockFeedback'); if (box) box.classList.toggle('hidden', !gaugeHintOn);
+  var b = $('#gaugeHintBtn'); if (b) { b.classList.toggle('on', gaugeHintOn); b.innerHTML = gaugeHintOn ? '💡 Hint · hide lock gauges' : '💡 Hint · show lock gauges'; }
+}
+function wireGaugeHint() {
+  var b = $('#gaugeHintBtn'); if (!b) return;
+  b.onclick = function () { gaugeHintOn = !gaugeHintOn; applyGaugeHint(); };
+}
+
 // ── boot ─────────────────────────────────────────────────────────────────────
 function boot() {
-  renderTleRaw(); wireNav();
+  renderTleRaw(); wireNav(); renderDiffSel(); wireGaugeHint();
   var ub = $('#uplinkBtn'); if (ub) ub.onclick = doUplink;
   var rb = $('#retryBtn'); if (rb) rb.onclick = doRetry;
 }

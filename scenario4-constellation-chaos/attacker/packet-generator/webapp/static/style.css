@@ -797,4 +797,20 @@ h2.mt{margin-top:20px}
 .pktlegend .pg-act{background:rgba(51,209,122,.12)}
 .pktfield.pg-act{border-left-color:var(--ok)}
 
+/* INTRO · difficulty picker (sets the collision thresholds) */
+.diffsel{margin-top:22px}
+.difflabel{font-size:13px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase;margin-bottom:10px}
+.difflabel span{text-transform:none;letter-spacing:normal;color:var(--dim);font-size:12.5px;margin-left:8px}
+.diffopts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.diffopt{padding:12px 14px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--ink);cursor:pointer;text-align:left;transition:.12s}
+.diffopt b{display:block;font-size:15px;margin-bottom:4px}
+.diffopt span{font-size:12px;color:var(--dim)}
+.diffopt:hover{border-color:var(--accent)}
+.diffopt.sel{border-color:var(--star);background:rgba(255,210,63,.1);box-shadow:0 0 0 1px var(--star)}
+.diffopt.sel b{color:var(--star)}
+@media(max-width:720px){.diffopts{grid-template-columns:1fr}}
+
+/* PHASE 3 · lock gauges live behind a toggle hint */
+.lockfeedback{display:flex;flex-direction:column;gap:10px;margin-top:2px}
+
 

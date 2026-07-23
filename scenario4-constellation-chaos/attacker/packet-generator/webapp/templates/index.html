@@ -42,6 +42,10 @@
           <div class="bsec"><h3>④ Why one collision endangers many</h3><p>A hypervelocity impact throws off a <b>debris cloud</b> that keeps orbiting and can strike other constellation members. One satellite's problem <b>cascades</b> (Kessler syndrome).</p></div>
         </div>
       </div>
+      <div class="diffsel">
+        <div class="difflabel">SELECT DIFFICULTY <span>sets how close the burn must be to actually collide</span></div>
+        <div class="diffopts" id="diffOpts"></div>
+      </div>
       <button id="toIntel" class="bigbtn">START THE ATTACK →</button>
     </div>
   </section>
@@ -157,11 +161,14 @@
           <div class="varrow"><span class="vk">Δv phasing</span>
             <span class="axctl"><button class="stepbtn" data-act="ph-">−</button><input id="inPh" class="axinput" type="number" step="1" disabled><button class="stepbtn" data-act="ph+">+</button></span><span class="vu">m/s (timing)</span></div>
         </div>
-        <div class="gaugewrap">
-          <div class="gauge" id="gMoid"><div class="gl">GEOMETRY · MOID</div><div class="gv"><b id="moidNum">—</b><span>km</span></div><div class="grail"><i id="moidFill"></i></div></div>
-          <div class="gauge" id="gTime"><div class="gl">TIMING · arrival vs target</div><div class="gv"><b id="timeNum">—</b><span>s off</span></div><div class="grail"><i id="timeFill"></i></div></div>
+        <button id="gaugeHintBtn" class="hintbtn">💡 Hint · show lock gauges</button>
+        <div id="lockFeedback" class="lockfeedback hidden">
+          <div class="gaugewrap">
+            <div class="gauge" id="gMoid"><div class="gl">GEOMETRY · MOID</div><div class="gv"><b id="moidNum">—</b><span>km</span></div><div class="grail"><i id="moidFill"></i></div></div>
+            <div class="gauge" id="gTime"><div class="gl">TIMING · arrival vs target</div><div class="gv"><b id="timeNum">—</b><span>s off</span></div><div class="grail"><i id="timeFill"></i></div></div>
+          </div>
+          <div id="solveState" class="solvestate">Assemble the chain, then tune the variables until both gauges lock.</div>
         </div>
-        <div id="solveState" class="solvestate">Assemble the chain, then tune the variables until both gauges lock.</div>
         <div class="ctlblock locked" id="thrBlock">
           <div class="ctlhead"><span class="ctlname">③ THRUSTER PLAN</span><span class="ctltag" id="thrLock">lock geometry + timing first</span></div>
           <div class="thrsel" id="thrSel"></div>
