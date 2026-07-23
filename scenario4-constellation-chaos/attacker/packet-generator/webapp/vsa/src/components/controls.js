@@ -14,7 +14,7 @@ export function createControls({ container, store, antennaTypes }) {
     .join("");
 
   container.innerHTML = `
-    <div class="controls-header">OPENVSA</div>
+    <div class="controls-header">Virtual Antenna</div>
 
     <div class="tab-toggle">
       <button id="tab-downlink" class="tab-btn tab-active">DOWNLINK</button>
