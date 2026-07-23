@@ -89,14 +89,20 @@ function handleUplink(msg) {
     browserWss.broadcast(JSON.stringify({ type: "uplink", command: command, rejected: false }));
     return { ok: true, outcome: null, note: "non-collision command ignored by sim" };
   }
-  const outcome = { collided: true, victim: msg.victim || "AURORA-2",
-                    closingKmS: msg.closingKmS, collisionPoint: msg.collisionPoint };
-  gsState = { status: "collision-course", maneuver: msg, outcome: outcome, ts: Date.now(), videoPlayed: false };
+  // the attacker console (single source of truth) already decided collide vs near-miss against
+  // the selected difficulty thresholds; we forward that verdict so monitor 2 animates the match.
+  const collided = msg.collided !== false;
+  const outcome = { collided, victim: msg.victim || "AURORA-2",
+                    closingKmS: msg.closingKmS, collisionPoint: msg.collisionPoint,
+                    missM: msg.missM, moidM: msg.moidM, timingOffSec: msg.timingOffSec };
+  gsState = { status: collided ? "collision-course" : "near-miss", maneuver: msg, outcome, ts: Date.now(), videoPlayed: false };
   browserWss.broadcast(JSON.stringify({ type: "collision",
-    victim: outcome.victim, closingKmS: msg.closingKmS, collisionPoint: msg.collisionPoint,
+    collided, victim: outcome.victim, closingKmS: msg.closingKmS, collisionPoint: msg.collisionPoint,
     attackerKep: msg.attackerKep, victimKep: msg.victimKep, victimNuDeg: msg.victimNuDeg,
-    collideInSec: msg.collideInSec, impactTargetSec: msg.impactTargetSec || 18 }));
-  console.log(`[uplink] COLLISION course -> ${outcome.victim} @ ${msg.closingKmS} km/s`);
+    missM: msg.missM, moidM: msg.moidM, timingOffSec: msg.timingOffSec,
+    moidThreshold: msg.moidThreshold, timingTolSec: msg.timingTolSec, difficulty: msg.difficulty,
+    impactTargetSec: msg.impactTargetSec || 18 }));
+  console.log(`[uplink] ${collided ? "COLLISION" : "NEAR-MISS"} -> ${outcome.victim} @ ${msg.closingKmS} km/s (miss ${msg.missM} m)`);
   return { ok: true, outcome };
 }
 
@@ -168,11 +174,13 @@ browserWss.on("connection", (ws) => {
     altKm: Scenario4.altKm, constellation: Scenario4.target.constellation,
     count: Scenario4.target.constellationCount, neighbors: Scenario4.neighborsInfo } }));
   // resume an in-progress collision (e.g. a page refresh mid-impact)
-  if (gsState.maneuver && gsState.status === "collision-course") {
+  if (gsState.maneuver && (gsState.status === "collision-course" || gsState.status === "near-miss")) {
     const m = gsState.maneuver;
-    ws.send(JSON.stringify({ type: "collision", victim: m.victim, closingKmS: m.closingKmS,
-      collisionPoint: m.collisionPoint, attackerKep: m.attackerKep, victimKep: m.victimKep,
-      victimNuDeg: m.victimNuDeg, collideInSec: m.collideInSec, impactTargetSec: m.impactTargetSec || 18, resume: true }));
+    ws.send(JSON.stringify({ type: "collision", collided: m.collided !== false, victim: m.victim, closingKmS: m.closingKmS,
+      collisionPoint: m.collisionPoint, attackerKep: m.attackerKep, victimKep: m.victimKep, victimNuDeg: m.victimNuDeg,
+      missM: m.missM, moidM: m.moidM, timingOffSec: m.timingOffSec,
+      moidThreshold: m.moidThreshold, timingTolSec: m.timingTolSec, difficulty: m.difficulty,
+      impactTargetSec: m.impactTargetSec || 18, resume: true }));
   }
 });
 
