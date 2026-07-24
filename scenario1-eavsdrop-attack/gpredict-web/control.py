@@ -34,12 +34,12 @@ PORT = int(os.environ.get("CTRL_PORT", "6079"))
 DISPLAY     = os.environ.get("DISPLAY", ":99")
 ROTOR_TITLE = "Gpredict Rotator Control"
 RADIO_TITLE = "Gpredict Radio Control"
-ROTOR_TRACK  = (817, 807)      # Antenna control: Track button
-ROTOR_TRACK_PROBE = (810, 807) # a spot on the rotor Track button: ~210 pressed (tracking on), ~248 off
-ROTOR_ENGAGE = (1224, 807)     # Antenna control: Engage button
-RADIO_TRACK  = (304, 1204)     # Radio control: Track (Doppler) button
-RADIO_ENGAGE = (697, 1204)     # Radio control: Engage button
-DL_UP_Y, DL_DOWN_Y = 1007, 1068                 # downlink knob up/down arrow rows
+ROTOR_TRACK  = (817, 1147)     # Antenna control: Track button (y +340: control windows moved down in start.sh)
+ROTOR_TRACK_PROBE = (810, 1147) # a spot on the rotor Track button: ~210 pressed (tracking on), ~248 off
+ROTOR_ENGAGE = (1224, 1147)    # Antenna control: Engage button
+RADIO_TRACK  = (304, 1544)     # Radio control: Track (Doppler) button
+RADIO_ENGAGE = (697, 1544)     # Radio control: Engage button
+DL_UP_Y, DL_DOWN_Y = 1347, 1408                 # downlink knob up/down arrow rows (y +340)
 DL_DIGIT_X = {                                   # place value -> arrow column x
     100000000: 75, 10000000: 112, 1000000: 148,
     100000: 190, 10000: 227, 1000: 263,

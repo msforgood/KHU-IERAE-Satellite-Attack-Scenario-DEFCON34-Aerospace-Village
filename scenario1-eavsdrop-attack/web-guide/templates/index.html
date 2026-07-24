@@ -14,7 +14,7 @@
       <span class="sat-ico">📡</span>
       <div>
         <div class="title">GROUND STATION&nbsp;//&nbsp;ENIGMA-1 DOWNLINK DECODER</div>
-        <div class="sub">passive intercept / downlink 433.500 MHz / <span id="clock">--:--:--</span></div>
+        <div class="sub">passive intercept / satellite downlink / <span id="clock">--:--:--</span></div>
       </div>
     </div>
     <div class="linkinfo"><span>SCENARIO 1 / EAVESDROP</span><span class="dot"></span><span>RX ONLY</span>
@@ -34,18 +34,10 @@
   <!-- ═══════════ STEP INDICATOR ═══════════ -->
   <nav id="stepper" class="stepper"></nav>
 
-  <!-- ═══════════ PIPELINE STATUS BANNER ═══════════ -->
-  <div id="pipeBanner" class="banner nominal">
-    <span class="bl">RX PIPELINE</span>
-    <span id="pipeText">MISSION BRIEFING: know the goal</span>
-    <span class="conn"><span id="pipeDot" class="dot"></span><span id="pipeStage">STAGE 1 / 7</span></span>
-  </div>
-
   <!-- ═══════════ PHASE 1 / MISSION ═══════════ -->
   <section id="p-mission" class="phase">
     <div class="wrap">
-      <div class="phasetag" data-tag="MISSION">PHASE 1 / MISSION</div>
-      <h1 class="ptitle">Know the goal before you receive</h1>
+      <div class="phasetag" data-tag="MISSION">MISSION</div>
 
       <div class="briefgrid">
         <div class="scene">
@@ -76,35 +68,42 @@
             </g>
             <rect x="150" y="252" width="126" height="10" rx="3" fill="#0a121c" stroke="#1e2b3a"/>
           </svg>
-          <div class="chainrow">
-            <span class="cstep s1">① TRACK</span>
-            <span class="cstep s2">② SYNC</span>
-            <span class="cstep s3">③ DEMOD</span>
-          </div>
         </div>
 
-        <div class="brieftext">
-          <div class="bsec"><h3>Goal: receive the satellite signal</h3>
-            <p><b>ENIGMA-1</b> is an Earth-observation cubesat that continuously beacons an
-            <b>AX.25</b> image over 433.500 MHz. Our job is to <b>receive this downlink</b> and
-            recover the image inside. <span class="hl">We never transmit: pure passive intercept.</span></p></div>
-          <div class="bsec"><h3>① Antenna tracking (TRACK)</h3>
-            <p>The satellite crosses low orbit fast. The ground antenna must follow its
-            <b>azimuth / elevation</b> in real time or the signal is lost. <b>GPredict</b> computes
-            the orbit from the TLE and drives the rotator.</p></div>
-          <div class="bsec"><h3>② RF sync (SYNC)</h3>
-            <p>Match the receiver to the satellite's RF: <b>433.5 MHz center</b>, Doppler
-            correction, <b>9600 baud GFSK</b>. Any mismatch and demodulation fails. Confirm these
-            values in the <b>Virtual Antenna</b>.</p></div>
-          <div class="bsec"><h3>③ Demodulate (DEMOD)</h3>
-            <p>Feed the received IQ into a <b>GNU Radio</b> flowgraph: FSK demod → AX.25 deframe
-            (G3RUH descramble) → frame reassembly. The original <b>image</b> comes back to life.</p></div>
+        <div class="missionbrief">
+          <h1 class="mb-title">Know the goal before you <span>receive</span>.</h1>
+          <p class="mb-desc">Secretly tune a receiver to <b>ENIGMA-1</b>'s own downlink and rebuild the image it beams to anyone listening. No transmitting, pure passive intercept.</p>
+          <div class="mb-steps">
+            <div class="mb-step"><span class="mb-emoji">📡</span><div class="mb-txt"><b>TRACK</b><span class="mb-sub">follow the satellite</span></div><span class="mb-num">01</span></div>
+            <div class="mb-step"><span class="mb-emoji">📻</span><div class="mb-txt"><b>SYNC</b><span class="mb-sub">tune in the signal</span></div><span class="mb-num">02</span></div>
+            <div class="mb-step"><span class="mb-emoji">🖼️</span><div class="mb-txt"><b>DEMOD</b><span class="mb-sub">recover the image</span></div><span class="mb-num">03</span></div>
+          </div>
         </div>
       </div>
 
+      <details class="mb-details">
+        <summary>ℹ️ What each step means</summary>
+        <div class="brieftext">
+          <div class="bsec"><h3>Goal: receive the satellite signal</h3>
+            <p><b>ENIGMA-1</b> is an Earth-observation cubesat that continuously beacons an
+            image down to the ground. Our job is to <b>receive this downlink</b> and
+            recover the image inside. <span class="hl">We never transmit: pure passive intercept.</span></p></div>
+          <div class="bsec"><h3>① Antenna tracking (TRACK)</h3>
+            <p>The satellite crosses low orbit fast. The ground antenna must follow its
+            <b>azimuth / elevation</b> in real time or the signal is lost. Turn on tracking so the
+            antenna keeps following the satellite across the pass.</p></div>
+          <div class="bsec"><h3>② RF sync (SYNC)</h3>
+            <p>Match the receiver to the satellite's RF: find the right <b>center frequency</b>,
+            correct for Doppler, and set the <b>bandwidth</b> so the signal comes in cleanly. Any
+            mismatch and demodulation fails. You read these values off the screen yourself.</p></div>
+          <div class="bsec"><h3>③ Demodulate (DEMOD)</h3>
+            <p>Feed the received signal into a <b>GNU Radio</b> flowgraph and assemble the demod
+            chain in the right order. Get it right and the original <b>image</b> comes back to life.</p></div>
+        </div>
+      </details>
+
       <label class="understand"><input type="checkbox" id="ackChk">
-        <span>I understand the goal is <b>reception</b>, carried out in order:
-        <b>antenna tracking / RF sync / demodulation</b>.</span></label>
+        <span>I get it: passive <b>reception</b>, in order <b>TRACK → SYNC → DEMOD</b>.</span></label>
       <div class="navrow">
         <span></span>
         <button id="toTarget" class="bigbtn" disabled>Confirm target satellite →</button>
@@ -115,7 +114,7 @@
   <!-- ═══════════ PHASE 2 / TARGET ═══════════ -->
   <section id="p-target" class="phase hidden">
     <div class="wrap">
-      <div class="phasetag" data-tag="TARGET">PHASE 2 / TARGET</div>
+      <div class="phasetag" data-tag="TARGET">TARGET</div>
       <h1 class="ptitle">Target satellite: <span class="accent">ENIGMA-1</span></h1>
       <div class="objbar"><span class="phasetag sm">INTEL</span>
         <span>These specs were confirmed inside the <b>Virtual Antenna</b>. Later steps tune the receiver to them.</span></div>
@@ -130,7 +129,7 @@
   <!-- ═══════════ PHASE 3 / TRACK (SAT info + GPredict + VSA) ═══════════ -->
   <section id="p-track" class="phase hidden">
     <div class="wrap wide">
-      <div class="phasetag" data-tag="TRACK &amp; SYNC">PHASE 3 / TRACK &amp; SYNC</div>
+      <div class="phasetag" data-tag="TRACK &amp; SYNC">PHASE 1 / TRACK &amp; SYNC</div>
       <h1 class="ptitle">Antenna tracking / RF sync</h1>
       <div class="objbar"><span class="phasetag sm">GOAL</span>
         <span><b>1.</b> Track ENIGMA-1 and enter the correct RF parameters to receive the downlink signal.<br>
@@ -141,7 +140,7 @@
         <div class="satinfo-head">
           <div class="sih-left"><span class="etitle">🛰 SAT INFO / ENIGMA-1</span>
             <span class="ehint">Specs confirmed in the Virtual Antenna: the tracking / sync target</span></div>
-          <button id="trackHint" class="ghostbtn sm">💡 Hint: how to track &amp; sync</button>
+          <button id="trackHint" class="ghostbtn sm hintbtn">💡 Hint: how to track &amp; sync</button>
         </div>
         <div id="satInfoStrip" class="satinfo-strip"></div>
         <div id="trackHintBox" class="trackhint hidden">
@@ -227,7 +226,7 @@
         <div class="autoctl-row">
           <label class="autoctl-label" for="srInput">Sample rate</label>
           <div class="freqwrap">
-            <input id="srInput" class="freqinput" type="number" step="0.1" min="0.1" max="20" value="1" inputmode="decimal" />
+            <input id="srInput" class="freqinput" type="number" step="0.01" min="0.02" max="0.5" value="0.1" inputmode="decimal" />
             <span class="frequnit">MSps</span>
           </div>
           <button id="btnSampleRate" class="passbtn" title="Applies the sample rate (bandwidth) to the Virtual Antenna so the signal looks wide enough in the waterfall">Apply <span class="bsub">bandwidth</span></button>
@@ -238,15 +237,16 @@
       <!-- Signal recording: triggers the VSA's own IQ recorder (saves the signal playing in the VSA) -->
       <div class="autoctl recblock">
         <div class="autoctl-title">⏺ Signal recording <span class="autoctl-sub">(saves the IQ signal playing in the Virtual Antenna, same as the Virtual Antenna REC button)</span></div>
+        <div class="rec-req">⏱ <b>Record for at least 1 minute</b> to capture a full image burst before moving on.</div>
         <div class="autoctl-row">
-          <button id="btnRecord" class="passbtn recbtn" title="Records the IQ signal playing in the Virtual Antenna and saves it. Click again to stop and save.">⏺ Record</button>
+          <button id="btnRecord" class="passbtn recbtn" title="Records the IQ signal playing in the Virtual Antenna and saves it. Record for at least 1 minute, then click again to stop and save.">⏺ Record</button>
           <span id="btnRecordStat" class="passstat"></span>
         </div>
       </div>
 
       <div class="navrow">
         <button class="ghostbtn" data-goto="target">← Target</button>
-        <button id="toAnalyze" class="bigbtn">Capture &amp; analyze the signal →</button>
+        <button id="toAnalyze" class="bigbtn" disabled>🔒 Capture &amp; analyze the signal →</button>
       </div>
     </div>
   </section>
@@ -254,10 +254,10 @@
   <!-- ═══════════ PHASE 4 / CAPTURE AND ANALYZE═══════════ -->
   <section id="p-analyze" class="phase hidden">
     <div class="wrap wide">
-      <div class="phasetag" data-tag="CAPTURE &amp; ANALYZE">PHASE 4 / CAPTURE &amp; ANALYZE</div>
+      <div class="phasetag" data-tag="CAPTURE &amp; ANALYZE">PHASE 2 / CAPTURE &amp; ANALYZE</div>
       <h1 class="ptitle">Capture and analyze the downlink</h1>
       <div class="objbar"><span class="phasetag sm">ANALYZE</span>
-        <span>Upload the <code>.cf32</code> (complex float32 IQ) you recorded in the PHASE 3 Virtual Antenna. The browser
+        <span>Upload the <code>.cf32</code> (complex float32 IQ) you recorded in the Phase 1 Virtual Antenna. The browser
         runs a <b>spectrum</b> and a <b>waterfall</b> on it so you can read the carrier, the occupied bandwidth,
         and the packet bursts before you build the demod chain.</span></div>
 
@@ -267,18 +267,18 @@
           <div class="ug-badge">STEP 0 / UPLOAD</div>
           <div class="ug-icon">📡⬇</div>
           <div class="ug-title">Load your recorded downlink signal</div>
-          <div class="ug-desc">The signal you recorded in the PHASE 3 Virtual Antenna was saved on the server. Press the
+          <div class="ug-desc">The signal you recorded in the Phase 1 Virtual Antenna was saved on the server. Press the
             button to load it; the <b>spectrum and waterfall analysis</b> below opens.</div>
-          <button id="useRecordingBtn" class="bigbtn ug-usebtn">⬆ Use the signal recorded in Phase 3</button>
+          <button id="useRecordingBtn" class="bigbtn ug-usebtn">⬆ Use the signal recorded in Phase 1</button>
           <div class="ug-or-row">or upload a <code>.cf32</code> file manually</div>
-          <label id="ugDrop" class="ug-drop" for="ugFile">
+          <label id="ugDrop" class="ug-drop ug-mini" for="ugFile" title="For edge cases: upload a .cf32 file from disk instead of the recorded signal">
             <input id="ugFile" type="file" accept=".cf32,.iq,.raw,.c64,.dat,application/octet-stream" hidden>
             <div class="ug-drop-ico">⬆</div>
             <div class="ug-drop-main">Click to choose a file <span class="ug-or">or</span> drag and drop here</div>
             <div class="ug-drop-sub">e.g. <code>ENIGMA-1_433_508MHz_…&#8203;.cf32</code></div>
           </label>
           <div id="ugInfo" class="ug-info hidden"></div>
-          <div class="ug-note">🔎 Validated and analyzed in the browser, then sent to the server as the File Source for the real GNU Radio in PHASE 6.</div>
+          <div class="ug-note">🔎 Validated and analyzed in the browser, then sent to the server as the File Source for the real GNU Radio in Phase 4.</div>
         </div>
       </div>
 
@@ -289,7 +289,7 @@
             <div class="anhead"><span class="etitle">📈 SPECTRUM / power spectral density</span>
               <span id="anMeas" class="anmeas">measuring…</span></div>
             <canvas id="anSpectrum" class="an-canvas an-spectrum"></canvas>
-            <div class="an-axis">frequency offset from center (kHz)</div>
+            <div class="an-axis">frequency (MHz)</div>
           </div>
           <div class="anpanel">
             <div class="anhead"><span class="etitle">🌊 WATERFALL / spectrogram over time</span>
@@ -315,11 +315,11 @@
                 <option value="PSK">PSK (phase shift)</option>
                 <option value="QAM">QAM</option>
               </select></label>
-            <label class="anfield">Bandwidth (kHz)
-              <input id="pBw" class="aninput" type="number" step="1" placeholder="width of the signal"></label>
+            <label class="anfield">Bandwidth (MHz)
+              <input id="pBw" class="aninput" type="number" step="0.001" placeholder="width of the signal"></label>
           </div>
           <div class="anparams-btns">
-            <button id="anHint" class="ghostbtn sm">💡 Hint</button>
+            <button id="anHint" class="ghostbtn sm hintbtn">💡 Hint</button>
           </div>
           <div id="anHintBox" class="hintbox hidden"></div>
         </div>
@@ -335,7 +335,7 @@
   <!-- PHASE 5 / DEMOD PUZZLE -->
   <section id="p-puzzle" class="phase hidden">
     <div class="wrap wide">
-      <div class="phasetag" data-tag="DEMOD PUZZLE">PHASE 5 / DEMOD PUZZLE</div>
+      <div class="phasetag" data-tag="DEMOD PUZZLE">PHASE 3 / DEMOD PUZZLE</div>
       <h1 class="ptitle">Assemble the demod flowgraph</h1>
       <div class="objbar"><span class="phasetag sm">ASSEMBLE</span>
         <span>Take the scattered blocks of <code>enigma1_decoder.grc</code> from the <b>tray</b> and drop each into the
@@ -345,14 +345,28 @@
       <!-- puzzle body: upload + analysis already done in PHASE 4 -->
       <div id="puzzleBody">
       <div class="puzzlewrap">
-        <div class="canvaswrap">
-          <div class="canvashead"><span>SIGNAL CHAIN</span>
-            <span id="puzzleProg" class="pprog">0 / 8 placed</span></div>
-          <div id="puzzleCanvas" class="puzzlecanvas">
-            <svg id="wireLayer" class="wirelayer" viewBox="0 0 1180 440" preserveAspectRatio="none"></svg>
-            <div id="slotLayer" class="slotlayer"></div>
+        <div class="canvascol">
+          <!-- signal-transform preview: sits above SIGNAL CHAIN; each placed block brings a stage to life -->
+          <div id="sigflow" class="sigflow">
+            <div class="sigflow-head">▶ Signal transform: each block you place brings its stage to life</div>
+            <div class="sigflow-row" id="sigflowRow"></div>
           </div>
-          <div id="solvedBanner" class="solvedbanner hidden">✅ FLOWGRAPH COMPLETE: the demod chain is connected</div>
+
+          <div class="canvaswrap">
+            <div class="canvashead"><span>SIGNAL CHAIN</span>
+              <span id="puzzleProg" class="pprog">0 / 8 placed</span></div>
+            <div id="puzzleCanvas" class="puzzlecanvas">
+              <svg id="wireLayer" class="wirelayer" viewBox="0 0 1180 440" preserveAspectRatio="none"></svg>
+              <div id="slotLayer" class="slotlayer"></div>
+            </div>
+            <div id="solvedBanner" class="solvedbanner hidden">✅ FLOWGRAPH COMPLETE: the demod chain is connected</div>
+          </div>
+
+          <!-- block role description: same width as SIGNAL CHAIN; updates when you click any block above -->
+          <div id="blockInfo" class="blockinfo">
+            <div class="blockinfo-title">📘 Block reference</div>
+            <div id="blockInfoBody" class="blockinfo-body">Click any block (in the tray or on the canvas) to see what it does in the demod chain.</div>
+          </div>
         </div>
 
         <div class="trayside">
@@ -360,24 +374,12 @@
           <div id="tray" class="tray"></div>
           <div class="traybtns">
             <button id="resetPuzzle" class="ghostbtn sm">Reset</button>
-            <button id="hintPuzzle" class="ghostbtn sm">💡 Hint</button>
+            <button id="hintPuzzle" class="ghostbtn sm hintbtn">💡 Hint</button>
             <button id="revealPuzzle" class="ghostbtn sm danger-ghost" title="removed before release">Auto-place</button>
           </div>
           <div id="hintBox" class="hintbox hidden"></div>
           <div class="traynote">💡 Click a block to select it, then click a slot. Click a filled slot to send it back to the tray.</div>
         </div>
-      </div>
-
-      <!-- block role description: sits between the puzzle window and the Signal-transform / Block-reference area; updates when you click any block above -->
-      <div id="blockInfo" class="blockinfo">
-        <div class="blockinfo-title">📘 Block reference</div>
-        <div id="blockInfoBody" class="blockinfo-body">Click any block (in the tray or on the canvas) to see what it does in the demod chain.</div>
-      </div>
-
-      <!-- signal-transform preview: each placed block brings a stage to life -->
-      <div id="sigflow" class="sigflow">
-        <div class="sigflow-head">▶ Signal transform: each block you place brings its stage to life</div>
-        <div class="sigflow-row" id="sigflowRow"></div>
       </div>
       </div><!-- /#puzzleBody -->
 
@@ -391,7 +393,7 @@
   <!-- ═══════════ PHASE 6 / FLOWGRAPH (GNU Radio)═══════════ -->
   <section id="p-flowgraph" class="phase hidden">
     <div class="wrap wide">
-      <div class="phasetag" data-tag="GNU RADIO">PHASE 6 / GNU RADIO</div>
+      <div class="phasetag" data-tag="GNU RADIO">PHASE 4 / GNU RADIO</div>
       <h1 class="ptitle">Run the flowgraph: <code>enigma1_decoder.grc</code></h1>
       <div class="objbar"><span class="phasetag sm">RUN</span>
         <span>The GNU Radio on the left is already running your uploaded file: the <b>waterfall</b> shows the

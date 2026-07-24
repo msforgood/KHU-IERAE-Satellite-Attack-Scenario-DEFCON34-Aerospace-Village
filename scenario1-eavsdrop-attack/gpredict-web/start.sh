@@ -99,7 +99,7 @@ EOF
       HASR=$(wmctrl -l 2>/dev/null | grep -c "Radio Control")
       HASA=$(wmctrl -l 2>/dev/null | grep -c "Rotator Control")
       if [ "$HASR" = "0" ] || [ "$HASA" = "0" ]; then
-        wmctrl -ir "$MAIN" -e "0,0,0,1280,580"; sleep 0.6
+        wmctrl -ir "$MAIN" -e "0,0,0,870,580"; sleep 0.6   # taller, less-wide main window (gpredict redraws to fit; it may grow past 580 tall, so the control windows below are pushed down to clear it)
         eval "$(xdotool getwindowgeometry --shell "$MAIN")"
         HX=$((X + WIDTH - 24)); HY=$((Y + 22))                     # module popup (hamburger) button
         if [ "$HASR" = "0" ]; then                                # open Radio Control
@@ -112,8 +112,8 @@ EOF
           xdotool mousemove "$HX" "$HY" click 1; sleep 0.5
           xdotool mousemove "$((HX - 156))" "$((HY + 183))" click 1; sleep 0.8
         fi
-        wmctrl -r "Gpredict Rotator Control" -e "0,0,590,1280,330"   # Antenna, middle
-        wmctrl -r "Gpredict Radio Control"   -e "0,0,930,1280,412"   # Radio, bottom
+        wmctrl -r "Gpredict Rotator Control" -e "0,0,930,1280,330"    # Antenna (moved down +340 to clear the taller main window)
+        wmctrl -r "Gpredict Radio Control"   -e "0,0,1270,1280,412"   # Radio (moved down +340; control.py hit coords shifted to match)
         xdotool mousemove 12 12                                      # park the pointer
       fi
     fi
