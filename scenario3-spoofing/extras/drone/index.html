@@ -1045,46 +1045,46 @@
     });
     document.getElementById("quitBtn").addEventListener("click", quitAndReset);
 
-    // Ask BOTH the attacker builder (same origin) and the victim GS to reset and
-    // restart. Each writes a sentinel that booth.sh watches → full off→on of both
-    // scripts. Then we wait for the attacker server to go down and come back, and
-    // reload the whole app to phase 1 so the next player starts fresh.
+    // Reset for the next participant — same contract as the console finale. POST
+    // <gs>/api/restart: it resets the GS to nominal AND, under run-booth.sh, drops
+    // the flag that tears down + relaunches BOTH start scripts. Then wait for the
+    // fresh Command Builder to report /api/ready (true only AFTER the antenna/solar
+    // setup finishes) and reload the whole app to phase 1. Works either way:
+    //   • supervisor (run-booth.sh) running → builder relaunches; reload once ready
+    //   • no supervisor → GS is reset, builder never dies; reload shortly after
     function quitAndReset() {
       finishModal.hidden = true;
       resetOverlay.hidden = false;
-      var q = { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" };
-      Promise.all([
-        fetch("/api/quit", q).catch(function () {}),
-        fetch(GS + "/api/quit", q).catch(function () {}),
-      ]).then(waitForRestart, waitForRestart);
-    }
-
-    function waitForRestart() {
-      var wentDown = false;
-      var t0 = Date.now();
-      function ping() {
-        if (Date.now() - t0 > 60000) return reloadToStart(); // safety net
-        fetch("/?_=" + Date.now(), { cache: "no-store" }).then(
-          function () {
-            if (wentDown) return reloadToStart(); // down → up: the new server is live
-            setTimeout(ping, 500);
-          },
-          function () {
-            wentDown = true; // old server gone; now wait for the fresh one
-            setTimeout(ping, 500);
-          },
-        );
-      }
-      setTimeout(ping, 1500); // give booth.sh a beat to tear the old server down
-    }
-
-    function reloadToStart() {
-      try {
-        var top = window.top; // same origin (both served by the builder) → allowed
-        top.location.replace("/1" + (top.location.search || ""));
-      } catch (e) {
-        location.replace("/1");
-      }
+      fetch(GS + "/api/restart", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
+        .catch(function () {})
+        .then(function () {
+          var top = window.top, // same origin (served by the builder) → accessible
+            origin = top.location.origin,
+            search = top.location.search;
+          var tries = 0;
+          var iv = setInterval(function () {
+            tries++;
+            if (tries < 4) return; // let the supervisor kill the old builder before probing
+            fetch(origin + "/api/ready", { cache: "no-store" })
+              .then(
+                function (r) {
+                  return r.ok ? r.json() : null;
+                },
+                function () {
+                  return null; // builder/hardware still coming up — keep waiting
+                },
+              )
+              .then(function (j) {
+                if (j && j.ready) {
+                  clearInterval(iv);
+                  top.location.href = "/1" + search;
+                } else if (tries > 160) {
+                  clearInterval(iv); // ~4 min fallback
+                  top.location.href = "/1" + search;
+                }
+              });
+          }, 1500);
+        });
     }
 
     renderFields();
