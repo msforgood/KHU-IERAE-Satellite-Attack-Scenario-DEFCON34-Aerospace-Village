@@ -617,18 +617,22 @@
       {
         title: "Antenna Type",
         value: "Dish (parabolic)",
-        apply: () => sendVSA({ antennaType: "dish" }),
+        // 접시 선택 → 물리 EL 모터를 45° 기준자세로 정렬(이후 Elevation 스텝에서 여기서부터 움직인다).
+        apply: () => {
+          sendVSA({ antennaType: "dish" });
+          post("/api/antenna", { el: 45 }).catch(() => {});
+        },
         why: "Antenna type sets <b>gain and beamwidth</b>. A dish is high-gain / narrow-beam — enough EIRP to close the uplink budget all the way to orbit, and it concentrates the energy on a single bearing.",
         use: "Switches the rotator model to a dish, which is why the two pointing angles below now matter — a wide whip would radiate everywhere and wouldn't need precise aim.",
       },
       {
         title: "Azimuth",
         value: fmt(azC) + "°",
-        // applying the antenna angle → tell the GS the target is acquired so the
-        // physical antenna motor moves (exact angle not needed; it just rotates).
+        // Azimuth 스텝 → 물리 AZ 모터를 위성 방위각으로 회전(EL 은 건드리지 않음 → AZ 축만 움직인다).
+        // 정확한 각도가 목적이 아니라 '눈에 띄게 도는' 게 목적이다.
         apply: () => {
           sendVSA({ azimuth: azC });
-          post("/api/acquire", {}).catch(() => {});
+          post("/api/antenna", { az: azC }).catch(() => {});
         },
         why: "The horizontal compass bearing (0°=N, 90°=E, 180°=S). This is DEMOSAT's <b>current azimuth</b> from gpredict's look-angle — a narrow dish must sit on this exact bearing or the satellite falls outside the beam.",
         use: "Drives the ground-station rotator's pan motor to the satellite's bearing (fires <code>/api/acquire</code>, so the physical antenna actually turns).",
@@ -636,7 +640,11 @@
       {
         title: "Elevation",
         value: fmt(elC) + "°",
-        apply: () => sendVSA({ elevation: elC }),
+        // Elevation 스텝 → 물리 EL 모터를 45°(접시 기준자세)에서 위성 앙각으로 틸트(AZ 는 그대로).
+        apply: () => {
+          sendVSA({ elevation: elC });
+          post("/api/antenna", { el: elC }).catch(() => {});
+        },
         why: "The vertical angle above the horizon (0°=horizon, 90°=zenith). Must be positive: DEMOSAT is only reachable by <b>line of sight</b> while it is above the horizon — that's exactly the pass window gpredict counted down to.",
         use: "Tilts the rotator up to the satellite's elevation, completing the 2-axis aim. With both angles set, the dish beam is now locked on DEMOSAT.",
       },
