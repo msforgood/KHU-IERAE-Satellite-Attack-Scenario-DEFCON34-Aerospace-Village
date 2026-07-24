@@ -280,3 +280,110 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-wei
 .seg.pending .anno{color:var(--amber)}
 
 @media(max-width:1300px){.grid{grid-template-columns:1fr}.briefgrid{grid-template-columns:1fr}}
+
+/* ═══════════ PHASE 1 · ATTACK HERO (signature kill-sequence) ═══════════ */
+.hero{--hdur:9s;display:grid;grid-template-columns:minmax(0,1.28fr) minmax(0,.9fr);gap:30px;align-items:center;margin-bottom:8px}
+.hero-scene{position:relative;border:1px solid var(--line);border-radius:16px;padding:14px 16px 12px;overflow:hidden;
+  background:
+    radial-gradient(120% 90% at 12% 6%, rgba(57,197,255,.10), transparent 55%),
+    radial-gradient(90% 90% at 88% 98%, rgba(255,59,78,.13), transparent 60%),
+    linear-gradient(180deg,#0b1424,#05080f);
+  box-shadow:0 26px 64px -34px rgba(0,0,0,.9), inset 0 0 0 1px rgba(255,255,255,.02)}
+.hs-svg{width:100%;height:auto;display:block}
+
+/* satellite tumble — flat, then spins hard after the command lands */
+.hs-sat{transform-box:fill-box;transform-origin:center;animation:hs-tumble var(--hdur) linear infinite}
+@keyframes hs-tumble{0%,17%{transform:rotate(0)}27%{transform:rotate(46deg)}66%{transform:rotate(680deg)}100%{transform:rotate(1030deg)}}
+
+/* sun rays fade as the panel loses the sun */
+.hs-rays{opacity:.9;animation:hs-rays var(--hdur) ease-in-out infinite}
+@keyframes hs-rays{0%,20%{opacity:.9}42%,100%{opacity:.1}}
+
+/* RF beam flashes on inject, then dims */
+.hs-beam{opacity:0;animation:hs-beam var(--hdur) ease-out infinite}
+.hs-beam-dash{animation:hs-beam var(--hdur) ease-out infinite, hs-dash 1s linear infinite}
+@keyframes hs-beam{0%,15%{opacity:0}18%{opacity:1}30%{opacity:1}40%{opacity:.12}100%{opacity:.06}}
+@keyframes hs-dash{to{stroke-dashoffset:-30}}
+
+/* dish feed + rim light up as the command fires */
+.hs-feed{animation:hs-feed var(--hdur) ease-out infinite}
+@keyframes hs-feed{0%,15%{fill:#2a4a63}18%,30%{fill:#39c5ff}45%,100%{fill:#2a4a63}}
+.hs-dish{animation:hs-dishp var(--hdur) ease-out infinite}
+@keyframes hs-dishp{0%,15%{stroke:#3a4d64}18%,30%{stroke:#39c5ff}45%,100%{stroke:#3a4d64}}
+
+/* the packet rides the beam up to the satellite */
+.hs-packet{opacity:0;transform:translate(122px,232px);animation:hs-packet var(--hdur) ease-in infinite}
+@keyframes hs-packet{0%,15%{opacity:0;transform:translate(122px,232px)}
+  19%{opacity:1;transform:translate(150px,222px)}
+  29%{opacity:1;transform:translate(352px,152px)}
+  33%{opacity:0;transform:translate(374px,144px)}100%{opacity:0;transform:translate(374px,144px)}}
+
+/* battery bleeds out: green → amber → red → dead flicker */
+.hs-battfill{transform-box:fill-box;transform-origin:left center;animation:hs-batt var(--hdur) ease-in-out infinite}
+@keyframes hs-batt{0%,20%{transform:scaleX(1);fill:#33d17a}
+  44%{transform:scaleX(.52);fill:#ffb020}
+  66%{transform:scaleX(.2);fill:#ff3b4e}
+  86%{transform:scaleX(.06);fill:#ff3b4e}
+  91%{transform:scaleX(.05);fill:#4a1420}
+  94%{transform:scaleX(.05);fill:#ff3b4e}
+  100%{transform:scaleX(.05);fill:#ff3b4e}}
+
+/* red flash at the moment of impact */
+.hs-flash{animation:hs-flash var(--hdur) ease-out infinite}
+@keyframes hs-flash{0%,16%{opacity:0}18%{opacity:.16}24%{opacity:0}100%{opacity:0}}
+
+.hs-star{animation:hs-tw 3.2s ease-in-out infinite}
+@keyframes hs-tw{0%,100%{opacity:.25}50%{opacity:.9}}
+
+/* state caption — one line, crossfading with the story */
+.hs-caption{position:relative;height:24px;margin-top:6px;text-align:center;font-size:15px;font-weight:700;letter-spacing:.03em}
+.hs-cap{position:absolute;left:0;right:0;opacity:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hs-cap--ok{color:var(--ok);animation:hs-cok var(--hdur) infinite}
+.hs-cap--inject{color:var(--accent);animation:hs-cinj var(--hdur) infinite}
+.hs-cap--tumble{color:var(--amber);animation:hs-ctum var(--hdur) infinite}
+.hs-cap--dead{color:var(--danger);animation:hs-cdead var(--hdur) infinite}
+@keyframes hs-cok{0%,14%{opacity:1}18%,100%{opacity:0}}
+@keyframes hs-cinj{0%,15%{opacity:0}19%,26%{opacity:1}30%,100%{opacity:0}}
+@keyframes hs-ctum{0%,29%{opacity:0}34%,60%{opacity:1}66%,100%{opacity:0}}
+@keyframes hs-cdead{0%,64%{opacity:0}70%{opacity:1}82%{opacity:.4}88%{opacity:1}100%{opacity:1}}
+
+/* copy column */
+.hero-copy{display:flex;flex-direction:column;gap:16px}
+.brieftitle{font-size:clamp(27px,2.85vw,40px);line-height:1.08;letter-spacing:-.012em;color:#eaf2fb;margin:0;font-weight:800}
+.brieftitle .kill{color:var(--danger);text-shadow:0 0 28px rgba(255,59,78,.5)}
+.brieftitle .legit{color:var(--ok);text-shadow:0 0 26px rgba(51,209,122,.4)}
+.hero-lead{margin:0;font-size:18px;line-height:1.55;color:#aebccd}
+.hero-lead b{color:#eaf2fb}
+.killchain{list-style:none;counter-reset:kc;margin:4px 0 0;padding:0;border:1px solid var(--line);
+  border-radius:12px;overflow:hidden;background:rgba(255,255,255,.015)}
+.killchain li{counter-increment:kc;display:flex;align-items:center;gap:14px;padding:12px 16px;
+  font-size:16px;color:#cdd9e6;border-top:1px solid var(--line)}
+.killchain li:first-child{border-top:0}
+.killchain li::after{content:counter(kc,decimal-leading-zero);margin-left:auto;font-family:var(--mono);
+  font-size:13px;font-weight:700;color:var(--dim);opacity:.7}
+.killchain b{color:#fff}
+.killchain code{font-family:var(--mono);color:var(--danger);background:rgba(255,59,78,.1);padding:1px 7px;border-radius:5px;font-size:14px}
+.kc-ico{flex:none;width:34px;height:34px;display:grid;place-items:center;font-size:18px;background:#0a121c;border:1px solid var(--line);border-radius:9px}
+
+/* deep-dive toggle — dry mechanics folded away */
+.deepdive{margin:22px 0 2px;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+.deepdive>summary{list-style:none;cursor:pointer;padding:16px 20px;font-size:16px;font-weight:700;letter-spacing:.02em;
+  color:#cdd9e6;display:flex;align-items:center;gap:12px;user-select:none}
+.deepdive>summary::-webkit-details-marker{display:none}
+.deepdive>summary:hover{color:#eaf2fb}
+.deepdive .dd-ico{color:var(--accent);transition:transform .2s;display:inline-block}
+.deepdive[open]>summary .dd-ico{transform:rotate(90deg)}
+.deepdive .dd-hint{margin-left:auto;font-size:13px;font-weight:600;color:var(--dim);letter-spacing:.04em}
+.deepdive .brieftext{padding:2px 22px 22px;gap:18px}
+
+@media(max-width:980px){.hero{grid-template-columns:1fr;gap:18px}.deepdive .dd-hint{display:none}}
+
+@media(prefers-reduced-motion:reduce){
+  .hs-sat,.hs-rays,.hs-beam,.hs-beam-dash,.hs-feed,.hs-dish,.hs-packet,.hs-battfill,.hs-flash,.hs-star,.hs-cap{animation:none!important}
+  /* legible still frame: command has landed, sun lost, battery nearly dead */
+  .hs-sat{transform:rotate(26deg)}
+  .hs-rays{opacity:.12}
+  .hs-beam{opacity:.22}
+  .hs-battfill{transform:scaleX(.16);fill:var(--danger)}
+  .hs-cap--tumble{opacity:1}
+}

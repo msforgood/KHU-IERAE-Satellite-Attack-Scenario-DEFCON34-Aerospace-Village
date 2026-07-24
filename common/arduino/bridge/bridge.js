@@ -100,8 +100,9 @@ setTimeout(() => {
 }, RESET_WAIT_MS);
 
 // dedupe: only transmit when the rounded value actually changes
-let lastSolarAng = null, lastSolarMode = null;
+let lastSolarAng = null, lastSolarMode = null, lastSolarModeAt = 0;
 let lastAz = null, lastEl = null, lastAntMode = null;
+const now = () => Date.now();
 
 function poll() {
   const req = http.get(GS_URL + "/api/state", (res) => {
@@ -126,13 +127,15 @@ function drive(state) {
       const mode = attack ? 1 : 0;
       if (mode !== lastSolarMode) { send(solar, mode ? "SPIN" : "STOP"); lastSolarMode = mode; }
     } else if (attack) {
-      // 공격: MODE 1(무한 왕복)을 매 폴 재전송한다. 이유 —
+      // 공격: MODE 1(무한 왕복)을 ~1초마다 재전송한다. 이유 —
       //  ① 보드가 전원 sag 등으로 리셋되면 mode0(90°)로 부팅되는데, dedup 으로 MODE 1 을 다시
-      //     안 보내면 스윕을 못 되찾는다 → 매 폴 재전송으로 self-heal.
+      //     안 보내면 스윕을 못 되찾는다 → 주기적 재전송으로 self-heal(1초 내 복귀).
       //  ② 공격 중 ANG 는 보내지 않는다. mode1 에선 무시되고, 혹 보드가 mode0 로 떨어지면
       //     ANG(공격 중 0~100+ 로 크게 진동)를 빠르게 좇아 "끝단↔원위치를 미친듯이" 튀는 사고를 낸다.
-      send(solar, "MODE 1");
-      lastSolarMode = 1;
+      //  매 폴(150ms)이 아니라 1초 간격으로 보내 시리얼 트래픽·충돌 위험을 낮춘다.
+      if (lastSolarMode !== 1 || now() - lastSolarModeAt > 1000) {
+        send(solar, "MODE 1"); lastSolarMode = 1; lastSolarModeAt = now();
+      }
       lastSolarAng = null;            // nominal 복귀 시 ANG 가 다시 동기화되도록
     } else {
       // nominal: 정지(현재 위치 유지). 태양추적을 하지 않으므로 ANG 스트림을 보내지 않는다

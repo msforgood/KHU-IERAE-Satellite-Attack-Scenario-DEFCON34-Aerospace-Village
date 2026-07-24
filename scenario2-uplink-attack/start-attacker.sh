@@ -113,6 +113,18 @@ free_serial_bridge() {
   pgrep -f 'bridge\.js' >/dev/null 2>&1 && { pkill -9 -f 'bridge\.js' 2>/dev/null || true; sleep 1; }
 }
 
+# 종료(Ctrl+C 등) 시 모터를 정지시킨다. 스케치는 공격(mode 1)이면 스스로 계속 왕복하므로,
+# 브리지를 죽이는 것만으로는 안 멈춘다 — 보드에 MODE 0(정지)을 직접 보내야 한다.
+# (브리지 SIGTERM 핸들러도 MODE 0 을 보내지만, 브리지가 이미 죽었을 때를 대비한 안전빵.)
+stop_motors() {
+  local dev
+  for dev in "$SOLAR_DEV" "$ANT_DEV"; do
+    [ -n "$dev" ] && [ -e "$dev" ] || continue
+    stty -f "$dev" 9600 raw -echo clocal 2>/dev/null || continue
+    { printf 'MODE 0\n'; } > "$dev" 2>/dev/null || true
+  done
+}
+
 # gpredict(③ 조준)는 Docker 컨테이너로만 뜨기 때문에 데몬이 꺼져 있으면 화면이 안 열린다.
 # 그래서 여기서 데몬을 자동 기동하고 올라올 때까지 기다린다. Docker CLI 자체가 없으면(미설치)
 # 조용히 실패(1) → 호출부가 gpredict 없이 진행. 성공 0 / 실패 1. 최대 DOCKER_WAIT(기본 90)초 대기.
@@ -409,6 +421,8 @@ up() {
   local pids=()
   cleanup() {
     echo; echo "[cleanup] 종료 중…"
+    free_serial_bridge   # 브리지(node) 확실히 종료 → 그 SIGTERM 핸들러가 보드에 MODE 0 전송(모터 정지)
+    stop_motors          # 안전빵: 보드에 MODE 0 직접 전송(브리지가 못 보냈을 경우)
     [ "${#pids[@]}" -gt 0 ] && kill "${pids[@]}" 2>/dev/null || true
     if have docker; then
       docker ps -q --filter "ancestor=$GP_IMG" | xargs -r docker stop >/dev/null 2>&1 || true
