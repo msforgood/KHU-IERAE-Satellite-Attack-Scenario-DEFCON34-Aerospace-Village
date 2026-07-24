@@ -21,7 +21,7 @@
     <section id="briefing" class="phase">
       <div class="briefwrap">
         <div class="phasetag">PHASE 1 / 3 · MISSION BRIEFING</div>
-        <div class="hero">
+        <div class="hero" data-scn="scn2">
           <!-- ▶ signature: the looping "kill sequence" — antenna → command → tumble → dead battery -->
           <div class="hero-scene">
             <svg viewBox="0 0 720 340" class="hs-svg" role="img"
@@ -115,11 +115,107 @@
           </div>
         </div>
 
+        <!-- ═══ scn3 hero · shown only for the spoofing scenario (toggled by data-scn) ═══ -->
+        <div class="hero" data-scn="scn3" hidden>
+          <!-- ▶ signature: the real satellite keeps tumbling while the dashboard flips to a fake green NOMINAL -->
+          <div class="hero-scene s3-scene">
+            <svg viewBox="0 0 720 340" class="hs-svg" role="img"
+              aria-label="Spoofing sequence: the real satellite keeps tumbling while a rogue drone replays a forged healthy beacon and the ground-station dashboard flips from red alarm to a fake green NOMINAL.">
+              <defs>
+                <linearGradient id="s3Screen" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#070d16" /><stop offset="100%" stop-color="#04070c" />
+                </linearGradient>
+                <filter id="s3Glow"><feGaussianBlur stdDeviation="4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+              </defs>
+
+              <g fill="#9cc4ff">
+                <circle class="hs-star" cx="180" cy="30" r="1.5" />
+                <circle class="hs-star" cx="330" cy="52" r="1.2" style="animation-delay:.6s" />
+                <circle class="hs-star" cx="250" cy="150" r="1.1" style="animation-delay:1.3s" />
+                <circle class="hs-star" cx="90" cy="60" r="1.3" style="animation-delay:1.9s" />
+                <circle class="hs-star" cx="410" cy="34" r="1.2" style="animation-delay:.9s" />
+              </g>
+
+              <!-- REAL satellite — still tumbling (the truth never changes) -->
+              <image class="s3-sat" href="/static/sat.png" x="66" y="66" width="182" height="122" preserveAspectRatio="xMidYMid meet" />
+              <g class="s3-realtag">
+                <rect x="78" y="196" width="158" height="23" rx="5" fill="#12060a" stroke="#ff3b4e" stroke-width="1" />
+                <text x="157" y="212" text-anchor="middle" fill="#ff8a94" font-size="12" font-family="ui-monospace,monospace">⚠ REAL · STILL TUMBLING</text>
+              </g>
+
+              <!-- forged "healthy" beacon: green waves + packet, drone → dashboard -->
+              <g class="s3-waves" transform="translate(322,250)" stroke="#33d17a" fill="none" stroke-width="2">
+                <path class="s3-wave" d="M4,-15 A 20 20 0 0 1 4,17" />
+                <path class="s3-wave" d="M12,-24 A 32 32 0 0 1 12,26" style="animation-delay:.35s" />
+                <path class="s3-wave" d="M20,-33 A 44 44 0 0 1 20,35" style="animation-delay:.7s" />
+              </g>
+
+              <!-- rogue drone posing as DEMOSAT -->
+              <g class="s3-drone" transform="translate(300,252)">
+                <line x1="-24" y1="-13" x2="24" y2="13" stroke="#3a4d64" stroke-width="4" stroke-linecap="round" />
+                <line x1="-24" y1="13" x2="24" y2="-13" stroke="#3a4d64" stroke-width="4" stroke-linecap="round" />
+                <ellipse class="s3-rotor" cx="-24" cy="-13" rx="12" ry="4" fill="#39c5ff" />
+                <ellipse class="s3-rotor" cx="24" cy="-13" rx="12" ry="4" fill="#39c5ff" style="animation-delay:.12s" />
+                <ellipse class="s3-rotor" cx="-24" cy="13" rx="12" ry="4" fill="#39c5ff" style="animation-delay:.24s" />
+                <ellipse class="s3-rotor" cx="24" cy="13" rx="12" ry="4" fill="#39c5ff" style="animation-delay:.36s" />
+                <rect x="-14" y="-10" width="28" height="20" rx="5" fill="#1a2636" stroke="#4a5f78" stroke-width="1.5" />
+                <text x="0" y="4" text-anchor="middle" fill="#8fb8ff" font-size="8" font-family="ui-monospace,monospace">DRONE</text>
+              </g>
+              <text class="s3-dronetag" x="300" y="300" text-anchor="middle" fill="#8fb8ff" font-size="11" font-family="ui-monospace,monospace">▲ posing as DEMOSAT</text>
+
+              <g class="s3-packet">
+                <rect x="-72" y="-13" width="144" height="26" rx="6" fill="#06170f" stroke="#33d17a" stroke-width="1" />
+                <text x="0" y="4" text-anchor="middle" fill="#7ee6a6" font-size="12" font-family="ui-monospace,monospace">✔ NOMINAL · BATT 98%</text>
+              </g>
+
+              <!-- ground-station dashboard — flips red alarm → fake green NOMINAL -->
+              <g transform="translate(474,82)">
+                <rect x="0" y="0" width="200" height="120" rx="10" fill="#0a121c" stroke="#33465c" stroke-width="2" />
+                <rect x="9" y="9" width="182" height="88" rx="5" fill="url(#s3Screen)" />
+                <text x="17" y="27" fill="#5a6b7d" font-size="10" font-family="ui-monospace,monospace" letter-spacing="1">GROUND STATION · DEMOSAT</text>
+                <g class="s3-dash-red">
+                  <text x="17" y="60" fill="#ff3b4e" font-size="19" font-weight="800" font-family="ui-monospace,monospace">⚠ CRITICAL</text>
+                  <text x="17" y="83" fill="#ff8a94" font-size="12" font-family="ui-monospace,monospace">TUMBLING · BATT 6%</text>
+                </g>
+                <g class="s3-dash-green">
+                  <text x="17" y="60" fill="#33d17a" font-size="19" font-weight="800" font-family="ui-monospace,monospace">◉ NOMINAL</text>
+                  <text x="17" y="83" fill="#7ee6a6" font-size="12" font-family="ui-monospace,monospace">BATT 98% · SUN-LOCKED</text>
+                </g>
+                <circle class="s3-siren" cx="182" cy="24" r="6" fill="#ff3b4e" filter="url(#s3Glow)" />
+                <rect x="90" y="120" width="20" height="14" fill="#243244" />
+                <rect x="66" y="134" width="68" height="8" rx="3" fill="#16212f" />
+              </g>
+
+              <rect class="s3-flash" x="0" y="0" width="720" height="340" fill="#33d17a" opacity="0" />
+            </svg>
+
+            <div class="hs-caption" aria-hidden="true">
+              <span class="hs-cap s3-cap--alarm">⚠ SATELLITE TUMBLING · GROUND-STATION ALARM BLARING</span>
+              <span class="hs-cap s3-cap--spoof">🛸 DRONE IMPERSONATES DEMOSAT · FORGED BEACON</span>
+              <span class="hs-cap s3-cap--hidden">✅ DASHBOARD READS “NOMINAL” · ALARM SILENCED</span>
+            </div>
+          </div>
+
+          <div class="hero-copy">
+            <h1 class="brieftitle">Break the satellite,<br />then <span class="spoof">impersonate it.</span></h1>
+            <p class="hero-lead">
+              First you break it. Then you disguise a <b>drone as DEMOSAT</b> and replay a forged
+              <b>“all-healthy” beacon</b> — the ground-station alarm goes quiet while the real satellite keeps tumbling.
+            </p>
+            <ol class="killchain">
+              <li><span class="kc-ico">📡</span><span><b>Break it</b> — the satellite tumbles</span></li>
+              <li><span class="kc-ico">🚨</span><span>Ground station screams <b>ENERGY CRITICAL</b></span></li>
+              <li><span class="kc-ico">🛸</span><span>A rogue <b>drone poses as DEMOSAT</b></span></li>
+              <li><span class="kc-ico">✅</span><span>Forged <b>“NOMINAL”</b> beacon — alarm silenced</span></li>
+            </ol>
+          </div>
+        </div>
+
         <!-- dry mechanics tucked away — open only if you want the how-and-why -->
         <details class="deepdive">
           <summary>
             <span class="dd-ico">▸</span> How the attack actually works
-            <span class="dd-hint">packet · RF · CCSDS · SDR</span>
+            <span class="dd-hint">the full mechanics</span>
           </summary>
           <div class="brieftext">
             <div class="bsec">
@@ -432,11 +528,23 @@
               b.style.display = "";
             });
         });
+        // pick the scenario-specific hero (scn2 kill-sequence · scn3 drone-spoof); hide the rest
+        function selectHero(id) {
+          var heroes = document.querySelectorAll(".hero[data-scn]");
+          var matched = false;
+          heroes.forEach(function (h) {
+            var on = h.getAttribute("data-scn") === id;
+            h.hidden = !on;
+            if (on) matched = true;
+          });
+          if (!matched && heroes.length) heroes[0].hidden = false; // fallback: first hero
+        }
         fetch("/api/scenario")
           .then(function (r) {
             return r.json();
           })
           .then(function (sc) {
+            selectHero((sc && sc.id) || "scn2");
             var n = sc && sc.phaseCount;
             if (n)
               Array.prototype.forEach.call(document.querySelectorAll(".phasetag"), function (t) {
@@ -463,6 +571,7 @@
             routeFromUrl(); // honor /1 /2 /3 /4 on first load
           })
           .catch(function () {
+            selectHero("scn2");
             collectPhases();
             routeFromUrl();
           });

@@ -283,6 +283,7 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-wei
 
 /* ═══════════ PHASE 1 · ATTACK HERO (signature kill-sequence) ═══════════ */
 .hero{--hdur:9s;display:grid;grid-template-columns:minmax(0,1.28fr) minmax(0,.9fr);gap:30px;align-items:center;margin-bottom:8px}
+.hero[hidden]{display:none!important}   /* .hero display:grid otherwise beats the UA [hidden] rule */
 .hero-scene{position:relative;border:1px solid var(--line);border-radius:16px;padding:14px 16px 12px;overflow:hidden;
   background:
     radial-gradient(120% 90% at 12% 6%, rgba(57,197,255,.10), transparent 55%),
@@ -386,4 +387,61 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-wei
   .hs-beam{opacity:.22}
   .hs-battfill{transform:scaleX(.16);fill:var(--danger)}
   .hs-cap--tumble{opacity:1}
+}
+
+/* ═══════════ PHASE 1 · scn3 SPOOF HERO (signature: dashboard flips to a fake NOMINAL) ═══════════ */
+.s3-scene{--s3dur:10s}
+.brieftitle .spoof{color:var(--ok);text-shadow:0 0 26px rgba(51,209,122,.4)}
+
+/* real satellite keeps tumbling — it is already broken, so it never stops */
+.s3-sat{transform-box:fill-box;transform-origin:center;animation:s3-tumble var(--s3dur) linear infinite}
+@keyframes s3-tumble{to{transform:rotate(900deg)}}
+.s3-realtag{animation:s3-realtag var(--s3dur) ease-in-out infinite}
+@keyframes s3-realtag{0%,100%{opacity:.92}50%{opacity:.55}}
+
+/* ground-station dashboard flips red alarm → fake green NOMINAL */
+.s3-dash-red{animation:s3-red var(--s3dur) ease-in-out infinite}
+@keyframes s3-red{0%,30%{opacity:1}38%,100%{opacity:0}}
+.s3-dash-green{opacity:0;animation:s3-green var(--s3dur) ease-in-out infinite}
+@keyframes s3-green{0%,32%{opacity:0}40%,100%{opacity:1}}
+.s3-siren{animation:s3-siren var(--s3dur) steps(1) infinite}
+@keyframes s3-siren{0%,8%,16%,24%{opacity:1}4%,12%,20%{opacity:.15}30%{opacity:1}38%{opacity:.3;fill:#33465c}100%{opacity:.3;fill:#33465c}}
+
+/* rogue drone spins up and starts broadcasting */
+.s3-drone,.s3-dronetag{opacity:.5;animation:s3-drone var(--s3dur) ease-out infinite}
+@keyframes s3-drone{0%,18%{opacity:.5}24%,100%{opacity:1}}
+.s3-rotor{animation:s3-rotor .5s ease-in-out infinite}
+@keyframes s3-rotor{50%{opacity:.35}}
+
+/* forged "healthy" beacon: green waves + packet ride drone → dashboard */
+.s3-waves{animation:s3-wavesOn var(--s3dur) step-end infinite}
+@keyframes s3-wavesOn{0%,20%{opacity:0}22%,100%{opacity:1}}
+.s3-wave{opacity:0;animation:s3-wave 1.4s ease-out infinite}
+@keyframes s3-wave{0%{opacity:0}22%{opacity:.85}100%{opacity:0}}
+.s3-packet{opacity:0;transform:translate(330px,244px);animation:s3-packet var(--s3dur) ease-in infinite}
+@keyframes s3-packet{0%,22%{opacity:0;transform:translate(330px,244px)}
+  27%{opacity:1;transform:translate(402px,206px)}
+  37%{opacity:1;transform:translate(520px,150px)}
+  41%{opacity:0;transform:translate(542px,140px)}100%{opacity:0;transform:translate(542px,140px)}}
+
+/* green "spoof succeeded" wash */
+.s3-flash{animation:s3-flash var(--s3dur) ease-out infinite}
+@keyframes s3-flash{0%,36%{opacity:0}42%{opacity:.12}52%{opacity:0}100%{opacity:0}}
+
+/* scn3 state captions */
+.s3-cap--alarm{color:var(--danger);animation:s3-calarm var(--s3dur) infinite}
+.s3-cap--spoof{color:var(--accent);animation:s3-cspoof var(--s3dur) infinite}
+.s3-cap--hidden{color:var(--ok);animation:s3-chidden var(--s3dur) infinite}
+@keyframes s3-calarm{0%,18%{opacity:1}24%,100%{opacity:0}}
+@keyframes s3-cspoof{0%,20%{opacity:0}26%,34%{opacity:1}40%,100%{opacity:0}}
+@keyframes s3-chidden{0%,38%{opacity:0}44%{opacity:1}100%{opacity:1}}
+
+@media(prefers-reduced-motion:reduce){
+  .s3-sat,.s3-realtag,.s3-dash-red,.s3-dash-green,.s3-siren,.s3-drone,.s3-dronetag,.s3-rotor,.s3-waves,.s3-wave,.s3-packet,.s3-flash,.s3-cap--alarm,.s3-cap--spoof,.s3-cap--hidden{animation:none!important}
+  /* static still: spoof done — real sat still tumbling, dashboard shows the fake green NOMINAL */
+  .s3-sat{transform:rotate(24deg)}
+  .s3-dash-red{opacity:0}
+  .s3-dash-green{opacity:1}
+  .s3-siren{opacity:.3;fill:#33465c}
+  .s3-cap--hidden{opacity:1}
 }
