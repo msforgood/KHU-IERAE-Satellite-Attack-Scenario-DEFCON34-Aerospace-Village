@@ -78,6 +78,8 @@ h2{font-size:1em;letter-spacing:.14em;color:var(--dim);margin:0 0 clamp(4px,.8vh
   grid-template-rows:minmax(0,1fr);gap:var(--gap)}
 /* ENERGY SUPPLY card = half its former width (50%→25%); the cards on its right take the rest */
 .rowA{grid-template-columns:1fr 3fr}
+/* scn3: ORBITAL TRACKING map = half its former width (50%→25%); the subsystem cards widen */
+.rowB{grid-template-columns:1fr 3fr}
 .leftcol{display:flex;flex-direction:column;gap:var(--gap);min-width:0;min-height:0}
 .leftcol > .card:nth-child(1){flex:1.15 1 0}
 .leftcol > .card:nth-child(2){flex:1 1 0}
