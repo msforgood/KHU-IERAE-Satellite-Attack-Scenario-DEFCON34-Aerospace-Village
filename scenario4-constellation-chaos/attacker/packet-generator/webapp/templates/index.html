@@ -22,25 +22,57 @@
   <section id="intro" class="phase intro">
     <div class="introwrap">
       <div class="phasetag">MISSION BRIEFING</div>
-      <h1 class="brieftitle">Make ENIGMA-1 collide with AURORA-2</h1>
       <div class="introgrid">
         <div class="scene">
-          <svg viewBox="0 0 420 300" class="orbscene" aria-label="Crossing orbits">
-            <defs><radialGradient id="eG" cx="42%" cy="38%" r="65%">
-              <stop offset="0%" stop-color="#1c4a6e"/><stop offset="70%" stop-color="#0f2b45"/><stop offset="100%" stop-color="#081826"/></radialGradient></defs>
-            <circle cx="210" cy="150" r="58" fill="url(#eG)" stroke="#3a5f7d"/>
-            <ellipse cx="210" cy="150" rx="128" ry="52" fill="none" stroke="#eaf2ff" stroke-width="1.8" opacity="0.85" transform="rotate(18 210 150)"/>
-            <ellipse cx="210" cy="150" rx="150" ry="40" fill="none" stroke="#ff5a5a" stroke-width="1.8" opacity="0.85" transform="rotate(-64 210 150)"/>
-            <circle cx="92" cy="120" r="4.5" fill="#eaf2ff"/><circle cx="322" cy="176" r="4.5" fill="#ff5a5a"/>
-            <g class="burst"><circle cx="286" cy="96" r="10" fill="none" stroke="#ff3b4e" stroke-width="2"/><circle cx="286" cy="96" r="4" fill="#ffd23f"/></g>
+          <svg viewBox="0 0 420 300" class="orbscene" aria-label="ENIGMA-1 raised into a collision with AURORA-2">
+            <defs>
+              <radialGradient id="eG" cx="42%" cy="36%" r="68%"><stop offset="0%" stop-color="#1f5480"/><stop offset="66%" stop-color="#0f2b45"/><stop offset="100%" stop-color="#081826"/></radialGradient>
+              <radialGradient id="blastG" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff6e0"/><stop offset="28%" stop-color="#ffd23f"/><stop offset="64%" stop-color="#ff6a2b"/><stop offset="100%" stop-color="#ff3b4e" stop-opacity="0"/></radialGradient>
+              <marker id="dvAh" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#8fd0ff"/></marker>
+            </defs>
+            <g fill="#8ba0b6" opacity=".5"><circle cx="52" cy="46" r="1.6"/><circle cx="152" cy="26" r="1.2"/><circle cx="380" cy="50" r="1.6"/><circle cx="398" cy="176" r="1.3"/><circle cx="34" cy="196" r="1.4"/><circle cx="330" cy="236" r="1.2"/></g>
+            <circle cx="104" cy="242" r="66" fill="url(#eG)" stroke="#345f80" stroke-width="1.2"/>
+            <ellipse cx="104" cy="242" rx="66" ry="21" fill="none" stroke="#3a6a8f" stroke-width=".8" opacity=".4"/>
+            <ellipse cx="188" cy="166" rx="188" ry="64" fill="none" stroke="#ff5a5a" stroke-width="1.7" opacity=".72" transform="rotate(-32 188 166)"/>
+            <ellipse cx="188" cy="166" rx="112" ry="44" fill="none" stroke="#8ba0b6" stroke-width="1.3" stroke-dasharray="5 5" opacity=".42" transform="rotate(26 188 166)"/>
+            <ellipse cx="188" cy="166" rx="176" ry="64" fill="none" stroke="#8fd0ff" stroke-width="1.8" opacity=".85" transform="rotate(26 188 166)"/>
+            <g class="maneuver"><path d="M84 224 C 70 202, 72 178, 86 160" fill="none" stroke="#8fd0ff" stroke-width="2.4" marker-end="url(#dvAh)"/></g>
+            <g transform="translate(210,186) rotate(-22)">
+              <rect x="-70" y="-11" width="46" height="22" rx="2" fill="#2f4d78" stroke="#5b86c0"/>
+              <line x1="-58" y1="-11" x2="-58" y2="11" stroke="#5b86c0" stroke-width=".6"/><line x1="-46" y1="-11" x2="-46" y2="11" stroke="#5b86c0" stroke-width=".6"/><line x1="-35" y1="-11" x2="-35" y2="11" stroke="#5b86c0" stroke-width=".6"/>
+              <rect x="24" y="-11" width="46" height="22" rx="2" fill="#2f4d78" stroke="#5b86c0"/>
+              <line x1="36" y1="-11" x2="36" y2="11" stroke="#5b86c0" stroke-width=".6"/><line x1="47" y1="-11" x2="47" y2="11" stroke="#5b86c0" stroke-width=".6"/><line x1="58" y1="-11" x2="58" y2="11" stroke="#5b86c0" stroke-width=".6"/>
+              <rect x="-24" y="-3" width="9" height="6" fill="#8aa0b8"/><rect x="15" y="-3" width="9" height="6" fill="#8aa0b8"/>
+              <rect x="-15" y="-15" width="30" height="30" rx="3" fill="#caa64f" stroke="#e6cf8a"/>
+              <ellipse cx="0" cy="21" rx="11" ry="5.5" fill="#dbe9fb" stroke="#8fd0ff"/><line x1="0" y1="15" x2="0" y2="21" stroke="#8fd0ff" stroke-width="1.4"/>
+            </g>
+            <g class="blast">
+              <g stroke="#ffce4d" stroke-width="2.4" stroke-linecap="round"><line x1="338" y1="86" x2="380" y2="58"/><line x1="338" y1="86" x2="386" y2="100"/><line x1="338" y1="86" x2="302" y2="50"/><line x1="338" y1="86" x2="296" y2="116"/><line x1="338" y1="86" x2="360" y2="38"/></g>
+              <circle cx="338" cy="86" r="31" fill="url(#blastG)"/><circle cx="338" cy="86" r="12" fill="#fff6e0"/>
+              <g fill="#ff7a33"><circle cx="384" cy="54" r="2.4"/><circle cx="390" cy="104" r="2"/><circle cx="298" cy="46" r="2.2"/><circle cx="292" cy="122" r="2"/><circle cx="364" cy="34" r="2"/></g>
+            </g>
+            <g transform="translate(338,86)"><rect x="-6" y="-5" width="12" height="10" rx="2" fill="#ffd0d0" stroke="#ff5a5a"/><rect x="-13" y="-3" width="6" height="6" fill="#a06060"/><rect x="7" y="-3" width="6" height="6" fill="#a06060"/></g>
+            <g transform="translate(150,104)"><rect x="0" y="0" width="166" height="30" rx="7" fill="#180a0e" stroke="#ff3b4e" stroke-width="1.6"/><text x="15" y="20" fill="#ff9098" font-family="monospace" font-size="14" font-weight="700">COLLISION COURSE</text></g>
+            <text x="210" y="289" text-anchor="middle" fill="#8fd0ff" font-family="monospace" font-size="13" font-weight="700">ORBIT RAISED  →  COLLISION</text>
           </svg>
         </div>
-        <div class="brieftext">
-          <div class="bsec"><h3>① You control ENIGMA-1</h3><p>Assume you have <b>full command authority</b> over the satellite. This is not about breaking in. It is about <b>weaponising a satellite you already own</b>: nothing here touches radio, frequency or modulation.</p></div>
-          <div class="bsec"><h3>② You plan it the way operators do</h3><p>Read the orbits from their <b>TLEs</b>, <b>propagate</b> them to see where everyone is over time, <b>pick the moment</b> of impact, then <b>back-solve the burn</b> that puts ENIGMA-1 there. Real targeting works in exactly this order.</p></div>
-          <div class="bsec"><h3>③ Only a normal burn command</h3><p>You send a <b>legitimate propulsion (delta-v) command</b>, the same one used to keep a satellite on station. Choosing the wrong values steers ENIGMA-1 into a neighbour. <span class="hl">A legitimate command becomes an attack when it is abused.</span></p></div>
-          <div class="bsec"><h3>④ Why one collision endangers many</h3><p>A hypervelocity impact throws off a <b>debris cloud</b> that keeps orbiting and can strike other constellation members. One satellite's problem <b>cascades</b> (Kessler syndrome).</p></div>
+        <div class="briefright">
+          <h1 class="brieftitle">Make ENIGMA-1 <span class="hlgreen">collide with AURORA-2</span></h1>
+          <p class="brieflede">No hack, no bypass. It is a <b>routine orbit-raise command</b>, aimed so ENIGMA-1 climbs into AURORA-2 and scatters debris across the constellation.</p>
+          <div class="stepflow">
+            <div class="stepitem"><span class="se">🛰️</span><span class="stx"><b>Read</b> the two orbits</span><span class="snum">01</span></div>
+            <div class="stepitem"><span class="se">⏱️</span><span class="stx"><b>Pick</b> the impact moment</span><span class="snum">02</span></div>
+            <div class="stepitem"><span class="se">🧮</span><span class="stx"><b>Solve</b> the collision burn</span><span class="snum">03</span></div>
+            <div class="stepitem"><span class="se">📡</span><span class="stx"><b>Transmit</b> the command</span><span class="snum">04</span></div>
+          </div>
         </div>
+      </div>
+      <button id="briefMoreBtn" class="briefmore"><span class="bmlabel">▸ ℹ️ How the attack works</span><span class="bmhint">the full mechanics</span></button>
+      <div id="briefDetails" class="briefdetails hidden">
+        <div class="bsec"><h3>① You control ENIGMA-1</h3><p>Assume you have <b>full command authority</b> over the satellite. This is not about breaking in. It is about <b>weaponising a satellite you already own</b>: nothing here touches radio, frequency or modulation.</p></div>
+        <div class="bsec"><h3>② You plan it the way operators do</h3><p>Read the orbits from their <b>TLEs</b>, <b>propagate</b> them to see where everyone is over time, <b>pick the moment</b> of impact, then <b>back-solve the burn</b> that puts ENIGMA-1 there. Real targeting works in exactly this order.</p></div>
+        <div class="bsec"><h3>③ Only a normal burn command</h3><p>You send a <b>legitimate propulsion (delta-v) command</b>, the same one used to keep a satellite on station. Choosing the wrong values steers ENIGMA-1 into a neighbour. <span class="hl">A legitimate command becomes an attack when it is abused.</span></p></div>
+        <div class="bsec"><h3>④ Why one collision endangers many</h3><p>A hypervelocity impact throws off a <b>debris cloud</b> that keeps orbiting and can strike other constellation members. One satellite's problem <b>cascades</b> (Kessler syndrome).</p></div>
       </div>
       <div class="diffsel">
         <div class="difflabel">SELECT DIFFICULTY <span>sets how close the burn must be to actually collide</span></div>
@@ -146,7 +178,7 @@
           <span><i class="lg-tgt"></i> AURORA-2 (target)</span>
           <span><i class="lg-nbr"></i> AURORA constellation</span>
         </div>
-        <div class="chainhead"><h2 class="mt">① EQUATION CHAIN <span class="simhint">click cards in dependency order · click any card for details · results update live</span></h2></div>
+        <div class="chainhead"><h2 class="mt">① EQUATION CHAIN <span class="simhint">click each block in order to drop its equations into the chain, then click any card for details</span></h2></div>
         <div id="chainSlots" class="chaingrid"></div>
         <div id="chainPool" class="chainpool"></div>
         <div id="cardExplain" class="cardexplain"><div class="muted">Click any equation to open what it computes, what each variable means, and how changing it moves the orbit.</div></div>
@@ -156,10 +188,14 @@
           <div class="ctlhead"><span class="ctlname">② BURN VARIABLES</span><span class="ctltag" id="varLock">assemble the chain first</span></div>
           <div class="varrow"><span class="vk">Δv prograde</span>
             <span class="axctl"><button class="stepbtn" data-act="pg-">−</button><input id="inPg" class="axinput" type="number" step="10" disabled><button class="stepbtn" data-act="pg+">+</button></span><span class="vu">m/s (raise orbit)</span></div>
+          <div class="varhint">Raises the orbit <b>altitude</b>, the semi-major axis a.</div>
           <div class="varrow"><span class="vk">Δv cross-track</span>
             <span class="axctl"><button class="stepbtn" data-act="cr-">−</button><input id="inCr" class="axinput" type="number" step="20" disabled><button class="stepbtn" data-act="cr+">+</button></span><span class="vu">m/s (fine-tune crossing)</span></div>
+          <div class="varhint">Tilts the <b>orbital plane</b>, its RAAN Ω.</div>
           <div class="varrow"><span class="vk">Δv phasing</span>
             <span class="axctl"><button class="stepbtn" data-act="ph-">−</button><input id="inPh" class="axinput" type="number" step="1" disabled><button class="stepbtn" data-act="ph+">+</button></span><span class="vu">m/s (timing)</span></div>
+          <div class="varhint">Shifts <b>when ENIGMA-1 arrives</b> at the crossing.</div>
+          <button id="varHintBtn" class="hintbtn">💡 Hint · what each variable changes</button>
         </div>
         <button id="gaugeHintBtn" class="hintbtn">💡 Hint · show lock gauges</button>
         <div id="lockFeedback" class="lockfeedback hidden">
@@ -170,8 +206,7 @@
           <div id="solveState" class="solvestate">Assemble the chain, then tune the variables until both gauges lock.</div>
         </div>
         <div class="ctlblock locked" id="thrBlock">
-          <div class="ctlhead"><span class="ctlname">③ THRUSTER PLAN</span><span class="ctltag" id="thrLock">lock geometry + timing first</span></div>
-          <div class="thrsel" id="thrSel"></div>
+          <div class="ctlhead"><span class="ctlname">③ BURN PLAN</span><span class="ctltag" id="thrLock">set the burn first</span></div>
           <div id="burnPanel" class="burnpanel"></div>
         </div>
         <button id="toTransmit" class="bigbtn" disabled>CONFIRM BURN → TRANSMIT</button>
