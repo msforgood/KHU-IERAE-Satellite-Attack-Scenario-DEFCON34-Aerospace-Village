@@ -20,7 +20,7 @@
       "specs": { "capacity": 100 }
     },
     "antenna": {
-      "defaults": { "az": 180, "el": 45 },
+      "defaults": { "az": 180, "el": 50 },
       "specs": { "type": "patch", "beamwidth": 25, "motorSpeed": 2 }
     },
     "comm": {
