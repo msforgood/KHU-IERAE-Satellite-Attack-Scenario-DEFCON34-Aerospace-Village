@@ -183,9 +183,9 @@
   /* participant guide — anchored just under the gpredict panel caption */
   #guide {
     position: absolute;
-    left: 12px;
+    right: 12px;
     top: 42px;
-    width: min(380px, calc(100% - 24px));
+    width: min(440px, calc(100% - 24px));
     max-height: calc(100% - 54px);
     overflow-y: auto;
     z-index: 20;
@@ -313,8 +313,8 @@
     margin: 6px 0 0;
     padding: 0;
     font-family: var(--mono);
-    font-size: 13px;
-    line-height: 1.7;
+    font-size: 15px;
+    line-height: 1.75;
     color: var(--dim);
   }
   #guide .steps li::before {
@@ -348,7 +348,7 @@
   }
   #guide .lesson .ltitle {
     font-family: var(--mono);
-    font-size: 13px;
+    font-size: 15px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--cyan);
@@ -356,13 +356,13 @@
   }
   #guide .lesson .lval {
     font-family: var(--mono);
-    font-size: 14px;
+    font-size: 19px;
     font-weight: 700;
     color: var(--ink);
     margin-bottom: 8px;
   }
   #guide .lesson .lrow {
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.55;
     color: var(--dim);
     margin: 5px 0;
@@ -397,6 +397,88 @@
     color: var(--dim);
     background: none;
   }
+
+  /* ── scenario finale: full-screen "you owned it" skull moment ─────────────── */
+  .win-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    font-family: var(--mono);
+    background: radial-gradient(ellipse at center, rgba(10, 14, 20, 0.94), rgba(2, 4, 8, 0.985));
+    backdrop-filter: blur(5px);
+  }
+  .win-modal[hidden] { display: none; }
+  .win-card {
+    text-align: center;
+    max-width: min(760px, 92vw);
+    padding: 44px 34px;
+    border: 1px solid rgba(255, 92, 92, 0.5);
+    border-radius: 18px;
+    background: rgba(12, 17, 24, 0.86);
+    box-shadow: 0 0 70px rgba(255, 92, 92, 0.25), inset 0 0 44px rgba(0, 0, 0, 0.6);
+    animation: winPop 0.35s ease-out;
+  }
+  @keyframes winPop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .win-skull {
+    font-size: clamp(88px, 16vw, 150px);
+    line-height: 1;
+    margin: 0 0 4px;
+    filter: drop-shadow(0 0 20px rgba(255, 92, 92, 0.85));
+    animation: winShake 2.6s infinite;
+  }
+  @keyframes winShake {
+    0%, 92%, 100% { transform: translate(0, 0) rotate(0); }
+    94% { transform: translate(-3px, 1px) rotate(-2deg); }
+    96% { transform: translate(3px, -1px) rotate(2deg); }
+    98% { transform: translate(-2px, 0) rotate(-1deg); }
+  }
+  .win-title {
+    font-size: clamp(30px, 6vw, 58px);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    margin: 6px 0 14px;
+    color: #fff;
+    text-shadow: 2px 0 var(--crit), -2px 0 var(--cyan);
+    animation: winGlitch 2.8s infinite;
+  }
+  @keyframes winGlitch {
+    0%, 90%, 100% { text-shadow: 2px 0 var(--crit), -2px 0 var(--cyan); }
+    92% { text-shadow: -3px 0 var(--crit), 3px 0 var(--cyan); }
+    94% { text-shadow: 3px 0 var(--crit), -3px 0 var(--cyan); }
+    96% { text-shadow: -2px 0 var(--crit), 2px 0 var(--cyan); }
+  }
+  .win-sub {
+    font-size: clamp(15px, 2.4vw, 20px);
+    line-height: 1.6;
+    color: var(--ink);
+    margin: 0 auto 28px;
+    max-width: 620px;
+  }
+  .win-crit { color: var(--crit); }
+  .win-go { color: var(--good); }
+  .win-btn {
+    font-family: var(--mono);
+    font-size: clamp(17px, 2.6vw, 24px);
+    font-weight: 800;
+    padding: 16px 42px;
+    border-radius: 12px;
+    cursor: pointer;
+    border: 2px solid var(--cyan);
+    background: transparent;
+    color: var(--cyan);
+    letter-spacing: 0.04em;
+    transition: 0.15s;
+  }
+  .win-btn:hover { background: var(--cyan); color: #04222a; box-shadow: 0 0 26px rgba(53, 208, 224, 0.6); }
+  .win-btn:disabled { opacity: 0.5; cursor: default; }
+  .win-btn--go { border-color: var(--crit); color: var(--crit); }
+  .win-btn--go:hover { background: var(--crit); color: #120606; box-shadow: 0 0 30px rgba(255, 92, 92, 0.7); }
+  .win-note { font-size: 13px; color: var(--dim); margin: 16px 0 0; }
+  .win-stage[hidden] { display: none; }
 </style>
 
 <main>
@@ -421,7 +503,31 @@
     <div id="vsaLock" class="lockbox"></div>
   </section>
 </main>
-<div id="lockTip">❗ Complete Step 1 first</div>
+<div id="lockTip">⏳ Waiting for the satellite to enter range…</div>
+
+<!-- scenario finale — full-screen skull moment, shown 5s after TRANSMIT -->
+<div id="winModal" class="win-modal" hidden>
+  <div class="win-card">
+    <div class="win-skull" aria-hidden="true">💀</div>
+    <section class="win-stage" id="winAsk">
+      <h1 class="win-title">SATELLITE DOWN</h1>
+      <p class="win-sub">
+        Look at the screens — is <b>DEMOSAT tumbling</b>, and is the ground station screaming
+        <b class="win-crit">⚠ ENERGY SUPPLY CRITICAL</b>?
+      </p>
+      <button id="winYes" class="win-btn win-btn--go">Yeees 😈</button>
+    </section>
+    <section class="win-stage" id="winDone" hidden>
+      <h1 class="win-title">YOU OWNED IT</h1>
+      <p class="win-sub">
+        One <b>legitimate</b> command — no exploit, no bypass — and a satellite is dead in orbit.<br />
+        <b class="win-go">Congratulations. You did it.</b>
+      </p>
+      <button id="winQuit" class="win-btn">OK, I will quit ⏻</button>
+      <p class="win-note">The scenario resets for the next participant.</p>
+    </section>
+  </div>
+</div>
 
 <script>
   const q = new URLSearchParams(location.search);
@@ -504,13 +610,75 @@
       } catch (e) {
         /* no parent */
       }
+      // finale: 5s after the hit lands (satellite visibly tumbling + GS alarm), pop
+      // the full-screen "you owned it" skull moment.
+      setTimeout(showWin, 5000);
     } catch (e) {
       setStatus("GS connection failed (" + e.message + ")", "var(--crit)");
     }
   }
   window.addEventListener("message", (e) => {
-    if (e.data && e.data.type === "vsa-transmit") fireAttack();
+    if (!e.data) return;
+    if (e.data.type === "vsa-transmit") fireAttack();
+    // "Align Antenna" in the VSA → move the physical antenna. AZ 는 실제 조준 방위각으로
+    // 돌리고(눈에 띄게), EL 은 '조준하는 듯한 자세'로 10° 고정(준비자세 50°에서 크게 틸트).
+    if (e.data.type === "vsa-align") {
+      post("/api/antenna", { az: e.data.az, el: 10 }).catch(() => {});
+    }
   });
+
+  // ── scenario finale modal (skull → "Yeees" → congrats → quit/reset) ──────────
+  let winShown = false;
+  function showWin() {
+    if (winShown) return;
+    winShown = true;
+    const m = document.getElementById("winModal");
+    if (m) m.hidden = false;
+  }
+  (function wireWin() {
+    const yes = document.getElementById("winYes");
+    const quit = document.getElementById("winQuit");
+    if (yes)
+      yes.onclick = () => {
+        document.getElementById("winAsk").hidden = true;
+        document.getElementById("winDone").hidden = false;
+      };
+    if (quit)
+      quit.onclick = async () => {
+        quit.disabled = true;
+        quit.textContent = "Restarting…";
+        const note = document.querySelector(".win-note");
+        if (note) note.textContent = "Restarting both sides — the next session loads automatically…";
+        // /api/restart resets the GS to nominal AND (under run-booth.sh) drops the flag
+        // that tears down + relaunches both start scripts. Then wait for the fresh
+        // Command Builder to answer and reload it at phase 1. Works either way:
+        //   • supervisor running → builder is relaunched; we reload once it's back
+        //   • no supervisor      → GS is reset, builder never dies; we reload almost at once
+        try { await post("/api/restart", {}); } catch (e) {}
+        const top = window.top,
+          origin = top.location.origin,
+          search = top.location.search;
+        let tries = 0;
+        const iv = setInterval(async () => {
+          tries++;
+          if (tries < 4) return; // let the supervisor kill the old builder before we probe
+          try {
+            const r = await fetch(origin + "/api/scenario", { cache: "no-store" });
+            if (r.ok) {
+              clearInterval(iv);
+              top.location.href = "/1" + search;
+              return;
+            }
+          } catch (e) {
+            /* builder still down — keep waiting */
+          }
+          if (tries > 160) {
+            clearInterval(iv);
+            top.location.href = "/1" + search;
+          } // ~4min fallback
+        }, 1500);
+      };
+  })();
 
   // ── participant guide: poll gpredict's time-control server, gate the ENGAGE
   //    button on "satellite in range", then auto-operate gpredict on click. ────
@@ -584,9 +752,7 @@
     }
     const azC = Math.max(0, Math.min(360, az));
     const elC = Math.max(0, Math.min(90, el));
-    const fmt = (v) => String(parseFloat(v.toFixed(6))); // up to 6 decimals, no trailing zeros
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const white = (t) => '<b style="color:var(--ink)">' + t + "</b>";
     const sendVSA = (obj) => {
       const f = document.getElementById("vsaSlot");
       try {
@@ -595,149 +761,28 @@
         /* ignore */
       }
     };
-    // Each uplink parameter is applied ONE STEP AT A TIME. The target satellite
-    // (step 0) auto-locks on ENGAGE; every parameter after it is gated behind a
-    // button and carries a short lesson — what the value is, WHY it's needed, and
-    // WHERE it's used — so participants learn the uplink chain, not just watch it.
-    const steps = [
-      {
-        title: "Target Satellite",
-        value: "DEMOSAT",
-        apply: () => sendVSA({ targetSat: "DEMOSAT" }),
-        why: "Picks <b>which spacecraft</b> the uplink is addressed to. gpredict has already locked DEMOSAT's TLE and is computing its live look-angles — every value below is derived from that lock.",
-        use: "Binds the Virtual Antenna transmit chain to DEMOSAT's ephemeris, so the frequency and pointing angles that follow all refer to this one bird.",
-      },
-      {
-        title: "Uplink Frequency",
-        value: "433.5 MHz",
-        apply: () => sendVSA({ uplinkFreq: 433.5 }),
-        why: "The exact frequency DEMOSAT's <b>command receiver</b> is listening on. Transmit even slightly off and the satellite never demodulates the packet — the command is simply not heard.",
-        use: "Tunes the transmitter's carrier. 433 MHz sits in the UHF telecommand band common to cubesats and amateur satellites.",
-      },
-      {
-        title: "Antenna Type",
-        value: "Dish (parabolic)",
-        // 접시 선택 → 물리 EL 모터를 45° 기준자세로 정렬(이후 Elevation 스텝에서 여기서부터 움직인다).
-        apply: () => {
-          sendVSA({ antennaType: "dish" });
-          post("/api/antenna", { el: 45 }).catch(() => {});
-        },
-        why: "Antenna type sets <b>gain and beamwidth</b>. A dish is high-gain / narrow-beam — enough EIRP to close the uplink budget all the way to orbit, and it concentrates the energy on a single bearing.",
-        use: "Switches the rotator model to a dish, which is why the two pointing angles below now matter — a wide whip would radiate everywhere and wouldn't need precise aim.",
-      },
-      {
-        title: "Azimuth",
-        value: fmt(azC) + "°",
-        // Azimuth 스텝 → 물리 AZ 모터를 위성 방위각으로 회전(EL 은 건드리지 않음 → AZ 축만 움직인다).
-        // 정확한 각도가 목적이 아니라 '눈에 띄게 도는' 게 목적이다.
-        apply: () => {
-          sendVSA({ azimuth: azC });
-          post("/api/antenna", { az: azC }).catch(() => {});
-        },
-        why: "The horizontal compass bearing (0°=N, 90°=E, 180°=S). This is DEMOSAT's <b>current azimuth</b> from gpredict's look-angle — a narrow dish must sit on this exact bearing or the satellite falls outside the beam.",
-        use: "Drives the ground-station rotator's pan motor to the satellite's bearing (fires <code>/api/acquire</code>, so the physical antenna actually turns).",
-      },
-      {
-        title: "Elevation",
-        value: fmt(elC) + "°",
-        // Elevation 스텝 → 물리 EL 모터를 45°(접시 기준자세)에서 위성 앙각으로 틸트(AZ 는 그대로).
-        apply: () => {
-          sendVSA({ elevation: elC });
-          post("/api/antenna", { el: elC }).catch(() => {});
-        },
-        why: "The vertical angle above the horizon (0°=horizon, 90°=zenith). Must be positive: DEMOSAT is only reachable by <b>line of sight</b> while it is above the horizon — that's exactly the pass window gpredict counted down to.",
-        use: "Tilts the rotator up to the satellite's elevation, completing the 2-axis aim. With both angles set, the dish beam is now locked on DEMOSAT.",
-      },
-    ];
-
-    let idx = 0; // index of the step currently awaiting the user
-    const doneVals = []; // captured value text for each completed step
-
-    // progress checklist — done steps show ✓ + value, current shows ▸, rest ○
-    function checklist() {
-      return (
-        '<ol class="steps">' +
-        steps
-          .map((s, i) => {
-            const cls = i < idx ? "ok" : i === idx ? "active" : "";
-            const val = i < idx ? " — <b>" + doneVals[i] + "</b>" : "";
-            return '<li class="' + cls + '">' + s.title + val + "</li>";
-          })
-          .join("") +
-        "</ol>"
-      );
-    }
-
-    // render the lesson card for step i and wire its "continue" button
-    function stepPanel(i) {
-      const s = steps[i];
-      const last = i === steps.length - 1;
-      setStateHTML(
-        checklist() +
-          '<div class="lesson">' +
-          '<div class="ltitle">Step ' +
-          (i + 1) +
-          " of " +
-          steps.length +
-          " · " +
-          s.title +
-          "</div>" +
-          '<div class="lval">→ ' +
-          s.value +
-          "</div>" +
-          '<div class="lrow"><span class="ltag">WHY</span>' +
-          s.why +
-          "</div>" +
-          '<div class="lrow"><span class="ltag">USED FOR</span>' +
-          s.use +
-          "</div>" +
-          "</div>" +
-          '<button class="next" id="gNext">' +
-          (last ? "Set elevation &amp; finish aim ✓" : "Set " + s.title.toLowerCase() + " &amp; continue →") +
-          "</button>",
-        "busy",
-      );
-      document.getElementById("gNext").onclick = () => advance(i);
-    }
-
-    // apply step i (with a short loading beat), record it, advance or finish
-    async function advance(i) {
-      const btn = document.getElementById("gNext");
-      if (btn) btn.disabled = true;
-      setStateHTML(
-        checklist() +
-          '<div class="lesson"><div class="lrow"><span class="spin"></span>Applying ' +
-          steps[i].title.toLowerCase() +
-          "…</div></div>",
-        "busy",
-      );
-      await sleep(700);
-      steps[i].apply();
-      doneVals[i] = steps[i].value;
-      idx = i + 1;
-      if (idx < steps.length) stepPanel(idx);
-      else finish();
-    }
-
-    function finish() {
-      setStateHTML(
-        checklist() +
-          '<div class="lesson"><div class="ltitle">✅ Aim complete</div>' +
-          '<div class="lrow">All 5 parameters are set — the dish is on DEMOSAT and the transmit chain is tuned. ' +
-          'Now in <b style="color:var(--ink)">STEP 2</b>, ' +
-          '<b style="color:var(--ink)">load the IQ file</b>, then hit ' +
-          '<b style="color:var(--ink)">TRANSMIT</b> to uplink.</div></div>',
-        "done",
-      );
-      unlockStep2(); // STEP 2 (OpenVSA) is now clickable
-    }
-
-    // STEP 0 (target satellite) locks automatically on ENGAGE; the rest are manual.
+    // The Virtual Antenna (VSA) now owns the step-by-step flow: the participant enters
+    // freq → antenna type → az/el by hand, each gate unlocking the next. This console
+    // only LOCKS the target, hands the VSA the aim TARGETS, and shows them as a banner.
     setStateHTML('🎯 Locking target…<br><span class="spin"></span>Setting target satellite…', "busy");
     await sleep(900);
-    steps[0].apply();
-    doneVals[0] = steps[0].value;
-    idx = 1;
-    stepPanel(1);
+    // Lock DEMOSAT and hand the Virtual Antenna its aim TARGETS (freq + az/el) as
+    // references only — nothing is auto-filled. The VSA's own gate makes the
+    // participant type/drag each one to match.
+    sendVSA({ targetSat: "DEMOSAT", targetFreq: 433.5, targetAzimuth: azC, targetElevation: elC });
+    setStateHTML(
+      '<div class="lesson"><div class="ltitle">✅ Locked on DEMOSAT — enter these in the Virtual Antenna →</div>' +
+        '<ol class="steps">' +
+        "<li>Uplink Freq — <b>433.5 MHz</b></li>" +
+        "<li>Antenna type — <b>Dish</b></li>" +
+        "<li>Azimuth — <b>" + azC.toFixed(1) + "°</b></li>" +
+        "<li>Elevation — <b>" + elC.toFixed(1) + "°</b></li>" +
+        "</ol>" +
+        '<div class="lrow">Enter them top-to-bottom — each unlocks the next. Then press ' +
+        '<b style="color:var(--ink)">Align Antenna</b>, load the IQ file, and ' +
+        '<b style="color:var(--ink)">TRANSMIT</b>.</div></div>',
+      "done",
+    );
+    unlockStep2(); // the Virtual Antenna is now interactive (its own gating drives the order)
   };
 </script>
