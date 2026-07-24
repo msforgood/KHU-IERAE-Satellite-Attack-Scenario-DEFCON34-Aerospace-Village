@@ -89,8 +89,22 @@
   }
   function orbitTube(kep, hex, radius) {
     var geom = new THREE.TubeGeometry(orbitCurve(kep), 140, radius, 8, true);
-    // MeshBasic + a touch of emissive-like brightness; opaque so the globe hides the far side
+    // opaque and depth-writing so the rings sort correctly among themselves and against the globe
+    // (a near ring occludes a far ring, and the globe hides the far side). Satellites are drawn with
+    // depthTest OFF plus a manual globe-occlusion test, so they always sit on top of the rings.
     return new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ color: hex }));
+  }
+  // is the segment from a (camera) to b (a point) blocked by a sphere at the origin of radius R?
+  // used to occlude satellites with the globe ONLY, while they render over the orbit rings.
+  function segBlockedBySphere(a, b, R) {
+    var fx = b.x - a.x, fy = b.y - a.y, fz = b.z - a.z;
+    var ff = fx * fx + fy * fy + fz * fz; if (ff < 1e-9) return false;
+    var af = a.x * fx + a.y * fy + a.z * fz;
+    var aa = a.x * a.x + a.y * a.y + a.z * a.z;
+    var disc = af * af - ff * (aa - R * R);
+    if (disc < 0) return false;                          // the line misses the globe entirely
+    var t = (-af - Math.sqrt(disc)) / ff;                // nearest hit along a -> b, as a fraction 0..1
+    return t > 0 && t < 1;                               // globe lies between the camera and the point
   }
 
   // ── position of the closest point on an orbit to a 3D point, + its true anomaly ─
@@ -216,12 +230,12 @@
     if (this.sats[id]) return;
     var r = radius || TUBE_R;
     var orbit = orbitTube([K.EarthRadius + 600e3, 0, 0, 0, 0, 0], hex, r);
-    var mesh = billboard(makeSatIcon(css), null, 0.08, true);   // satellites are the focus -> larger icons
+    var mesh = billboard(makeSatIcon(css), null, 0.08, false);   // depthTest OFF: draw over the orbit rings; the globe-occlusion pass hides it behind Earth
     // a colour-coded name label following the satellite, so each one is easy to pick out
     var label = null;
     if (name) {
       label = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeLabelTex(name, css || '#eaf2ff'),
-        transparent: true, depthTest: true, depthWrite: false, sizeAttenuation: false }));
+        transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false }));
       label.scale.set(0.34, 0.056, 1); label.renderOrder = 7;
       // screen-space anchor: push the label ABOVE the icon (its own position) so the
       // text never sits on top of the satellite, at any zoom level
@@ -240,7 +254,7 @@
     if (s.label) s.label.position.set(p.x * g, p.y * g, p.z * g);
   };
   Engine.prototype.setSatSize = function (id, sz) { var s = this.sats[id]; if (s) s.mesh.scale.set(sz, sz, 1); };
-  Engine.prototype.setSatVisible = function (id, v) { var s = this.sats[id]; if (s) { s.mesh.visible = v; s.orbit.visible = v; if (s.label) s.label.visible = v; } };
+  Engine.prototype.setSatVisible = function (id, v) { var s = this.sats[id]; if (s) { s.suppressed = !v; s.orbit.visible = v; s.mesh.visible = v; if (s.label) s.label.visible = v; } };
   Engine.prototype.setOrbitColor = function (id, hex) { var s = this.sats[id]; if (s) s.orbit.material.color.setHex(hex); };
   Engine.prototype.tintSat = function (id, hex) { var s = this.sats[id]; if (s) s.mesh.material.color.setHex(hex); };
   // predicted = the FORWARD PATH the satellite will fly (an open arc from nuStart), not the whole orbit
@@ -273,8 +287,11 @@
   Engine.prototype.targetEarth = function () { this.controls.target.set(0, 0, 0); this.controls.update(); };
   Engine.prototype.setFocus = function (p) { if (p) { this.controls.target.set(p.x * SCENE_SCALE, p.y * SCENE_SCALE, p.z * SCENE_SCALE); this.controls.update(); } };
   Engine.prototype.frame = function (maxR) { var d = maxR * SCENE_SCALE * 2.9; this.camera.position.set(d * 0.5, d * 0.5, -d * 0.72); this.controls.target.set(0, 0, 0); this.controls.update(); this.render(); };
-  // lock-on: keep Earth the pivot but swing the camera so P sits in front of the globe
-  Engine.prototype.lockCamera = function (p) {
+  // lock-on: keep Earth the pivot but swing the camera so P sits in front of the globe.
+  // smooth (truthy) eases the viewing DIRECTION toward the target instead of snapping, so the
+  // hand-off from the free view to following ENIGMA-1 glides in rather than cutting hard. Pass a
+  // number to set the per-call easing factor (0..1); true uses a gentle default.
+  Engine.prototype.lockCamera = function (p, smooth) {
     var d = this.camera.position.length();            // preserve the current zoom distance
     if (d < 150) d = 150;                              // never sit too close (whole scene stays visible)
     var len = Math.hypot(p.x, p.y, p.z) || 1;
@@ -283,8 +300,35 @@
     // slight elevation, then normalise back to distance d so we never zoom in on it.
     var dx = ux * 0.9, dy = uy * 0.9 + 0.42, dz = uz * 0.9;
     var m = Math.hypot(dx, dy, dz) || 1;
-    this.camera.position.set(dx / m * d, dy / m * d, dz / m * d);
+    var tx = dx / m * d, ty = dy / m * d, tz = dz / m * d;   // target camera position (distance d)
+    var c = this.camera.position;
+    if (smooth) {
+      var a = (typeof smooth === 'number') ? smooth : 0.12;   // ease the direction; higher = snappier
+      c.set(c.x + (tx - c.x) * a, c.y + (ty - c.y) * a, c.z + (tz - c.z) * a);
+      c.setLength(d);                                          // keep the zoom stable while the direction eases
+    } else {
+      c.set(tx, ty, tz);
+    }
     this.controls.target.set(0, 0, 0); this.camera.lookAt(0, 0, 0);
+  };
+  // smoothly glide the camera from wherever it is (e.g. locked onto ENIGMA-1) to the default
+  // overview position over `ms`, keeping Earth centred. Releases a lock-on gracefully instead of
+  // cutting straight to the reset viewpoint.
+  Engine.prototype.frameSmooth = function (ms) {
+    var self = this, R = K.EarthRadius * SCENE_SCALE * 3.4;
+    var fx = this.camera.position.x, fy = this.camera.position.y, fz = this.camera.position.z;
+    var tx = R, ty = R * 0.5, tz = -R, dur = ms || 1300, t0 = null;
+    if (this._frameRaf != null) root.cancelAnimationFrame(this._frameRaf);
+    var stepFn = function (ts) {
+      if (t0 == null) t0 = ts;
+      var k = Math.min(1, (ts - t0) / dur);
+      var e = k < 0.5 ? 2 * k * k : 1 - (2 - 2 * k) * (2 - 2 * k) / 2;   // easeInOutQuad
+      self.camera.position.set(fx + (tx - fx) * e, fy + (ty - fy) * e, fz + (tz - fz) * e);
+      self.controls.target.set(0, 0, 0); self.camera.lookAt(0, 0, 0);
+      self.render();
+      self._frameRaf = (k < 1) ? root.requestAnimationFrame(stepFn) : null;
+    };
+    self._frameRaf = root.requestAnimationFrame(stepFn);
   };
   Engine.prototype.resize = function () { if (!this.renderer) return; var s = this._sz(); this.renderer.setSize(s.w, s.h, false); this.camera.aspect = s.w / s.h; this.camera.updateProjectionMatrix(); this.render(); };
   Engine.prototype.pick = function (cx, cy, positions) {
@@ -295,7 +339,17 @@
       if (d < bd) { bd = d; best = id; } }
     return best;
   };
-  Engine.prototype.render = function () { if (!this.disposed) this.renderer.render(this.scene, this.camera); };
+  Engine.prototype.render = function () { if (this.disposed) return; this._occludeSats(); this.renderer.render(this.scene, this.camera); };
+  // satellites draw with depthTest OFF (so the orbit rings never hide them). This hides a satellite
+  // only when the globe sits between it and the camera, so the Earth still occludes it, nothing else.
+  Engine.prototype._occludeSats = function () {
+    var cam = this.camera.position, R = K.EarthRadius * SCENE_SCALE;
+    for (var id in this.sats) {
+      var s = this.sats[id]; if (s.suppressed) continue;
+      var occ = segBlockedBySphere(cam, s.mesh.position, R);
+      s.mesh.visible = !occ; if (s.label) s.label.visible = !occ;
+    }
+  };
   Engine.prototype.dispose = function () { this.disposed = true; if (this.controls) this.controls.dispose(); if (this.renderer) this.renderer.dispose(); };
 
   // ═══════════════════════════════ SatSim ═══════════════════════════════════

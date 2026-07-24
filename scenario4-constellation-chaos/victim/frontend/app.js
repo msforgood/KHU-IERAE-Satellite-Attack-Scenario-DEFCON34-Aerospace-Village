@@ -24,14 +24,14 @@ function initSim() {
 // slow, UNIFORM baseline motion for every satellite (was 50/70ms, which read as fast and
 // made ENIGMA-1 + the target look oddly frozen once they were driven to the impact point).
 var NOMINAL_STEP = 14, NOMINAL_TICK = 70;
-var nominalTimer = null, nominalT = 0, atkKep = null, converging = false;
+var nominalTimer = null, nominalT = 0, atkKep = null, tgtKep = null, converging = false;
 function orbitPos(kep, t) { var nu = K.trueAnomalyAdvance(kep[0], kep[1], kep[5], t); return K.keplerianToECI(kep[0], kep[1], kep[2], kep[3], kep[4], nu); }
 function propagateAll() {
   if (!sim || !sim.engine) return;
   var atk = null, atkNu = null;
   Scn.satellites().forEach(function (s) {
     if (converging && (s.role === 'attacker' || s.target)) return;   // these two are being driven to the impact point
-    var kep = (s.role === 'attacker' && atkKep) ? atkKep : s.kep;
+    var kep = (s.role === 'attacker' && atkKep) ? atkKep : (s.target && tgtKep) ? tgtKep : s.kep;
     var nu = K.trueAnomalyAdvance(kep[0], kep[1], kep[5], nominalT);
     var pos = K.keplerianToECI(kep[0], kep[1], kep[2], kep[3], kep[4], nu);
     sim.engine.setSatPosition(s.id, pos);
@@ -101,11 +101,9 @@ function onCollision(m) {
     setTag('#orbitTag', 'warn', 'MANEUVERING'); setTag('#threatTag', 'warn', 'CONJUNCTION');
     set('#cClosest', 'screening'); cdmNearMiss(vic, m, eta, missKm);
   }
-  if (m.attackerKep) {
-    setVal('#mAlt', Math.round((m.attackerKep[0] - K.EarthRadius) / 1000) + ' km', hit ? 'danger' : 'warn');
-    setVal('#mInc', m.attackerKep[2].toFixed(1) + '°', 'nominal');
-    setVal('#mRaan', m.attackerKep[3].toFixed(1) + '°', 'nominal');
-  }
+  // ENIGMA-1's orbit readout (altitude, inclination, RAAN) is NOT snapped to the final maneuvered
+  // values here. The burn tick below climbs it gradually with the lerping orbit, so the altitude
+  // rises smoothly toward its final value instead of jumping in one step.
   // drive ENIGMA-1 and AURORA-2 together to the impact point over the countdown, moving
   // ALONG their orbits (interpolating true anomaly), so they stay on the orbit lines and
   // never cut a straight chord through the Earth. Neighbours keep orbiting via nominal.
@@ -168,8 +166,12 @@ function onCollision(m) {
       else { sb.textContent = hit ? '⚠ IMPACT' : 'CLOSEST APPROACH'; }
       sb.className = 'simbar ' + (hit ? 'danger' : 'warn');
     }
+    var kepF = lerpKep(frac);
+    // orbit readout follows the lerping orbit: the altitude climbs gradually toward its final value
+    setVal('#mAlt', Math.round((kepF[0] - K.EarthRadius) / 1000) + ' km', hit ? 'danger' : 'warn');
+    setVal('#mInc', kepF[2].toFixed(1) + '°', 'nominal');
+    setVal('#mRaan', kepF[3].toFixed(1) + '°', 'nominal');
     if (sim && sim.engine) {
-      var kepF = lerpKep(frac);
       var nuE = aStartNu + aTotal * easeIn(frac);
       var aPos = K.keplerianToECI(kepF[0], kepF[1], kepF[2], kepF[3], kepF[4], nuE);
       var vPos = K.keplerianToECI(vKep[0], vKep[1], vKep[2], vKep[3], vKep[4], vStartNu + vTotal * frac);
@@ -177,7 +179,7 @@ function onCollision(m) {
       sim.engine.setSatPosition('demosat', aPos);
       sim.engine.setSatPosition(vid, vPos);
       livePos['demosat'] = aPos; livePos[vid] = vPos; updateTelemetry(kepF, nuE);   // live speed + nearest object
-      if (sim.engine.lockCamera) sim.engine.lockCamera(aPos);   // monitor 2 locks on and follows ENIGMA-1 to impact
+      if (sim.engine.lockCamera) sim.engine.lockCamera(aPos, true);   // monitor 2 eases onto ENIGMA-1 and follows it to impact
       if (sim.engine.setPlume) {   // gas plume firing per the commanded burn direction
         var ramp = Math.min(1, el / 0.6);                                 // quick ignition
         var cut = frac > 0.85 ? Math.max(0, (0.98 - frac) / 0.13) : 1;    // engine cut-off just before impact
@@ -193,17 +195,32 @@ function onCollision(m) {
 // near-miss resolution: ENIGMA-1 passed AURORA-2 without colliding. No explosion, no debris; the
 // two keep orbiting (ENIGMA-1 on its maneuvered ring), and the console offers a retry.
 function nearMissEnd(m) {
-  converging = false;
+  // keep ENIGMA-1 and AURORA-2 MOVING after the pass instead of freezing. Re-seed each orbit's phase
+  // so nominal propagation continues from the closest-approach point (no teleport), then hand them
+  // back to the nominal loop so both keep orbiting and visibly drift apart.
+  var CCv = window.CollisionCore, P = m.collisionPoint ? [m.collisionPoint.x, m.collisionPoint.y, m.collisionPoint.z] : null;
+  if (P && CCv && atkKep) {
+    var an = CCv.nuAtPoint(atkKep, P);
+    atkKep[5] = K.trueAnomalyAdvance(atkKep[0], atkKep[1], an, -nominalT);   // orbitPos(atkKep, nominalT) now == the closest-approach point
+  }
+  if (P && CCv && m.victimKep) {
+    var vk = m.victimKep, off = m.timingOffSec ? (m.timingOffSec / K.period(vk[0]) * 360) : 0;
+    var vn = CCv.nuAtPoint(vk, P) + off; tgtKep = vk.slice();
+    tgtKep[5] = K.trueAnomalyAdvance(vk[0], vk[1], vn, -nominalT);
+  }
+  converging = false;   // nominal drives ENIGMA-1 + AURORA-2 again, continuing from where they are
   var vic = m.victim || 'AURORA-2', missKm = Math.round((m.missM || 0) / 1000);
   setBanner('warn', 'NEAR MISS - ENIGMA-1 passed ' + vic + ' with a closest approach of about ' + missKm + ' km. No collision.');
   setTag('#orbitTag', 'nominal', 'STATION-KEEPING'); setTag('#threatTag', 'warn', 'NEAR MISS');
+  if (m.attackerKep) setVal('#mAlt', Math.round((m.attackerKep[0] - K.EarthRadius) / 1000) + ' km', 'warn');   // settle on the exact final altitude
   var sb = $('#simbar'); if (sb) { sb.textContent = 'NEAR MISS - closest approach about ' + missKm + ' km'; sb.className = 'simbar warn'; }
   set('#cClosest', missKm + ' km (near miss)');
   var st = $('#cdmStatus'); if (st) { st.textContent = 'YELLOW - SCREENED'; st.className = 'cdmstatus'; }
   set('#cdmMiss', missKm + ' km'); set('#cdmPc', 'below threshold');
   var n = $('#cdmNote'); if (n) n.innerHTML = 'Conjunction with AURORA-2 screened: <b>closest approach outside the collision threshold</b>. No impact; the operator can retry with a tighter burn.';
   if (sim && sim.engine && sim.engine.setPlume) sim.engine.setPlume(null);   // engine off after the pass
-  startNominal();   // both satellites resume orbiting so they visibly separate again
+  startNominal();   // make sure the nominal loop is running so the re-seeded orbits keep moving
+  if (sim && sim.engine && sim.engine.frameSmooth) sim.engine.frameSmooth(1300);   // glide the camera back to the overview instead of cutting to the reset viewpoint
 }
 // CDM shown while a near-miss conjunction is being screened (before the pass resolves)
 function cdmNearMiss(vic, m, tcaSec, missKm) {
@@ -217,6 +234,7 @@ function detonate(m) {
   collided = true; var vic = m.victim || 'AURORA-2';
   setBanner('danger', 'COLLISION - ENIGMA-1 struck ' + vic + ' at ' + (m.closingKmS || '?') + ' km/s. Debris cascade in progress.');
   setTag('#orbitTag', 'danger', 'DESTROYED'); setTag('#threatTag', 'danger blink', 'DEBRIS CASCADE');
+  if (m.attackerKep) setVal('#mAlt', Math.round((m.attackerKep[0] - K.EarthRadius) / 1000) + ' km', 'danger');   // settle on the exact final altitude
   var sb = $('#simbar'); if (sb) { sb.textContent = '⚠ IMPACT - debris cascade'; sb.className = 'simbar danger'; }
   converging = false; stopNominal();   // freeze orbits so the explosion + debris are not overwritten
   if (sim && sim.engine && sim.engine.setPlume) sim.engine.setPlume(null);   // engine off at impact
@@ -275,7 +293,7 @@ function doReset() {
   collided = false; collisionReported = false; aftermathShown = false; clearEvtTimers();
   document.body.classList.remove('collision'); hideVideo(); hideAlarm();
   if (sim) { sim.setSatellites(Scn.satellites()); sim.lockOn('demosat'); setTimeout(function () { if (sim) sim.lockId = null; }, 150); if (sim.engine && sim.engine.setPlume) sim.engine.setPlume(null); }
-  atkKep = null; converging = false; nominalT = 0; livePos = {}; startNominal();
+  atkKep = null; tgtKep = null; converging = false; nominalT = 0; livePos = {}; startNominal();
   setBanner('nominal', 'NOMINAL - all satellites separated and station-keeping');
   setTag('#orbitTag', 'nominal', 'STATION-KEEPING'); setTag('#threatTag', 'nominal', 'NONE');
   var st = (Scn && Scn.attackerStart) || { altKm: 600, inc: 97.8, raan: 25 };
