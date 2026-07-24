@@ -181,6 +181,21 @@ const httpServer = http.createServer((req, res) => {
     });
     return;
   }
+  // scenario end (drone "OK, I'll quit"): tear the range down for the next player.
+  // We reset immediately so the dashboard goes nominal even with no supervisor, AND
+  // drop a restart sentinel that booth.sh watches to fully restart start-victim.sh.
+  if (url === "/api/quit" && req.method === "POST") {
+    sat.reset();
+    tumblingWas = false;
+    spoofing = false;
+    broadcastState();
+    try {
+      fs.writeFileSync("/tmp/demosat-restart.victim", String(Date.now()));
+    } catch {}
+    console.log("[quit] scenario end → reset + restart sentinel written (booth.sh will relaunch)");
+    res.writeHead(200, { "Content-Type": "application/json" });
+    return res.end(JSON.stringify({ ok: true, restarting: true }));
+  }
   // test hook: inject a mock uplink-command without OpenVSA
   if (url === "/api/inject" && req.method === "POST") {
     let body = "";
@@ -244,6 +259,19 @@ const httpServer = http.createServer((req, res) => {
     spoofing = false;
     res.writeHead(200);
     return res.end("{}");
+  }
+  // Full scenario restart: drop a flag file the booth supervisor (run-booth.sh) polls,
+  // which tears down + relaunches BOTH start-victim.sh and start-attacker.sh. We also
+  // reset here so the satellite is nominal at once even if no supervisor is running.
+  if (url === "/api/restart" && req.method === "POST") {
+    sat.reset();
+    tumblingWas = false;
+    spoofing = false;
+    const flag = process.env.RESTART_FLAG || "/tmp/demosat-restart.flag";
+    let wrote = false;
+    try { fs.writeFileSync(flag, String(Date.now())); wrote = true; } catch (e) {}
+    res.writeHead(200, { "Content-Type": "application/json" });
+    return res.end(JSON.stringify({ ok: true, restart: wrote, flag }));
   }
 
   let file = url === "/" ? "/index.html" : url;
