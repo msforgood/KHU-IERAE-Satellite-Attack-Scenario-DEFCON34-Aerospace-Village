@@ -138,7 +138,7 @@ SATELLITE = {
     "notes": [
         "Continuous, unencrypted AX.25 UI beacon: a passive-intercept target. No uplink, no command interface.",
         "Broadcasts a packetized image across ~29 AX.25 frames on a 7.22 s loop; one capture spanning a full burst is enough to decode.",
-        "Decode with gr-satellites: FSK demodulator (9600 baud) -> AX.25 deframer (G3RUH scrambler on) -> reassemble the Info fields by sequence number.",
+        "Decode the ENIGMA-1 downlink: FSK demodulator (9600 baud) -> AX.25 deframer (G3RUH scrambler on) -> reassemble the Info fields by sequence number.",
         "Sun-synchronous 98.5° inclination -> visible from any latitude; only the pass times differ.",
         "Its TLE is installed into GPredict so GPredict can track it and drive the rotator over rotctld/rigctld.",
     ],

@@ -72,14 +72,21 @@ code{background:#0a121c;border:1px solid var(--line);border-radius:5px;padding:1
 .ghostbtn.sm{padding:9px 15px;font-size:15px}
 .ghostbtn.danger-ghost{border-color:#5a2230;color:#ff9aa5}
 .ghostbtn.danger-ghost:hover{border-color:var(--danger);color:#ff9aa5}
+/* Hint buttons: bright amber so they stand out; click toggles the hint on/off */
+.hintbtn{border-color:var(--amber);background:var(--amber);color:#141414;font-weight:700}
+.hintbtn:hover{border-color:#ffd27a;background:#ffd27a;color:#141414}
+/* prominent "record at least 1 minute" note on the Phase 1 record block */
+.rec-req{margin:9px 0 11px;padding:10px 14px;border:1px solid var(--amber);border-left:5px solid var(--amber);border-radius:8px;background:rgba(255,176,32,.13);color:#ffe0a6;font-size:15.5px;font-weight:600}
+.rec-req b{color:var(--amber)}
 
 /* ── MISSION briefing ── */
-.briefgrid{display:grid;grid-template-columns:460px 1fr;gap:32px;align-items:start}
-.scene{background:linear-gradient(180deg,#0b1220,#070c14);border:1px solid var(--line);border-radius:14px;padding:16px}
+.briefgrid{display:grid;grid-template-columns:1.6fr 1fr;gap:32px;align-items:stretch}
+.scene{background:linear-gradient(180deg,#0b1220,#070c14);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;align-items:center;justify-content:center}
 .rxscene{width:100%;height:auto;display:block;border-radius:8px}
 .rxsat{transform-box:fill-box;transform-origin:center;animation:orbit 9s ease-in-out infinite}
 @keyframes orbit{0%{transform:translateX(-38px)}50%{transform:translateX(38px)}100%{transform:translateX(-38px)}}
-.beam{animation:beamfade 3s ease-in-out infinite}@keyframes beamfade{50%{opacity:.5}}
+/* the coverage triangle rides with the satellite (same orbit motion) instead of staying fixed */
+.beam{transform-box:fill-box;animation:orbit 9s ease-in-out infinite,beamfade 3s ease-in-out infinite}@keyframes beamfade{50%{opacity:.5}}
 .chainrow{display:flex;gap:8px;margin-top:14px}
 .cstep{flex:1;text-align:center;padding:10px 6px;border:1px solid var(--line);border-radius:8px;
   font-size:15px;letter-spacing:.06em;color:var(--dim);background:#0a121c}
@@ -87,6 +94,23 @@ code{background:#0a121c;border:1px solid var(--line);border-radius:5px;padding:1
 .brieftext{display:flex;flex-direction:column;gap:20px}
 .bsec h3{margin:0 0 7px;font-size:19px;color:var(--accent);letter-spacing:.03em}
 .bsec p{margin:0;font-size:18px;line-height:1.62;color:#dbe6f2} .bsec b{color:#fff}
+/* mission page: minimal right-side brief (goal + step names + emoji) */
+.missionbrief{display:flex;flex-direction:column;justify-content:center;gap:20px}
+.mb-title{margin:0;font-size:37px;line-height:1.1;font-weight:800;color:#eaf2fb;letter-spacing:.01em}
+.mb-title span{color:var(--accent)}
+.mb-desc{margin:0;font-size:18px;line-height:1.55;color:var(--dim)} .mb-desc b{color:#eaf2fb}
+.mb-steps{display:flex;flex-direction:column;gap:12px}
+.mb-step{display:flex;align-items:center;gap:16px;padding:14px 18px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.mb-emoji{font-size:30px;line-height:1;width:34px;text-align:center;flex-shrink:0}
+.mb-txt{display:flex;flex-direction:column;min-width:0;gap:2px}
+.mb-step b{font-size:21px;color:#eaf2fb;letter-spacing:.04em}
+.mb-sub{font-size:14px;color:var(--dim)}
+.mb-num{margin-left:auto;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:15px;font-weight:700;color:var(--dim);letter-spacing:.06em}
+/* toggle holding the detailed explanation */
+.mb-details{margin:22px 0 4px;border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:4px 20px}
+.mb-details summary{cursor:pointer;font-size:16px;color:var(--accent);padding:12px 0;font-weight:700}
+.mb-details[open] summary{border-bottom:1px solid var(--line);margin-bottom:16px}
+.mb-details .brieftext{padding-bottom:16px}
 .hl{color:#ff6a78;font-weight:700}
 .understand{display:flex;gap:12px;align-items:flex-start;margin:30px 0 4px;padding:16px 20px;
   background:var(--panel2);border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:17px;color:#dbe6f2}
@@ -163,8 +187,13 @@ code{background:#0a121c;border:1px solid var(--line);border-radius:5px;padding:1
 /* Force the dropdown option list to a plain, readable dark-on-light-text pair (no correct/wrong
    tint bleeding into the options); the green/red cue lives only in the #antStat message beside it. */
 .antsel option{background:#0f1620;color:#eaf2fb}
-.ug-usebtn{margin:8px auto 4px;display:block}
-.ug-or-row{font-size:13px;color:var(--dim);margin:4px 0 12px}
+.ug-usebtn{margin:10px auto 8px;display:block;font-size:20px;padding:18px 40px}
+.ug-or-row{font-size:12px;color:var(--dim);margin:12px 0 2px;opacity:.85}
+/* manual upload de-emphasized to a small secondary control (main path is the recorded signal) */
+.ug-drop.ug-mini{padding:9px 14px;gap:4px;max-width:max-content;margin:6px auto 0}
+.ug-drop.ug-mini .ug-drop-ico{display:none}
+.ug-drop.ug-mini .ug-drop-main{font-size:13px;font-weight:400;color:var(--dim)}
+.ug-drop.ug-mini .ug-drop-sub{display:none}
 .bsub{font-weight:400;font-size:15px;opacity:.75;margin-left:7px}
 /* Phase 3 record button (red, pulses while recording) */
 .recbtn{background:rgba(255,90,90,.12);border-color:#ff5a5a;color:#ff8a8a}
@@ -189,9 +218,15 @@ code{background:#0a121c;border:1px solid var(--line);border-radius:5px;padding:1
    the full framebuffer aspect (1280x1440); .gpclip clips to the top main-window band. The main
    window is wide/short (marker on the left, data panel on the right) so it can't fill a tall
    narrow card without cropping content - it is centered (letterboxed) in the taller card. */
-#gpredictSlot{height:560px;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center}
-.gpclip{width:100%;aspect-ratio:1280 / 590;overflow:hidden}
-.gpclip .embedframe{width:100%;height:auto;aspect-ratio:1280 / 1440;display:block}
+/* Show ONLY the gpredict main window. start.sh sizes that window to 870x580 (a taller, less-wide
+   aspect) at the top-left of the framebuffer; this box matches 870/580 and shows exactly that
+   region with no crop of the map and no black bars. Needs a gpredict container rebuild to apply. */
+#gpredictSlot{aspect-ratio:870 / 580;overflow:hidden;position:relative;background:#000}
+/* Scale the full framebuffer so its top-left 870x580 region (the gpredict window) fills this box:
+   width 1280/870 of the box, anchored top-left; the box (overflow hidden) crops the empty area to
+   the right and the control windows below. noVNC resize=scale fills the iframe at 1280/1440. */
+.gpclip{position:absolute;top:0;left:0;width:calc(100% * 1280 / 870);aspect-ratio:1280 / 1440;overflow:hidden}
+.gpclip .embedframe{width:100%;height:100%;display:block}
 .twopane{align-items:start}
 
 /* GPredict polar-preview fallback (no Docker) */
@@ -277,6 +312,7 @@ select.aninput option{background:#0f1620;color:#eaf2fb}
   border-radius:9px;background:rgba(57,197,255,.07);color:#dbe6f2;font-size:14.5px;line-height:1.55}
 
 .puzzlewrap{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+.canvascol{display:flex;flex-direction:column;gap:16px;min-width:0}
 .canvaswrap{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
 .canvashead{display:flex;justify-content:space-between;font-size:14px;letter-spacing:.12em;color:var(--dim);margin-bottom:10px}
 .pprog{color:var(--accent);font-weight:700}
@@ -285,13 +321,13 @@ select.aninput option{background:#0f1620;color:#eaf2fb}
 .slotlayer{position:absolute;inset:0}
 .slot{position:absolute;border:1.5px dashed #2a3a4d;border-radius:8px;display:flex;align-items:center;justify-content:center;
   cursor:pointer;background:rgba(10,18,28,.6);overflow:hidden}
-.slot .ghostname{font-size:13px;letter-spacing:.1em;color:#3a4a5d}
+.slot .ghostname{font-size:15px;letter-spacing:.14em;color:#8aa0b5;font-weight:700}
 .slot.selectable{border-color:var(--accent);box-shadow:0 0 0 1px rgba(57,197,255,.4) inset}
 .slot.filled{border-style:solid}
 .slot.filled.correct{border-color:var(--ok)} .slot.filled.wrong{border-color:var(--danger)}
 .blockcard{width:100%;height:100%;padding:6px 8px;display:flex;flex-direction:column;justify-content:center;
   background:var(--panel2);border-radius:6px}
-.blockcard .bp{font-size:11px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+.blockcard .bp{font-size:13px;letter-spacing:.09em;color:#a9bccd;text-transform:uppercase;font-weight:700}
 .blockcard .bt{font-size:14px;color:#eaf2fb;font-weight:700;line-height:1.15;margin:2px 0}
 .blockcard .bs{font-size:12px;color:var(--dim)}
 .blockcard.disabled{opacity:.7}
@@ -304,7 +340,7 @@ select.aninput option{background:#0f1620;color:#eaf2fb}
 .traychip{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);cursor:pointer}
 .traychip:hover{border-color:var(--accent)}
 .traychip.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
-.traychip .bp{font-size:11px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+.traychip .bp{font-size:13px;letter-spacing:.09em;color:#a9bccd;text-transform:uppercase;font-weight:700}
 .traychip .bt{font-size:15px;color:#eaf2fb;font-weight:700;margin:1px 0}
 .traychip .bs{font-size:12px;color:var(--dim)}
 .traybtns{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
@@ -313,7 +349,7 @@ select.aninput option{background:#0f1620;color:#eaf2fb}
 .traynote{margin-top:12px;font-size:13.5px;color:var(--dim);line-height:1.5}
 
 /* signal-flow preview: per-stage signal transform visual */
-.sigflow{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+.sigflow{margin-top:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
 .sigflow-head{font-size:14px;letter-spacing:.05em;color:var(--dim);margin-bottom:10px}
 .sigflow-head b{color:var(--accent)}
 .sigflow-row{display:flex;align-items:stretch;gap:6px;flex-wrap:nowrap}
@@ -331,7 +367,7 @@ select.aninput option{background:#0f1620;color:#eaf2fb}
 @media(max-width:1000px){.sigflow-row{flex-wrap:wrap}.sigstage{min-width:44%}.sig-arrow{display:none}}
 
 /* Phase 5 block role description (updates on block click) */
-.blockinfo{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 18px;min-height:92px}
+.blockinfo{margin-top:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 18px;min-height:92px}
 .blockinfo-title{font-size:13px;letter-spacing:.06em;color:var(--dim);text-transform:uppercase;margin-bottom:10px}
 .blockinfo-body{font-size:15px;color:var(--dim);line-height:1.55}
 .bi-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:9px}
