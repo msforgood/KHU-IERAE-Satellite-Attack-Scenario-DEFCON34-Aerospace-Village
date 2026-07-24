@@ -52,13 +52,13 @@ int  spinUs       = SPIN_US_DEFAULT;
 // 공격 왕복 파라미터. 실측: 0/180 끝단을 때리면 기계적 스톨→과전류→브라운아웃으로 서보가
 // "잠깐 돌다 죽는다". 끝단을 피한 저속 구간(=self-test 로 실제 도는 걸 확인한 프로파일)을
 // 쓰면 스톨이 없어 같은 전원에서도 안정적으로 계속 왕복한다.
-const int ATTACK_LO  = 10;   // 공격 왕복 하한(0 대신 — 끝단 스톨 회피). 브라운아웃 시 20~30 으로 올릴 것
-const int ATTACK_HI  = 170;  // 공격 왕복 상한(180 대신). 브라운아웃 시 160~150 으로 내릴 것
+const int ATTACK_LO  = 0;   // 공격 왕복 하한(0 대신 — 끝단 스톨 회피). 브라운아웃 시 20~30 으로 올릴 것
+const int ATTACK_HI  = 180;  // 공격 왕복 상한(180 대신). 브라운아웃 시 160~150 으로 내릴 것
 // 왕복 속도 = SWEEP_STEP° 를 SWEEP_INTERVAL_MS 마다. 값이 몸체에 비해 너무 빠르면(휘둘림)
 // STEP 을 줄이거나 INTERVAL 을 키운다. 현재 1°/60ms ≈ 17°/s (10-170 한 번에 ~9.6s, 아주 느긋).
 // 더 느리게: INTERVAL 을 80·100 으로. 더 빠르게: 40·30 으로.
 const int SWEEP_STEP        = 1;
-const int SWEEP_INTERVAL_MS = 100;
+const int SWEEP_INTERVAL_MS = 5;
 int  sweepDir     = 1;    // +1: LO→HI, -1: HI→LO
 char lineBuf[48];
 uint8_t lineLen = 0;
