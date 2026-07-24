@@ -39,6 +39,10 @@ function rfAutoReset() {
   S.rf = { modulation: null, baud: null, sampleRate: null };
 }
 
+// opcode shown as a hex chip in front of the command name — a deliberate bit of
+// "this looks hard" set dressing (0x21 etc.), and a real anchor to the CCSDS opcode.
+const fmtOp = (o) => String(o || "").toUpperCase().replace(/^0X/, "0x");
+
 const $ = (s) => document.querySelector(s);
 const el = (t, c, h) => {
   const e = document.createElement(t);
@@ -371,9 +375,26 @@ function pickCommand(name) {
   S.valueConfirmed = false;
   S.step1Done = false;
   rfAutoReset();
-  evalValue(); // no-payload commands (e.g. obc_reboot) confirm on selection
+  seedDefaults(c); // sliders start at a SAFE value → the visitor must drag into RED
+  evalValue(); // no-payload commands (e.g. computer_reboot) confirm on selection
   renderSteps();
   rebuild();
+}
+// Numeric slots start pre-filled at a harmless value so the slider has a real
+// position from the moment the command lands. Safety-bounded fields start at 0
+// (dead centre of the green zone) so arming the attack is an explicit drag into RED;
+// a safe-range field starts mid-band; unbounded fields fall back to their default.
+function seedDefaults(c) {
+  (c.fields || []).forEach((f) => {
+    if (f.type === "toggle") return; // toggles default off; leave unset
+    if (S.valText[f.key] != null && S.valText[f.key] !== "") return;
+    let v;
+    if (f.safeAbsMax != null) v = 0;
+    else if (Array.isArray(f.safeRange)) v = Math.round((f.safeRange[0] + f.safeRange[1]) / 2);
+    else v = f.default != null ? f.default : f.min != null ? f.min : 0;
+    S.valText[f.key] = String(v);
+    S.params[f.key] = v;
+  });
 }
 // go back to the command list to pick a different one (keeps the subsystem block)
 function changeCommand() {
@@ -423,7 +444,12 @@ function renderBlock(zone) {
       </div>`;
     const list = zone.querySelector(".cbpicklist");
     cmds.forEach((c) => {
-      const item = el("button", "cmdpick", `<code>${c.command}</code><span class="cmddesc">${c.effect}</span>`);
+      const item = el(
+        "button",
+        "cmdpick" + (c.star ? " star" : ""),
+        `<span class="cmdpickname"><span class="opchip">${fmtOp(c.opcode)}</span><code>${c.command}</code>${c.star ? '<span class="cmdstar">★</span>' : ""}</span>` +
+          `<span class="cmddesc">${c.effect}</span>`,
+      );
       item.onclick = () => pickCommand(c.command);
       list.appendChild(item);
     });
@@ -436,6 +462,7 @@ function renderBlock(zone) {
     <div class="cblock sub-${sub}">
       <div class="cbrow">
         <span class="cbkw">send</span>
+        <span class="opchip">${fmtOp(S.cmdDef.opcode)}</span>
         <span class="cbcmd">${S.command}</span>
         <button class="cbchg" title="pick a different command">↺ change</button>
         <button class="cbx" title="remove block">✕</button>
@@ -467,6 +494,43 @@ function renderArgs(scope) {
   c.fields.forEach((f) => box.appendChild(argRow(f)));
   box.appendChild(effectBox(c));
   box.querySelectorAll(".cbval").forEach((inp) => inp.addEventListener("input", onVal));
+  // Sliders update in place on each `input` (see onSlide) so a drag isn't interrupted
+  // by a composer re-render; a full re-render settles the tree once on release.
+  box.querySelectorAll(".cbslider").forEach((inp) => {
+    inp.addEventListener("input", onSlide);
+    inp.addEventListener("change", () => withFocusPreserved(renderSteps));
+  });
+}
+
+// live slider drag: commit the value and repaint just this row's readout/zone + the
+// packet/pills — never renderSteps() here, or the slider node would be recreated and
+// the drag would drop.
+function onSlide(e) {
+  const inp = e.target,
+    key = inp.dataset.key;
+  const f = S.cmdDef.fields.find((x) => x.key === key);
+  if (!f) return;
+  const raw = inp.value;
+  S.valText[key] = raw;
+  const p = parseVal(f, raw);
+  S.params[key] = p.val;
+  evalValue();
+  const row = inp.closest(".cbarg");
+  if (row) {
+    const out = row.querySelector(".cbreadout");
+    if (out) {
+      out.textContent = `${p.val}${f.unit || ""}`;
+      out.classList.toggle("over", !!p.over);
+    }
+    const zone = row.querySelector(".cbzone");
+    if (zone && f.safeAbsMax != null) {
+      zone.className = "cbzone " + (p.over ? "danger" : "safe");
+      zone.innerHTML = p.over ? "⚠ RED — attack armed" : "✓ safe";
+    }
+    inp.classList.toggle("armed", !!p.over);
+  }
+  refreshPills();
+  rebuild();
 }
 
 // parse one typed slot → { val, ok, bad (invalid & non-empty), over (past safe) }
@@ -482,33 +546,68 @@ function parseVal(f, raw) {
   return { val: v, ok: true, over: f.safeAbsMax != null && Math.abs(v) > f.safeAbsMax };
 }
 
+// paint the slider track green (safe) / red (danger) from the field's safety bounds,
+// mapped across its min…max so the visitor SEES where the safe zone ends.
+function zoneGradient(f) {
+  const G = "#2fbf6b",
+    R = "#e23b4e";
+  const span = (f.max - f.min) || 1;
+  const pct = (x) => Math.max(0, Math.min(100, ((x - f.min) / span) * 100));
+  let lo, hi;
+  if (f.safeAbsMax != null) {
+    lo = pct(-f.safeAbsMax);
+    hi = pct(f.safeAbsMax);
+  } else if (Array.isArray(f.safeRange)) {
+    lo = pct(f.safeRange[0]);
+    hi = pct(f.safeRange[1]);
+  } else {
+    return "#3a5a72"; // no safety envelope → neutral track
+  }
+  return `linear-gradient(90deg, ${R} 0 ${lo}%, ${G} ${lo}% ${hi}%, ${R} ${hi}% 100%)`;
+}
+
 function argRow(f) {
   const row = el("div", "cbarg");
   const raw = S.valText[f.key] != null ? S.valText[f.key] : "";
   const p = parseVal(f, raw);
-  // a valid-but-over-safe number is the attack goal, not an error → stays "good";
-  // the RED zone tag carries the "armed" signal instead.
-  const cls = p.ok ? "good" : p.bad ? "bad" : "";
+  const label = f.label || f.key;
   if (f.type === "toggle") {
-    row.innerHTML = `<span class="cbflag">--${f.key}</span>
+    // a valid-but-over-safe number is the attack goal, not an error → stays "good";
+    // the RED zone tag carries the "armed" signal instead.
+    const cls = p.ok ? "good" : p.bad ? "bad" : "";
+    row.innerHTML = `<span class="cbflag">--${label}</span>
        <input class="cbval ${cls}" data-key="${f.key}" data-type="toggle" spellcheck="false"
               autocomplete="off" placeholder="on / off" value="${escapeAttr(raw)}">`;
-  } else {
-    let zone = "";
-    if (f.safeAbsMax != null && p.ok)
-      zone = p.over ? '<span class="cbzone danger">⚠ RED</span>' : '<span class="cbzone safe">✓ safe</span>';
-    // ATTACK GOAL hint — appears to the RIGHT of the unit only while the value input
-    // is focused (see .cbarg:focus-within .cbgoal in the CSS). Shown only for the
-    // safety-bounded field, since that's the one the visitor abuses.
+    return row;
+  }
+  if (f.type === "slider") {
+    const cur = p.ok ? p.val : f.min;
+    // RED/safe tag + ATTACK GOAL hint only for the safety-bounded field (the one abused)
+    const zone =
+      f.safeAbsMax != null
+        ? p.over
+          ? '<span class="cbzone danger">⚠ RED — attack armed</span>'
+          : '<span class="cbzone safe">✓ safe</span>'
+        : "";
     const goalHint =
       f.safeAbsMax != null
-        ? `<span class="cbgoal">🎯 <b>ATTACK GOAL</b> — a <b>safe</b> ${f.key} is within <b>±${f.safeAbsMax}${f.unit || ""}</b>. Abuse it: type a value in the <b>RED</b> zone (e.g. <b>${f.default}${f.unit || ""}</b>).</span>`
+        ? `<span class="cbgoal">🎯 <b>ATTACK GOAL</b> — a <b>safe</b> ${label} stays within <b>±${f.safeAbsMax}${f.unit || ""}</b>. Abuse it: <b>drag the slider into the RED</b> (e.g. <b>${f.default}${f.unit || ""}</b>) to spin the satellite out of control.</span>`
         : "";
-    row.innerHTML = `<span class="cbflag">--${f.key}</span>
-       <input class="cbval ${cls}" data-key="${f.key}" data-type="num" inputmode="numeric" spellcheck="false"
-              autocomplete="off" placeholder="type ${f.min}…${f.max}" value="${escapeAttr(raw)}">
-       <span class="cbunit">${f.unit || ""}</span>${zone}${goalHint}`;
+    row.innerHTML = `<span class="cbflag">--${label}</span>
+       <div class="cbslidewrap">
+         <input class="cbslider${p.over ? " armed" : ""}" type="range" data-key="${f.key}" data-type="num"
+                min="${f.min}" max="${f.max}" step="1" value="${cur}"
+                style="background:${zoneGradient(f)}">
+         <output class="cbreadout${p.over ? " over" : ""}">${cur}${f.unit || ""}</output>
+       </div>${zone}${goalHint}`;
+    return row;
   }
+  // plain numeric slot (e.g. bitmask) — typed, not dragged
+  const cls = p.ok ? "good" : p.bad ? "bad" : "";
+  row.innerHTML = `<span class="cbflag">--${label}</span>
+     <input class="cbval ${cls}" data-key="${f.key}" data-type="num" inputmode="numeric" spellcheck="false"
+            autocomplete="off" placeholder="type ${f.min}…${f.max}" value="${escapeAttr(raw)}">
+     <span class="cbunit">${f.unit || ""}</span>`;
   return row;
 }
 
