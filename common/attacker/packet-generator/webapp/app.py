@@ -339,6 +339,16 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(do_build(body, save=False))
             if self.path == "/api/generate":
                 return self._json(do_build(body, save=True))
+            # scenario end (drone "OK, I'll quit"): drop a restart sentinel that
+            # booth.sh watches → it tears this attacker script down and relaunches
+            # it clean for the next player. No-op if not run under booth.sh.
+            if self.path == "/api/quit":
+                try:
+                    with open("/tmp/demosat-restart.attacker", "w") as f:
+                        f.write("1")
+                except Exception:
+                    pass
+                return self._json({"ok": True, "restarting": True})
         except Exception as e:
             return self._json({"ok": False, "error": str(e)}, 400)
         self._json({"ok": False, "error": "unknown endpoint"}, 404)
