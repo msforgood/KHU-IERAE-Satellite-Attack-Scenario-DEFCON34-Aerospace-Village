@@ -51,17 +51,17 @@ Only the browser stream is rewritten, so the alarm disappears while the crisis c
 ## Quick start (local, without OpenVSA)
 ```
 # terminal 1 — victim ground station (../common/victim)
-./start-victim.sh                            # http://localhost:4540
+./start-victim.sh                            # http://localhost:4543
 
 # terminal 2 — attacker console (../common/attacker, phases ①–④)
-./start-attacker.sh up                       # http://localhost:8000
+./start-attacker.sh up                       # http://localhost:8003
 
 # terminal 3 — drive it by hand (until OpenVSA/gpredict are wired in)
-curl -X POST http://localhost:4540/api/inject -H 'Content-Type: application/json' \
+curl -X POST http://localhost:4543/api/inject -H 'Content-Type: application/json' \
   -d '{"command":"spin_control","payload":["0x03","0xe7"]}'   # ③ attack → alarm
-curl -X POST http://localhost:4540/api/spoof  -d '{"on":true}'   # ④ drone spoof → alarm hidden
-curl -X POST http://localhost:4540/api/spoof  -d '{"on":false}'  #    restore the truth
-curl -X POST http://localhost:4540/api/reset                     #    full reset
+curl -X POST http://localhost:4543/api/spoof  -d '{"on":true}'   # ④ drone spoof → alarm hidden
+curl -X POST http://localhost:4543/api/spoof  -d '{"on":false}'  #    restore the truth
+curl -X POST http://localhost:4543/api/reset                     #    full reset
 ```
 In the attacker UI, phase ④ opens after TRANSMIT via the **"④ DRONE SPOOF → HIDE THE
 ALARM"** button (rendered from `scenario.json`); the drone console embeds the live victim
