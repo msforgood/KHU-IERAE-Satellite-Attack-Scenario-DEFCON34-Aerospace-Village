@@ -181,21 +181,6 @@ const httpServer = http.createServer((req, res) => {
     });
     return;
   }
-  // scenario end (drone "OK, I'll quit"): tear the range down for the next player.
-  // We reset immediately so the dashboard goes nominal even with no supervisor, AND
-  // drop a restart sentinel that booth.sh watches to fully restart start-victim.sh.
-  if (url === "/api/quit" && req.method === "POST") {
-    sat.reset();
-    tumblingWas = false;
-    spoofing = false;
-    broadcastState();
-    try {
-      fs.writeFileSync("/tmp/demosat-restart.victim", String(Date.now()));
-    } catch {}
-    console.log("[quit] scenario end → reset + restart sentinel written (booth.sh will relaunch)");
-    res.writeHead(200, { "Content-Type": "application/json" });
-    return res.end(JSON.stringify({ ok: true, restarting: true }));
-  }
   // test hook: inject a mock uplink-command without OpenVSA
   if (url === "/api/inject" && req.method === "POST") {
     let body = "";

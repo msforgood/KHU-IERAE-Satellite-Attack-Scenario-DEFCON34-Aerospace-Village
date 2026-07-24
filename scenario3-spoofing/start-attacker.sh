@@ -54,6 +54,9 @@ CTRL_PORT="${CTRL_PORT:-6073}"   # gpredict 시간제어 서버(phase3 → /arm)
 GP_IMG="${GP_IMG:-demosat-gpredict}"
 UPLINK_DEST="${UPLINK_DEST:-ws://localhost:4553}"
 UPLINK_OUT_DIR="${UPLINK_OUT_DIR:-$HOME/uplink}"
+# "attacker fully ready" flag — written only AFTER setup finishes, so the finale's
+# restart reload waits for it. app.py serves it at /api/ready; run-booth.sh clears it.
+export READY_FLAG="${READY_FLAG:-/tmp/demosat-attacker-ready.flag}"
 # 시나리오 델타: 이 폴더의 scenario.json(페이즈 구성) + extras/(④+ 전용 화면)를 Command
 # Builder에 전달. extras/ 가 없으면(scn2) EXTRA_DIR 미설정 → 순수 3-phase 공격.
 SCENARIO_CONFIG="${SCENARIO_CONFIG:-$SCN_DIR/scenario.json}"
@@ -318,6 +321,7 @@ check() {
 # ── attacker 화면 실행 ────────────────────────────────────────────────────────
 up() {
   say "3/3  attacker 화면 실행"
+  rm -f "$READY_FLAG" 2>/dev/null || true   # not-ready until the full setup finishes
   local py; py="$(pick_python)"
   "$py" -c "import numpy" 2>/dev/null || die "numpy 없음 → './start-attacker.sh install' 먼저"
   # 서브셸에서 cd 후에도 안전하도록 파이썬을 절대경로로 고정
@@ -418,6 +422,9 @@ up() {
   grep -q '"arduinoBridge"[[:space:]]*:[[:space:]]*true' "$SCENARIO_CONFIG" 2>/dev/null && \
     echo "   🔩 Arduino(보드 연결 시): 스케치 자동 업로드 → 모터 자가진단(왕복+준비자세) → 브리지가 피해 GS(:4543) 지향각/스윕 반영. 로그 /tmp/demosat-{flash-ant,flash-solar,bridge}.log"
   echo "───────────────────────────────────────────────"
+
+  # Setup done → mark attacker ready (the finale's restart reload waits for this).
+  : > "$READY_FLAG" 2>/dev/null || true
 
   open_url "$BUILDER_URL"   # 단일 진입점 (②③ 전부 이 앱 안에서)
   c_ok "브라우저에서 화면 열림  (자동 열기 끄려면 NO_OPEN=1)"

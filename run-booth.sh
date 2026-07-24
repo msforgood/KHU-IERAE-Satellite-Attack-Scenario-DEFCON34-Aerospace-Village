@@ -42,12 +42,16 @@ SCN_DIR="$DIR/$SCN"
   || { echo "✗ no runnable scenario at $SCN_DIR (need start-attacker.sh + start-victim.sh)"; exit 1; }
 
 export RESTART_FLAG="${RESTART_FLAG:-/tmp/demosat-restart.flag}"
+# attacker-ready flag: start-attacker.sh writes it AFTER the antenna/solar setup, app.py
+# serves it at /api/ready, the finale's reload waits on it. We clear it on every (re)launch
+# so a stale "ready" from the previous run can't reload the browser too early.
+export READY_FLAG="${READY_FLAG:-/tmp/demosat-attacker-ready.flag}"
 
 VPID=""; APID=""
 
 start_all() {   # $1 = attacker mode: 'all' (install+check+up) first time, 'up' after
   local mode="${1:-up}"
-  rm -f "$RESTART_FLAG"
+  rm -f "$RESTART_FLAG" "$READY_FLAG"
   # First boot auto-opens the browser(s), exactly like running the start scripts directly.
   # On a RESTART the console already reloads the participant's existing tab to phase 1, so
   # we suppress the auto-open then (NO_OPEN=1) to avoid piling up a new tab per participant.
@@ -80,6 +84,7 @@ start_all all      # first boot: full install + check + up
 while true; do
   if [ -f "$RESTART_FLAG" ]; then
     echo "▸ restart requested → relaunching both sides for the next participant…"
+    rm -f "$READY_FLAG"   # go not-ready at once → the browser holds until setup is done again
     stop_all
     start_all up   # relaunch: deps already installed, just bring services back up
     echo "▸ relaunched."

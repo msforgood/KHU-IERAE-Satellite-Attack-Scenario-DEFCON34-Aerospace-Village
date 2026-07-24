@@ -663,14 +663,20 @@
           tries++;
           if (tries < 4) return; // let the supervisor kill the old builder before we probe
           try {
-            const r = await fetch(origin + "/api/scenario", { cache: "no-store" });
+            // Wait for /api/ready (true only AFTER the antenna/solar setup finishes) —
+            // not just for the builder answering — so the browser doesn't come back
+            // while the hardware is still being set up.
+            const r = await fetch(origin + "/api/ready", { cache: "no-store" });
             if (r.ok) {
-              clearInterval(iv);
-              top.location.href = "/1" + search;
-              return;
+              const j = await r.json();
+              if (j && j.ready) {
+                clearInterval(iv);
+                top.location.href = "/1" + search;
+                return;
+              }
             }
           } catch (e) {
-            /* builder still down — keep waiting */
+            /* builder/hardware still coming up — keep waiting */
           }
           if (tries > 160) {
             clearInterval(iv);

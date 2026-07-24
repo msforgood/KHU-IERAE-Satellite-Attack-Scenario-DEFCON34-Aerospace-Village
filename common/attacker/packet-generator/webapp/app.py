@@ -290,6 +290,12 @@ class Handler(BaseHTTPRequestHandler):
         # scenario descriptor — the template renders extra phases (④+) from this
         if self.path == "/api/scenario":
             return self._json(load_scenario())
+        # attacker-ready flag (start-attacker.sh writes it AFTER the antenna/solar setup).
+        # The finale's restart reload polls this so the browser only returns once the
+        # hardware is set up — not merely when this web builder starts answering.
+        if self.path == "/api/ready":
+            flag = os.environ.get("READY_FLAG", "/tmp/demosat-attacker-ready.flag")
+            return self._json({"ready": os.path.exists(flag)})
         if self.path.startswith("/static/"):
             rel = self.path[len("/static/"):].split("?")[0]
             fp = os.path.normpath(os.path.join(STATIC_DIR, rel))
@@ -339,16 +345,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(do_build(body, save=False))
             if self.path == "/api/generate":
                 return self._json(do_build(body, save=True))
-            # scenario end (drone "OK, I'll quit"): drop a restart sentinel that
-            # booth.sh watches → it tears this attacker script down and relaunches
-            # it clean for the next player. No-op if not run under booth.sh.
-            if self.path == "/api/quit":
-                try:
-                    with open("/tmp/demosat-restart.attacker", "w") as f:
-                        f.write("1")
-                except Exception:
-                    pass
-                return self._json({"ok": True, "restarting": True})
         except Exception as e:
             return self._json({"ok": False, "error": str(e)}, 400)
         self._json({"ok": False, "error": "unknown endpoint"}, 404)
