@@ -445,7 +445,7 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-wei
 /* drone launches from the attacker (bottom-left) and flies to the intercept point */
 .s3-drone{animation:s3-fly var(--s3dur) ease-in-out infinite}
 @keyframes s3-fly{0%,14%{transform:translate(150px,258px) scale(.5);opacity:.9}
-  40%,100%{transform:translate(452px,118px) scale(1);opacity:1}}
+  40%,100%{transform:translate(478px,150px) scale(1);opacity:1}}
 .s3-dronetag{opacity:0;animation:s3-dronetag var(--s3dur) ease-out infinite}
 @keyframes s3-dronetag{0%,36%{opacity:0}44%,100%{opacity:1}}
 .s3-trail{animation:s3-trail var(--s3dur) ease-out infinite}
@@ -454,11 +454,11 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-wei
 @keyframes s3-wavesOn{0%,44%{opacity:0}46%,100%{opacity:1}}
 .s3-wave{opacity:0;animation:s3-wave 1.4s ease-out infinite}
 @keyframes s3-wave{0%{opacity:0}22%{opacity:.85}100%{opacity:0}}
-.s3-packet{opacity:0;transform:translate(470px,118px);animation:s3-packet var(--s3dur) ease-in infinite}
-@keyframes s3-packet{0%,46%{opacity:0;transform:translate(470px,118px)}
-  51%{opacity:1;transform:translate(536px,150px)}
-  59%{opacity:1;transform:translate(602px,180px)}
-  63%{opacity:0;transform:translate(618px,188px)}100%{opacity:0;transform:translate(618px,188px)}}
+.s3-packet{opacity:0;transform:translate(498px,150px);animation:s3-packet var(--s3dur) ease-in infinite}
+@keyframes s3-packet{0%,46%{opacity:0;transform:translate(498px,150px)}
+  51%{opacity:1;transform:translate(552px,168px)}
+  59%{opacity:1;transform:translate(602px,186px)}
+  63%{opacity:0;transform:translate(616px,192px)}100%{opacity:0;transform:translate(616px,192px)}}
 
 /* green "spoof succeeded" wash */
 .s3-flash{animation:s3-flash var(--s3dur) ease-out infinite}
@@ -479,7 +479,7 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-wei
   /* static still: spoof done — drone at intercept, real sat still tumbling, GS shows the fake green NOMINAL */
   .s3-sat{transform:rotate(24deg)}
   .s3-beam{opacity:.18}
-  .s3-drone{transform:translate(452px,118px) scale(1)}
+  .s3-drone{transform:translate(478px,150px) scale(1)}
   .s3-dronetag{opacity:1}
   .s3-trail{opacity:.12}
   .s3-dash-red{opacity:0}
