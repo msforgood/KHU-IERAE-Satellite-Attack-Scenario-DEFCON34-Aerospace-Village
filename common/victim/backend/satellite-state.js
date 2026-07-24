@@ -82,6 +82,9 @@ function createSatelliteState() {
   let cascading = {};
   let moveTargets = {};
   let recoveryTimers = [];
+  // ENGAGE 조준각(az/el). 설정되면 nominal idle sine 이 이 값을 '중심'으로 흔들려 안테나가
+  // 조준 위치를 유지한다(없으면 HW 기본 180/45 를 중심으로). reset() 에서 초기화.
+  let antennaAim = {};
   let listeners = [];
   let tickTimer = null;
 
@@ -90,6 +93,16 @@ function createSatelliteState() {
   // set/clear a bare flag (e.g. `acquiring` during the gpredict pointing phase).
   // Not an attack flag — the tick() physics ignore it; only the Arduino bridge reads it.
   function setFlag(name, value) { if (value) flags[name] = true; else delete flags[name]; notify(); }
+  // 안테나 지향각을 직접 세팅한다(gpredict ENGAGE 스텝에서 AZ/EL 모터를 눈에 띄게 움직이는 용도).
+  // tick() 물리와 무관 — Arduino 브리지가 /api/state 의 antenna.az/el 을 읽어 AZEL 로 모터를 돌린다.
+  // 값이 주어진 축만 갱신(az 만 보내면 EL 은 그대로 → 축별 독립 구동).
+  function pointAntenna({ az, el } = {}) {
+    // 조준값을 상태에 즉시 반영(모터가 곧바로 그 각도로 점프) + antennaAim 에 기록해
+    // 이후 idle sine 이 180/45 로 되돌리지 않고 이 각도를 중심으로 유지하게 한다.
+    if (Number.isFinite(az)) { state["antenna.az"] = az; antennaAim.az = az; }
+    if (Number.isFinite(el)) { state["antenna.el"] = el; antennaAim.el = el; }
+    notify();
+  }
   function onChange(fn) { listeners.push(fn); }
   function notify() { const s = getState(); listeners.forEach(fn => fn(s)); }
 
@@ -124,7 +137,7 @@ function createSatelliteState() {
   }
 
   function reset() {
-    flags = {}; cascading = {}; moveTargets = {};
+    flags = {}; cascading = {}; moveTargets = {}; antennaAim = {};
     recoveryTimers.forEach(t => clearTimeout(t));
     recoveryTimers = [];
     state = buildDefaults();
@@ -262,7 +275,11 @@ function createSatelliteState() {
       || state["adcs.stabilization"] === false;
     if (!underAttack && idle) {
       for (const [key, rule] of Object.entries(idle)) {
-        const center = typeof rule.center === "string" ? (resolveHW(rule.center) ?? 0) : (rule.center ?? 0);
+        let center = typeof rule.center === "string" ? (resolveHW(rule.center) ?? 0) : (rule.center ?? 0);
+        // 안테나 축은 ENGAGE 조준각(antennaAim)이 있으면 그걸 중심으로 idle → 180/45 로 안 되돌아가고
+        // 조준 위치를 유지하며 미세하게만 흔들린다.
+        if (key === "antenna.az" && Number.isFinite(antennaAim.az)) center = antennaAim.az;
+        else if (key === "antenna.el" && Number.isFinite(antennaAim.el)) center = antennaAim.el;
         if (rule.type === "sine") state[key] = center + Math.sin(Date.now() / rule.period) * rule.amplitude;
         else if (rule.type === "jitter") state[key] = center + (Math.random() - 0.5) * rule.amplitude * 2;
         else if (rule.type === "drift")
@@ -356,7 +373,7 @@ function createSatelliteState() {
     recoveryTimers.forEach(t => clearTimeout(t)); recoveryTimers = [];
   }
 
-  return { getState, getPanelConfig, setFlag, onChange, reset, applyCommand, loadFromFiles, start, stop, notify, tick };
+  return { getState, getPanelConfig, setFlag, pointAntenna, onChange, reset, applyCommand, loadFromFiles, start, stop, notify, tick };
 }
 
 module.exports = { createSatelliteState };
