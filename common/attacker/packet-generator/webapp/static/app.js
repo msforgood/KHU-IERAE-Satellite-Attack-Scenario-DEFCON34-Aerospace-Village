@@ -243,6 +243,12 @@ function refreshPills() {
   $("#progText").textContent = `${ok} / ${NSTEPS}`;
   $("#progFill").style.width = (ok / NSTEPS) * 100 + "%";
   const btn = $("#genBtn");
+  // Once generated, the download card replaced this button — keep it hidden and don't resurrect it.
+  if (iqRevealed) {
+    btn.classList.add("hidden");
+    $("#progHint").textContent = "";
+    return;
+  }
   // The IQ generate button only unclicks for the CORRECT attack: the right command
   // driven past its safe envelope. A merely-complete-but-harmless command stays locked.
   const armed = ok === NSTEPS && attackArmed();
@@ -947,16 +953,57 @@ $("#genBtn").onclick = async () => {
     btn.textContent = "… RENDERING SIGNAL";
     $("#waveHint").classList.add("hidden");
     animateWave(lastWave, () => {
-      res.innerHTML = `✓ <b>${r.saved.filename}</b> generated — open it in the targeting console to uplink.<br>
-        <a href="#" class="cf32go">⬇ ${r.saved.filename} → open targeting console</a>`;
+      const fn = r.saved.filename;
+      btn.classList.add("hidden"); // the GENERATE button is replaced by the download card
+      res.classList.add("res-card");
+      res.innerHTML = `
+        <div class="cf32card">
+          <div class="cf32head">
+            <span class="cf32ico">🛰️</span>
+            <div class="cf32info">
+              <div class="cf32name">${fn}</div>
+              <div class="cf32meta">forged uplink signal · ready</div>
+            </div>
+            <span class="cf32badge">✓ GENERATED</span>
+          </div>
+          <button type="button" class="cf32dl neon-cyan">⬇ Download ${fn}</button>
+          <div class="cf32prog"><i></i></div>
+          <div class="cf32hint">Save your forged signal, then take it to the antenna →</div>
+        </div>`;
       res.classList.remove("hidden");
-      btn.textContent = "✓ UPLINK IQ GENERATED";
+      wireCf32Download(res, fn);
     });
   } else {
     res.textContent = "generate blocked: " + (r.error || "?");
     res.classList.remove("hidden");
   }
 };
+
+// The cf32 "download" is a cosmetic flourish — no real file is served. Clicking plays a
+// brief download-progress animation, then advances to the phase-3 targeting console.
+function wireCf32Download(res, fn) {
+  const b = res.querySelector(".cf32dl");
+  const prog = res.querySelector(".cf32prog");
+  const hint = res.querySelector(".cf32hint");
+  if (!b) return;
+  b.onclick = () => {
+    if (b.dataset.busy) return;
+    b.dataset.busy = "1";
+    b.classList.remove("neon-cyan");
+    b.classList.add("downloading");
+    b.textContent = `⬇ Downloading ${fn}…`;
+    if (prog) prog.classList.add("run");
+    setTimeout(() => {
+      b.classList.remove("downloading");
+      b.classList.add("done");
+      b.textContent = `✓ ${fn} downloaded`;
+      if (hint) hint.textContent = "Opening the targeting console…";
+      setTimeout(() => {
+        if (window.__gotoPhase) window.__gotoPhase(3, true);
+      }, 750);
+    }, 1300);
+  };
+}
 
 function payload() {
   return { command: S.command, params: S.params, valueConfirmed: S.valueConfirmed, rf: S.rf };

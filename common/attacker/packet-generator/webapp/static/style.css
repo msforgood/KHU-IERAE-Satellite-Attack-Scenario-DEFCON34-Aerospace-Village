@@ -487,3 +487,45 @@ h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-wei
   .s3-siren{opacity:.3;fill:#33465c}
   .s3-cap--hidden{opacity:1}
 }
+
+/* ═══════════ neon glow on the active call-to-action (the button you must press) ═══════════ */
+@keyframes neon-cyan{0%,100%{box-shadow:0 0 11px rgba(57,197,255,.5),0 0 26px rgba(57,197,255,.22)}
+  50%{box-shadow:0 0 22px rgba(57,197,255,.95),0 0 52px rgba(57,197,255,.5)}}
+@keyframes neon-red{0%,100%{box-shadow:0 0 11px rgba(255,59,78,.5),0 0 26px rgba(255,59,78,.22)}
+  50%{box-shadow:0 0 22px rgba(255,59,78,.95),0 0 52px rgba(255,59,78,.5)}}
+.neon-cyan{animation:neon-cyan 1.5s ease-in-out infinite}
+.bigbtn:not(:disabled){animation:neon-cyan 1.7s ease-in-out infinite}   /* phase 1 · BUILD */
+.genbtn.armed{animation:neon-red 1.6s ease-in-out infinite}             /* phase 2 · GENERATE */
+
+/* ═══════════ generated cf32 "download" card — replaces the GENERATE button ═══════════ */
+.result.res-card{border:none;background:none;padding:0;margin-top:14px}
+.cf32card{border:1px solid var(--ok);border-radius:12px;padding:16px;
+  background:linear-gradient(180deg,rgba(51,209,122,.09),rgba(19,28,40,.35));
+  box-shadow:0 16px 44px -24px rgba(0,0,0,.85)}
+.cf32head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.cf32ico{flex:none;width:40px;height:40px;display:grid;place-items:center;font-size:22px;
+  background:#0a121c;border:1px solid var(--line);border-radius:10px}
+.cf32info{flex:1;min-width:0}
+.cf32name{font-family:var(--mono);font-weight:800;font-size:18px;color:#eaf2fb;word-break:break-all}
+.cf32meta{font-size:13px;color:var(--dim)}
+.cf32badge{flex:none;font-size:12px;font-weight:800;letter-spacing:.05em;color:var(--ok);
+  background:rgba(51,209,122,.14);border:1px solid rgba(51,209,122,.4);border-radius:6px;padding:5px 9px}
+.cf32dl{display:block;width:100%;padding:15px;border:none;border-radius:10px;cursor:pointer;
+  font-family:var(--mono);font-weight:800;font-size:18px;letter-spacing:.03em;color:#001018;
+  background:linear-gradient(90deg,var(--accent),#2a8fd0);transition:filter .15s}
+.cf32dl:hover{filter:brightness(1.08)}
+.cf32dl.downloading{background:#0e1722;color:var(--accent);border:1px solid var(--accent);cursor:default}
+.cf32dl.done{background:rgba(51,209,122,.16);color:var(--ok);border:1px solid var(--ok);cursor:default}
+.cf32prog{height:6px;margin-top:10px;border-radius:4px;background:#0a121c;border:1px solid var(--line);
+  overflow:hidden;opacity:0;transition:opacity .2s}
+.cf32prog.run{opacity:1}
+.cf32prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--ok))}
+.cf32prog.run i{animation:cf32fill 1.2s ease-out forwards}
+@keyframes cf32fill{to{width:100%}}
+.cf32hint{margin-top:12px;font-size:14px;color:var(--dim);text-align:center}
+
+@media(prefers-reduced-motion:reduce){
+  .neon-cyan,.bigbtn:not(:disabled){animation:none!important;box-shadow:0 0 16px rgba(57,197,255,.55)!important}
+  .genbtn.armed{animation:none!important;box-shadow:0 0 16px rgba(255,59,78,.55)!important}
+  .cf32prog.run i{animation:none;width:100%}
+}
