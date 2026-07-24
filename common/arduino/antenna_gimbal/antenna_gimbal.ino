@@ -1,96 +1,100 @@
 // antenna_gimbal.ino — Scenario 2 "Uplink Attack" antenna actuator (2-axis).
 //
-//   Board  : Arduino (Uno / MKR / Nano — anything the Stepper lib runs on)
-//   Motors : TWO steppers — one per axis:
-//              · AZ 모터 = 방위각(antenna.az)  → 핀 8,10,9,11
-//              · EL 모터 = 앙각  (antenna.el)  → 핀 4,6,5,7
-//            default target = 28BYJ-48 + ULN2003 driver board (×2)
+//   Board  : Arduino MKR WiFi 1010 (SAMD)  ※ AVR Uno/Nano 도 같은 코드로 동작
+//   Motors : TWO 28BYJ-48 steppers via ULN2003 (×2), half-step (AccelStepper)
+//              · AZ 모터 = 방위각(antenna.az) → A0,A1,A2,A3  (ULN2003 IN1,IN2,IN3,IN4)
+//              · EL 모터 = 앙각  (antenna.el) → D2,D3,D4,D5  (ULN2003 IN1,IN2,IN3,IN4)
 //
-// Mirrors the satellite state engine's `antenna.az` / `antenna.el`. Under an
-// uplink attack the satellite tumbles and the angles drift/jitter — the steppers
-// physically swing the antenna so it can no longer hold the downlink beam.
+//   ★ 실제 배선·구동 방식은 검증된 antenna_selftest.ino(= scn1 booth_antenna)와 '완전히 동일':
+//     AccelStepper HALF4WIRE(type 8) · 코일순서 IN1,IN3,IN2,IN4 · 4096 step/rev(half-step).
+//     (예전 8,10,9,11 / 4,6,5,7 + Stepper 라이브러리는 이 배선과 안 맞아 모터가 안 돌았다.)
 //
-// Fully testable WITHOUT the bridge: Serial Monitor @ 9600, type the commands.
+//   Mirrors the satellite state engine's `antenna.az` / `antenna.el`. Under an
+//   uplink attack the satellite tumbles and the angles drift/jitter — the steppers
+//   physically swing the antenna so it can no longer hold the downlink beam.
 //
-// ── Line protocol (9600 baud, '\n'-terminated) ──────────────────────────────
-//   AZEL <az 0-360> <el 0-90>      set BOTH axes (az → AZ 모터, el → EL 모터)
-//   AZ <az 0-360>                  set azimuth only  (AZ 모터)
-//   EL <el 0-90>                   set elevation only (EL 모터)
-//   MODE <0|1>                     0 = nominal / 1 = tumbling — LED effect
-//   TRACK                          shortcut: MODE 0 (stops a sweep, holds position)
-//   TUMBLE                         shortcut: MODE 1
-//   SWEEP / ACQUIRE                acquisition gesture: sweep the AZ head left↔right
-//                                  (fired when gpredict locks onto the virtual sat)
-//   SPIN / STOP                    AZ 모터 연속 회전 / 정지
-//   PING                           replies "ANT READY id=ANTENNA az=<n> el=<n>"
-//   WHOAMI                         replies "ID=ANTENNA" (host auto-routing)
+//   ⚠ 28BYJ-48 는 외부 5~6V 로 구동하고 외부 GND ↔ 보드 GND 를 반드시 공통으로 묶는다.
+//     보드 5V/USB 만으론 전류가 부족해 "지지직"거리기만 하고 안 도는 경우가 많다.
 //
-// ── Wiring (28BYJ-48 + ULN2003, ×2) ─────────────────────────────────────────
-//   [AZ 모터]  ULN2003 IN1 → D8   IN2 → D9   IN3 → D10  IN4 → D11
-//   [EL 모터]  ULN2003 IN1 → D4   IN2 → D5   IN3 → D6   IN4 → D7
-//   각 ULN2003 V+/GND → external 5V supply (motor draws more than USB likes).
-//   Tie every supply GND to the Arduino GND.  Status LED → D13 (on-board).
+// ── Line protocol (bridge 호환, 9600 baud, '\n'-terminated) ──────────────────
+//   AZEL <az 0-360> <el 0-90>   set BOTH axes (az → AZ 모터, el → EL 모터)
+//   AZ <az 0-360>               set azimuth only
+//   EL <el 0-90>                set elevation only
+//   MODE <0|1>                  0 = nominal / 1 = tumbling
+//   TRACK / TUMBLE              MODE 0 / MODE 1 shortcut
+//   SWEEP / ACQUIRE             acquisition gesture: sweep AZ head left↔right (±30°)
+//   SPIN / STOP                 AZ 연속 회전 / 정지
+//   PING                        replies "ANT READY id=ANTENNA az=<n> el=<n> mode=<m>"
+//   WHOAMI                      replies "ID=ANTENNA"  (host auto-routing)
 //
-//   축↔모터 매칭(az=8..11 / el=4..7)이 실제 배선과 다르면 알려주세요 — 핀만 바꾸면 됩니다.
-//
-//   >>> Using an A4988 / DRV8825 (step+dir) driver or a NEMA-17 instead?
-//       The built-in Stepper lib does NOT drive step/dir pins. Replace the
-//       Stepper object with digitalWrite pulses on STEP/DIR, or install the
-//       AccelStepper library and swap moveToward() for stepper.moveTo().
+// 필요 라이브러리: AccelStepper  (arduino-cli lib install AccelStepper)
 
-#include <Stepper.h>
+#include <AccelStepper.h>
 
-const int  STEPS_PER_REV   = 2048;   // 28BYJ-48 with internal gearing (~2038-2048)
-const int  MAX_STEPS_LOOP  = 12;     // steps moved per loop → keeps serial responsive
-const int  STEPPER_RPM     = 12;
-const uint8_t LED_PIN      = 13;
-const int  SWEEP_LO_AZ     = 150;    // acquisition sweep: left bound
-const int  SWEEP_HI_AZ     = 210;    // acquisition sweep: right bound (head turns ±30°)
-const int  EL_MIN          = 0;      // elevation mechanical range (deg)
-const int  EL_MAX          = 90;
+// ── 핀 (검증된 배선: AZ=A0~A3 / EL=D2~D5) ────────────────────────────────────
+#define AZ_IN1 A0
+#define AZ_IN2 A1
+#define AZ_IN3 A2
+#define AZ_IN4 A3
+#define EL_IN1 2
+#define EL_IN2 3
+#define EL_IN3 4
+#define EL_IN4 5
 
-// 28BYJ-48 coil order via ULN2003 is IN1,IN3,IN2,IN4.
-Stepper azMotor(STEPS_PER_REV, 8, 10, 9, 11);   // 방위각 축
-Stepper elMotor(STEPS_PER_REV, 4,  6, 5,  7);   // 앙각 축
+#define HALF4WIRE 8                 // 28BYJ-48 4-wire half-step
+// 코일순서 IN1,IN3,IN2,IN4 — selftest/scn1 과 동일하게 pin1,pin3,pin2,pin4 순으로 전달.
+AccelStepper azMotor(HALF4WIRE, AZ_IN1, AZ_IN3, AZ_IN2, AZ_IN4);
+AccelStepper elMotor(HALF4WIRE, EL_IN1, EL_IN3, EL_IN2, EL_IN4);
 
-long targetStepAz  = 0, currentStepAz = 0;   // AZ 모터 위치
-long targetStepEl  = 0, currentStepEl = 0;   // EL 모터 위치
-int  az            = 180;  // last commanded azimuth   (default antenna.az)
-int  el            = 45;   // last commanded elevation (default antenna.el)
-int  mode          = 0;    // 0 nominal · 1 tumbling · 2 acquisition sweep · 3 continuous spin
+const float   ONE_TURN   = 4096.0;  // half-step steps/rev
+const float   MAX_SPEED  = 700.0;   // half-step/s (28BYJ-48 탈조 한계 근처)
+const float   ACCEL      = 400.0;   // steps/s^2
+const float   SPIN_SPEED = 550.0;   // 연속 회전(mode 3) 속도
+const uint8_t LED_PIN    = LED_BUILTIN;
+const int     SWEEP_LO_AZ = 150;    // acquisition sweep 좌측 경계
+const int     SWEEP_HI_AZ = 210;    // acquisition sweep 우측 경계(±30°)
+const int     EL_MIN = 0, EL_MAX = 90;
+
+int  az   = 180;   // 마지막 명령 방위각(도) — PING 출력용
+int  el   = 45;    // 마지막 명령 앙각(도)
+int  mode = 0;     // 0 nominal · 1 tumble · 2 sweep · 3 spin
+bool sweepGoingHi = true;
 char lineBuf[48];
 uint8_t lineLen = 0;
 
-long azToStep(int a) {
-  a = ((a % 360) + 360) % 360;               // normalize 0-359
-  return (long)a * STEPS_PER_REV / 360L;
-}
-long elToStep(int e) {
-  e = constrain(e, EL_MIN, EL_MAX);          // clamp to the tilt axis range
-  return (long)e * STEPS_PER_REV / 360L;     // same deg→step ratio as azimuth
-}
-void setAzimuth(int a);
-void setElevation(int e);
-void applyLine(char *line);
+long azToStep(int a) { a = ((a % 360) + 360) % 360; return lround(a * ONE_TURN / 360.0); }
+long elToStep(int e) { e = constrain(e, EL_MIN, EL_MAX); return -lround(e * ONE_TURN / 360.0); } // up = 음수(scn1 관례)
 
-// step a motor toward its target the short way around the ring, bounded per loop.
-void stepToward(Stepper &m, long &current, long target) {
-  if (current == target) return;
-  long diff = target - current;
-  while (diff >  STEPS_PER_REV / 2) diff -= STEPS_PER_REV;
-  while (diff < -STEPS_PER_REV / 2) diff += STEPS_PER_REV;
-  int n = (int)constrain(diff, -MAX_STEPS_LOOP, MAX_STEPS_LOOP);
-  m.step(n);
-  current = ((current + n) % STEPS_PER_REV + STEPS_PER_REV) % STEPS_PER_REV;
+// AZ 목표를 '현재 위치에서 가장 가까운 등가각'으로 잡아 최단경로로 돈다(0↔360 랩어라운드 처리).
+void setAzTarget(int a) {
+  long base = azToStep(a);                              // 0..4095
+  long cur  = azMotor.currentPosition();
+  long turn = (long)ONE_TURN;
+  long k    = lround((double)(cur - base) / turn);      // cur 에 가장 가까운 회전수
+  azMotor.moveTo(base + k * turn);
 }
+
+void setAzimuth(int a)   { az = a; if (mode != 3) setAzTarget(a); }
+void setElevation(int e) { el = e; elMotor.moveTo(elToStep(e)); }
+
+// 모드 전환. 연속 회전(3)에서 빠져나올 때는 목표를 현재 위치로 고정해 갑작스런 장거리 이동을 막는다.
+void setMode(int m) {
+  if (mode == 3 && m != 3) {
+    azMotor.setCurrentPosition(azMotor.currentPosition());  // 속도 0 리셋 + 위치 유지
+    azMotor.moveTo(azMotor.currentPosition());
+  }
+  mode = m;
+}
+
+void applyLine(char *line);
 
 void setup() {
   Serial.begin(9600);
   pinMode(LED_PIN, OUTPUT);
-  azMotor.setSpeed(STEPPER_RPM);
-  elMotor.setSpeed(STEPPER_RPM);
-  targetStepAz = currentStepAz = azToStep(az);
-  targetStepEl = currentStepEl = elToStep(el);
+  azMotor.setMaxSpeed(MAX_SPEED); azMotor.setAcceleration(ACCEL);
+  elMotor.setMaxSpeed(MAX_SPEED); elMotor.setAcceleration(ACCEL);
+  azMotor.setCurrentPosition(azToStep(az));
+  elMotor.setCurrentPosition(elToStep(el));
   Serial.println(F("ANT READY id=ANTENNA az=180 el=45"));
 }
 
@@ -105,39 +109,33 @@ void loop() {
     }
   }
 
-  // 2a) drive the AZ motor (supports sweep + continuous spin gestures).
+  // 2) AZ 모터 — spin(3)은 등속 연속 회전, 그 외(0/1/2)는 목표각 추종.
   if (mode == 3) {
-    // continuous spin: keep stepping one direction endlessly (진짜 무한 회전)
-    azMotor.step(MAX_STEPS_LOOP);
-    currentStepAz = (currentStepAz + MAX_STEPS_LOOP) % STEPS_PER_REV;
-    targetStepAz  = currentStepAz;           // keep target synced so exit is clean
-  } else if (currentStepAz != targetStepAz) {
-    stepToward(azMotor, currentStepAz, targetStepAz);
-  } else if (mode == 2) {
-    // acquisition sweep: bound reached → head to the other side (left↔right)
-    long hiStep = azToStep(SWEEP_HI_AZ);
-    targetStepAz = (targetStepAz == hiStep) ? azToStep(SWEEP_LO_AZ) : hiStep;
+    azMotor.setSpeed(SPIN_SPEED);
+    azMotor.runSpeed();
+  } else {
+    if (mode == 2 && azMotor.distanceToGo() == 0) {
+      sweepGoingHi = !sweepGoingHi;                       // 경계 도달 → 반대편으로
+      setAzTarget(sweepGoingHi ? SWEEP_HI_AZ : SWEEP_LO_AZ);
+    }
+    azMotor.run();
   }
 
-  // 2b) drive the EL motor — always tracks its target (no sweep/spin on this axis).
-  stepToward(elMotor, currentStepEl, targetStepEl);
+  // 3) EL 모터 — 항상 목표 앙각 추종(스윕/스핀 없음).
+  elMotor.run();
 
-  // 3) LED: solid nominal · fast blink tumbling · slow blink sweep · blink spin
+  // 4) LED: solid nominal · fast blink tumbling · slow blink sweep · blink spin
   if      (mode == 1) digitalWrite(LED_PIN, (millis() / 120) % 2);
   else if (mode == 2) digitalWrite(LED_PIN, (millis() / 300) % 2);
   else if (mode == 3) digitalWrite(LED_PIN, (millis() / 150) % 2);
   else                digitalWrite(LED_PIN, HIGH);
 }
 
-void setAzimuth(int a)   { az = a; targetStepAz = azToStep(a); }
-void setElevation(int e) { el = e; targetStepEl = elToStep(e); }
-
 void applyLine(char *line) {
   char *sp = line;
   while (*sp && *sp != ' ') { *sp = toupper(*sp); sp++; }
 
   if (strncmp(line, "AZEL", 4) == 0) {
-    // parse two integers after the command: az drives AZ 모터, el drives EL 모터
     int a = 0, e = 0;
     int got = sscanf(sp, "%d %d", &a, &e);
     if (got >= 1) setAzimuth(a);
@@ -147,26 +145,27 @@ void applyLine(char *line) {
   } else if (strncmp(line, "EL", 2) == 0 && *sp == ' ') {
     setElevation(atoi(sp + 1));
   } else if (strncmp(line, "MODE", 4) == 0 && *sp == ' ') {
-    mode = atoi(sp + 1) ? 1 : 0;
+    setMode(atoi(sp + 1) ? 1 : 0);
   } else if (strncmp(line, "TRACK", 5) == 0) {
-    mode = 0;
+    setMode(0);
   } else if (strncmp(line, "TUMBLE", 6) == 0) {
-    mode = 1;
+    setMode(1);
   } else if (strncmp(line, "SWEEP", 5) == 0 || strncmp(line, "ACQUIRE", 7) == 0) {
-    mode = 2;
-    targetStepAz = azToStep(SWEEP_HI_AZ);   // kick the head toward one side to start
+    setMode(2);
+    sweepGoingHi = true;
+    setAzTarget(SWEEP_HI_AZ);              // 한쪽으로 킥해서 스윕 시작
   } else if (strncmp(line, "SPIN", 4) == 0) {
-    mode = 3;                             // continuous rotation
+    setMode(3);                            // continuous rotation
   } else if (strncmp(line, "STOP", 4) == 0) {
-    mode = 0;                             // stop spinning / hold
+    setMode(0);                            // stop spinning / hold
   } else if (strncmp(line, "WHOAMI", 6) == 0) {
-    Serial.println(F("ID=ANTENNA"));      // role identity for host auto-routing
+    Serial.println(F("ID=ANTENNA"));       // role identity for host auto-routing
   } else if (strncmp(line, "PING", 4) == 0) {
     Serial.print(F("ANT READY id=ANTENNA az="));
     Serial.print(az);
     Serial.print(F(" el="));
     Serial.print(el);
-    Serial.print(F(" mode="));            // 0 nominal·1 tumble·2 sweep·3 spin
+    Serial.print(F(" mode="));             // 0 nominal·1 tumble·2 sweep·3 spin
     Serial.println(mode);
   }
 }
