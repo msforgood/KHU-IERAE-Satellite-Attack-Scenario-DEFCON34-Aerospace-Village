@@ -215,6 +215,29 @@ const httpServer = http.createServer((req, res) => {
     });
     return;
   }
+  // aiming hook: set the antenna's az/el directly so the physical AZ/EL motors move
+  // (gpredict ENGAGE 스텝에서 사용). POST {"az":<deg>} / {"el":<deg>} / 둘 다. 주어진 축만 움직인다.
+  if (url === "/api/antenna" && req.method === "POST") {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      try {
+        const j = JSON.parse(body || "{}");
+        const az = Number(j.az), el = Number(j.el);
+        sat.pointAntenna({
+          az: Number.isFinite(az) ? az : undefined,
+          el: Number.isFinite(el) ? el : undefined,
+        });
+        console.log(`[point] antenna aim → ${Number.isFinite(az) ? "az=" + az : ""} ${Number.isFinite(el) ? "el=" + el : ""}`.trim());
+        res.writeHead(200);
+        res.end("{}");
+      } catch (e) {
+        res.writeHead(400);
+        res.end(String(e));
+      }
+    });
+    return;
+  }
   if (url === "/api/reset" && req.method === "POST") {
     sat.reset();
     tumblingWas = false;
