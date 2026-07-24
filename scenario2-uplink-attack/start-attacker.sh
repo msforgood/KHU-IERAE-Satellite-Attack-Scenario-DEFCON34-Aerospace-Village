@@ -36,7 +36,7 @@
 #                  업로드 후엔 WHOAMI 재프로브로 안테나·솔라 '연결신호'를 확인·요약 출력한다.
 #   NO_SELFTEST  1이면 모터 자가진단(왕복+준비자세) 생략
 #   READY_AZ     자가진단 후 준비 자세 방위각. 기본 0 (콘솔 조준각과 다르게)
-#   READY_EL     자가진단 후 준비 자세 앙각. 기본 0
+#   READY_EL     자가진단 후 준비 자세 앙각. 기본 50 (조준 시 10°로 크게 틸트하도록 합의)
 #
 # ⚠️ 이 스크립트는 '공격자 쪽'만 띄웁니다. 피해 지상국(⑤)은 별도로 실행하세요:
 #     ./start-victim.sh   (또는 cd ../common/victim/backend && node server.js)
@@ -331,22 +331,23 @@ flash_boards() {
 }
 
 # 안테나 2축 모터 자가진단: az 모터·el 모터를 각각 왕복시켜 동작을 확인한 뒤, 콘솔 ENGAGE 조준각과
-# '다른' 준비 자세(READY_AZ/READY_EL, 기본 0°/0°)로 정렬한다. 브리지 기동 前에 직접 시리얼로 수행.
+# 준비 자세(READY_AZ/READY_EL, 기본 az 0°/el 50°)로 정렬한다. 브리지 기동 前에 직접 시리얼로 수행.
 # NO_SELFTEST=1 로 생략. (브리지가 뜨면 피해 GS 지향각을 반영하므로 준비 자세는 시작 확인용이다.)
 motor_selftest() {
   [ "${NO_SELFTEST:-0}" = "1" ] && return 0
   local p="$ANT_DEV"
   [ -n "$p" ] && [ -e "$p" ] || { c_warn "안테나 보드 없음 → 모터 자가진단 생략"; return 0; }
-  local raz="${READY_AZ:-0}" rel="${READY_EL:-0}"
+  local raz="${READY_AZ:-0}" rel="${READY_EL:-50}"   # 준비자세 앙각 50°(합의값). 조준 시 10°로 크게 틸트.
   stty -f "$p" 9600 raw -echo -hupcl clocal 2>/dev/null || { c_warn "자가진단: $p stty 실패 → 생략"; return 0; }
   exec 3<>"$p" 2>/dev/null || { c_warn "자가진단: $p 열기 실패 → 생략"; return 0; }
   sleep 2.2                                   # 스케치 부팅 대기(포트 열림 = Uno 리셋)
   say "안테나 모터 자가진단 — az·el 각각 왕복 후 준비 자세 ${raz}°/${rel}°"
   printf 'TRACK\n'          >&3; sleep 0.4    # 스윕/스핀 해제 → 위치추종 모드
-  printf 'AZ 300\n'         >&3; sleep 2.5    # ① az 모터 이동
-  printf 'AZ 60\n'          >&3; sleep 2.5    # ② az 모터 반대로
-  printf 'EL 80\n'          >&3; sleep 2.5    # ③ el 모터 이동
-  printf 'EL 10\n'          >&3; sleep 2.5    # ④ el 모터 반대로
+  # ⚠ 회전 범위 제한 — AZ: 케이블 꼬임 방지 위해 90° 이내로만 왕복. EL: 절대 90° 초과 금지.
+  printf 'AZ 60\n'          >&3; sleep 2.0    # ① az 모터 확인 (0→60°, 90° 이내)
+  printf 'AZ 0\n'           >&3; sleep 2.0    # ② az 모터 원위치
+  printf 'EL 80\n'          >&3; sleep 2.0    # ③ el 모터 확인 (→80°, 90° 미만)
+  printf 'EL 20\n'          >&3; sleep 2.0    # ④ el 모터 반대로 (→20°)
   printf 'AZEL %d %d\n' "$raz" "$rel" >&3; sleep 3.0   # ⑤ 준비 자세로 정렬(두 모터 동시)
   exec 3>&- 2>/dev/null
   c_ok "모터 자가진단 완료 → 준비 자세 az=${raz}° el=${rel}° (ENGAGE 시 여기서 목표각으로 움직이는 게 보임)"
