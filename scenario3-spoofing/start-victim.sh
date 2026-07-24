@@ -38,7 +38,7 @@ ok "파일·문법 확인 완료"
 
 # ── 3. victim 화면 실행 + 브라우저 열기 ───────────────────────
 say "3/3  victim 지상국 실행 → $URL"
-UPLINK_PORT="${UPLINK_PORT:-4536}"
+UPLINK_PORT="${UPLINK_PORT:-4553}"
 
 # 포트 선점 정리: 이전 지상국(server.js)이 남아 있으면 종료, 다른 앱이 잡고 있으면 중단
 free_port(){

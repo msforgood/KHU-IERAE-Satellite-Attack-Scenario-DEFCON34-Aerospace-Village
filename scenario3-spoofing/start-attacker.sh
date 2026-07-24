@@ -6,10 +6,10 @@
 # 단일 포트(:8003) 하나로 ①②③ 전부. 별도 창/프록시 포트 없음.
 #   http://localhost:8003  Command Builder (Python)
 #     ├ 페이즈① 명령 조립  ·  페이즈② IQ 생성
-#     └ 페이즈③ 위성 조준:  /targeting(콘솔) + /vsa(OpenVSA 렌더러) + gpredict(:6080) 직접 iframe
+#     └ 페이즈③ 위성 조준:  /targeting(콘솔) + /vsa(OpenVSA 렌더러) + gpredict(:6083) 직접 iframe
 #
 # ※ OpenVSA는 Electron 앱이지만 렌더러는 정적 웹(+WS :4534)이라 :8003이 /vsa 로 서빙한다.
-#   gpredict noVNC는 Docker :6080 을 그대로 iframe(프록시 불필요). TRANSMIT은 피해 GS API(/api/inject).
+#   gpredict noVNC는 Docker :6083 을 그대로 iframe(프록시 불필요). TRANSMIT은 피해 GS API(/api/inject).
 #
 # 사용법 (시나리오 폴더에서):
 #   ./start-attacker.sh            # 설치 + 확인 + 실행 (전체)
@@ -21,7 +21,7 @@
 #   GS_URL       피해 지상국 base (ACQUIRE/RESET·forward 대상). 기본 http://localhost:4543
 #   BUILDER_PORT ① Command Builder 포트. 기본 8003
 #   CONSOLE_PORT ③ 조준 콘솔 단일 포트(console+vsa+gpredict). 기본 8090
-#   GP_PORT      gpredict noVNC Docker 포트(프록시 대상). 기본 6080
+#   GP_PORT      gpredict noVNC Docker 포트(프록시 대상). 기본 6083
 #   GP_IMG       gpredict Docker 이미지명. 기본 demosat-gpredict
 #   UPLINK_OUT_DIR  attack.cf32 출력 폴더. 기본 ~/uplink
 #   NO_OPEN      1이면 브라우저 자동 열기 끄기 (기본: 실행 후 ①③ 화면 자동 오픈)
@@ -49,10 +49,10 @@ MODE="${1:-all}"
 GS_URL="${GS_URL:-http://localhost:4543}"
 BUILDER_PORT="${BUILDER_PORT:-8003}"
 CONSOLE_PORT="${CONSOLE_PORT:-8090}"   # 단일 포트: console(/) + OpenVSA(/vsa) + gpredict(/gpredict)
-GP_PORT="${GP_PORT:-6080}"
-CTRL_PORT="${CTRL_PORT:-6079}"   # gpredict 시간제어 서버(phase3 → /arm). noVNC(GP_PORT)와 한 쌍.
+GP_PORT="${GP_PORT:-6083}"
+CTRL_PORT="${CTRL_PORT:-6073}"   # gpredict 시간제어 서버(phase3 → /arm). noVNC(GP_PORT)와 한 쌍.
 GP_IMG="${GP_IMG:-demosat-gpredict}"
-UPLINK_DEST="${UPLINK_DEST:-ws://localhost:4536}"
+UPLINK_DEST="${UPLINK_DEST:-ws://localhost:4553}"
 UPLINK_OUT_DIR="${UPLINK_OUT_DIR:-$HOME/uplink}"
 # 시나리오 델타: 이 폴더의 scenario.json(페이즈 구성) + extras/(④+ 전용 화면)를 Command
 # Builder에 전달. extras/ 가 없으면(scn2) EXTRA_DIR 미설정 → 순수 3-phase 공격.
@@ -339,7 +339,7 @@ up() {
   # OpenVSA 백엔드(node server.js)가 물던 포트도 함께 정리한다. 이걸 안 하면 좀비 OpenVSA가
   # WS :4534 를 물고 있어 새 server.js 가 bind 실패로 조용히 죽고 → /vsa 렌더러의 WS 연결이
   # 안 돼 STEP 2 'VIRTUAL ANTENNA UPLINK' 패널이 백지로 남는다(② 위성 조준 화면 안 열림).
-  #   :4532 rigctld · :4533 rotctld · :4534 WS(렌더러). (:4536 은 피해 GS 목적지라 바인딩 안 함)
+  #   :4532 rigctld · :4533 rotctld · :4534 WS(렌더러). (:4553 은 피해 GS 목적지라 바인딩 안 함)
   free_port 4534 "OpenVSA WS"
   free_port 4533 "OpenVSA rotctld"
   free_port 4532 "OpenVSA rigctld"
@@ -370,7 +370,7 @@ up() {
     done
   fi
 
-  # ③ OpenVSA 백엔드(rotctld :4533 ← gpredict / rigctld :4532 / WS :4534 → 렌더러 시각화 / forward :4536).
+  # ③ OpenVSA 백엔드(rotctld :4533 ← gpredict / rigctld :4532 / WS :4534 → 렌더러 시각화 / forward :4553).
   #   OpenVSA UI(렌더러)는 :8003 이 /vsa 로 서빙한다 — 별도 :8090 프록시·데스크탑 창 없음.
   ( cd openvsa && UPLINK_DEST="$UPLINK_DEST" node server.js ) >/tmp/demosat-openvsa.log 2>&1 &
   pids+=($!)
@@ -400,7 +400,7 @@ up() {
 
   # 단일 진입점 = :8003 하나. ① 명령 조립 → ② IQ 생성 → ③ 위성 조준 이 한 앱 안에서 전부.
   #   ③ 조준: 콘솔=:8003 /targeting · OpenVSA=:8003 /vsa · gpredict noVNC=Docker(:GP_PORT) 직접 iframe.
-  local BUILDER_URL="http://localhost:$BUILDER_PORT/?gs=$GS_URL&gpport=$GP_PORT"
+  local BUILDER_URL="http://localhost:$BUILDER_PORT/?gs=$GS_URL&gpport=$GP_PORT&ctrlport=$CTRL_PORT"
 
   # 빌더(:8003)가 응답할 때까지 대기(최대 ~10초)
   for _ in $(seq 1 50); do
