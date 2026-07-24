@@ -16,7 +16,7 @@
       },
       {
         "h": "③ Step 1 — break it (uplink attack)",
-        "p": "You uplink <b>adcs_torque</b> with an abused value (999 mNm). The reaction wheels overspin, the satellite <b>tumbles</b>, the panels lose the sun, <b>power collapses</b> — and the ground-station <b>alarm fires</b>."
+        "p": "You uplink a <b>legitimate reaction-wheel command</b> with an abused value. The wheels overspin, the satellite <b>tumbles</b>, the panels lose the sun, <b>power collapses</b> — and the ground-station <b>alarm fires</b>."
       },
       {
         "h": "④ Step 2 — impersonate it (spoofing)",
