@@ -9,7 +9,7 @@
 
     index.html?gp=<gpredict-noVNC-url>&vsa=<OpenVSA-url>&gs=http://localhost:4540
 
-  ⚡ TRANSMIT (in the OpenVSA caption bar) → POST <gs>/api/inject → adcs_torque 999.
+  ⚡ TRANSMIT (in the OpenVSA caption bar) → POST <gs>/api/inject → spin_control 999.
 -->
 <style>
   :root {
@@ -490,13 +490,13 @@
 
   // ⚡ TRANSMIT — fired by the VSA's own uplink TRANSMIT button (it posts a
   // "vsa-transmit" message to this parent). We POST the attack straight to the GS
-  // API (/api/inject) → adcs_torque 999 mNm → tumbling → sun-track loss + solar
+  // API (/api/inject) → spin_control 999 mNm → tumbling → sun-track loss + solar
   // panel motor runaway + dashboard alarm.
-  const ATTACK = { command: "adcs_torque", payload: ["0x03", "0xe7"] };
+  const ATTACK = { command: "spin_control", payload: ["0x03", "0xe7"] };
   async function fireAttack() {
     try {
       await post("/api/inject", ATTACK);
-      setStatus("⚡ UPLINK TRANSMITTED · adcs_torque 999 mNm", "var(--crit)");
+      setStatus("⚡ UPLINK TRANSMITTED · spin_control 999 mNm", "var(--crit)");
       // notify the outer Command Builder that the uplink was fired, so a scenario's
       // next-phase entry (e.g. ④ drone spoof) can be revealed only AFTER transmit.
       try {

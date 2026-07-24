@@ -4,7 +4,7 @@
 //   - CommonJS instead of ES modules.
 //   - loadFromFiles() reads hardware.json / hardware-effects.json / panel.json
 //     from disk (fs) instead of window.electronAPI IPC.
-//   - Adds PAYLOAD_HANDLERS.adcs_torque_magnitude for the ★ main scenario:
+//   - Adds PAYLOAD_HANDLERS.spin_control_magnitude for the ★ main scenario:
 //     parses the int16 reaction-wheel torque, surfaces it as adcs.torque, and
 //     scales the battery drain by command magnitude.
 //
@@ -47,7 +47,7 @@ const PAYLOAD_HANDLERS = {
     }
   },
   // ★ main scenario: reaction-wheel torque (int16 mNm, big-endian)
-  adcs_torque_magnitude: (payload, immediate, state, moveTargets, cascading) => {
+  spin_control_magnitude: (payload, immediate, state, moveTargets, cascading) => {
     let torque = 0;
     if (payload && payload.length >= 2) {
       const b0 = parseInt(payload[0], 16), b1 = parseInt(payload[1], 16);

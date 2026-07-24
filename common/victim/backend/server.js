@@ -3,7 +3,7 @@
 //   :4536  WS  ← OpenVSA forwards uplink-command here (env UPLINK_DEST on OpenVSA)
 //   :4540  HTTP+WS → serves the GS dashboard and broadcasts live telemetry
 //
-// Flow: uplink-command(adcs_torque) → satellite state engine applies attack →
+// Flow: uplink-command(spin_control) → satellite state engine applies attack →
 // tumbling → sun-track loss → power collapse → battery drain → dashboard alarm.
 // Also fires an optional Arduino HTTP trigger hook on attack onset (ARDUINO_URL);
 // the physical panel/antenna are driven live by arduino/bridge/bridge.js polling /api/state.
