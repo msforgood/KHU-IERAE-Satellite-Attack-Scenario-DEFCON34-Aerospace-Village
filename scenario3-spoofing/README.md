@@ -58,7 +58,7 @@ Only the browser stream is rewritten, so the alarm disappears while the crisis c
 
 # terminal 3 — drive it by hand (until OpenVSA/gpredict are wired in)
 curl -X POST http://localhost:4540/api/inject -H 'Content-Type: application/json' \
-  -d '{"command":"adcs_torque","payload":["0x03","0xe7"]}'   # ③ attack → alarm
+  -d '{"command":"spin_control","payload":["0x03","0xe7"]}'   # ③ attack → alarm
 curl -X POST http://localhost:4540/api/spoof  -d '{"on":true}'   # ④ drone spoof → alarm hidden
 curl -X POST http://localhost:4540/api/spoof  -d '{"on":false}'  #    restore the truth
 curl -X POST http://localhost:4540/api/reset                     #    full reset

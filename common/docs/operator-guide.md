@@ -81,7 +81,7 @@ UPLINK_OUT_DIR=~/uplink python3 app.py
 The visitor must assemble a valid uplink as a 4-step puzzle before GENERATE unlocks:
 **1** Spacecraft ID (SCID) · **2** command · **3** command value · **4** RF config
 (modulation/baud/sample rate). The answers are on the **TARGET INTEL** dossier
-(left panel); the intended attack is `adcs_torque` at 999 mNm. If a visitor is stuck,
+(left panel); the intended attack is `spin_control` at 999 mNm. If a visitor is stuck,
 point them at the dossier — every field must match.
 
 **④ Point at the virtual satellite (gpredict) → transmit**
@@ -98,7 +98,7 @@ During pointing, once gpredict reports lock, fire the antenna acquisition sweep:
 cleared on reset). This can be wired to OpenVSA's lock event.
 
 > Component self-test only (NOT a demo path): with no hardware/OpenVSA you can check the
-> GS reaction alone via `curl -X POST http://localhost:4540/api/inject -H 'Content-Type: application/json' -d '{"command":"adcs_torque","payload":["0x03","0xe7"]}'`
+> GS reaction alone via `curl -X POST http://localhost:4540/api/inject -H 'Content-Type: application/json' -d '{"command":"spin_control","payload":["0x03","0xe7"]}'`
 
 ## 4. Reset between visitors
 ```
@@ -111,7 +111,7 @@ The Command Builder is stateless — no reset needed (a refresh is optional).
 |---|---|---|
 | Telemetry reaction delay | GS env `ATTACK_DELAY_MS` | default 4000 ms (booth: 1500–3000) |
 | Safe torque threshold | `attacker/openvsa/satellites/demosat/c2protocol.json` opcode `0x21` → `safeAbsMax` | 500 |
-| Battery drain / sun-track loss speed | `victim/backend/satellite-state.js` → `adcs_torque_magnitude` (drainRate / swingSpeed) | scales with torque magnitude |
+| Battery drain / sun-track loss speed | `victim/backend/satellite-state.js` → `spin_control_magnitude` (drainRate / swingSpeed) | scales with torque magnitude |
 | Antenna acquisition sweep | `POST /api/acquire` → bridge sends `SWEEP`; arc in `antenna_gimbal.ino` `SWEEP_LO_AZ`/`SWEEP_HI_AZ` | default 150°/210° |
 | Solar panel spin | bridge `PANEL_SPIN=1` (continuous-rotation servo) → `SPIN` on attack; speed via `SPIN <us>` | 1000–2000µs (1500=stop) |
 | Arduino HTTP trigger | GS env `ARDUINO_URL` (POST on attack onset) | logs only if unset |
@@ -129,7 +129,7 @@ The Command Builder is stateless — no reset needed (a refresh is optional).
 **Sustained critical** — after the flash clears, live telemetry keeps showing the
 collapse: red **ENERGY SUPPLY CRITICAL** banner, **SUN-TRACK LOST**, Power Gen graph
 plunging toward 0 W (stays low), battery draining, ADCS **TUMBLING**, Comm **LOST**,
-and `ACCEPTED · adcs_torque [0x03 0xe7]` in UPLINK ACTIVITY:
+and `ACCEPTED · spin_control [0x03 0xe7]` in UPLINK ACTIVITY:
 
 ![Sustained energy supply critical](screenshots/gs-energy-critical.png)
 
@@ -143,7 +143,7 @@ and `ACCEPTED · adcs_torque [0x03 0xe7]` in UPLINK ACTIVITY:
 | Dashboard stuck on "CONNECTING…" | GS backend (:4540) not running, or firewall |
 | Uplink never reaches GS | OpenVSA `UPLINK_DEST` points at the right `GS` IP; :4536 open; uplink passed OpenVSA validation (antenna aligned, freq 449.5 MHz) |
 | cf32 fails to decode in OpenVSA | `ccsds_ook.py` copied alongside `decoder.py` in `satellites/demosat/` |
-| No alarm | Command must be `adcs_torque` with torque above the safe threshold |
+| No alarm | Command must be `spin_control` with torque above the safe threshold |
 
 ## 8. Open items
 - **Arduino motors**: firmware + bridge **done and wired** — antenna `SWEEP` on

@@ -214,7 +214,7 @@ cd attacker/packet-generator/webapp && UPLINK_OUT_DIR=~/uplink python3 app.py   
 | 단계                      | 무엇을                                             | 정답                         | 왜                                |
 | ------------------------- | -------------------------------------------------- | ---------------------------- | --------------------------------- |
 | **1 · TARGET ADDRESSING** | Spacecraft ID(SCID)                                | **SCID 200**                 | 잘못된 ID → 다른 위성 → 명령 무시 |
-| **2 · COMMAND SELECT**    | 서브시스템·명령                                    | **ADCS → `adcs_torque`** ★   | 리액션휠 토크 명령                |
+| **2 · COMMAND SELECT**    | 서브시스템·명령                                    | **ADCS → `spin_control`** ★   | 리액션휠 토크 명령                |
 | **3 · COMMAND VALUE**     | 토크 슬라이더 → 안전(초록) 넘겨 빨강 → **CONFIRM** | **999 mNm** (안전 ≤500 초과) | 과도한 토크 → 자세 상실           |
 | **4 · RF CONFIG**         | 변조·통신속도·샘플레이트                           | **OOK · 100 bps · 24 kSa/s** | 수신기와 안 맞으면 복조 불가      |
 
@@ -256,7 +256,7 @@ OpenVSA UI에서 **`attack.cf32` 로드 → TRANSMIT**. OpenVSA가 업링크를 
 
 > **성공 판정:** 배너 빨강 **ENERGY SUPPLY CRITICAL**, Solar Panel **SUN-TRACK LOST**, Torque **999 mNm**,
 > ADCS **TUMBLING**, Power Gen **0 W 부근 유지**, Battery 방전, Comm **LOST**, UPLINK ACTIVITY에
-> `ACCEPTED · adcs_torque [0x03 0xe7]`. 물리적으로 🛰️ 안테나·☀️ 솔라패널 모터가 함께 움직이면 완성입니다. ✅
+> `ACCEPTED · spin_control [0x03 0xe7]`. 물리적으로 🛰️ 안테나·☀️ 솔라패널 모터가 함께 움직이면 완성입니다. ✅
 
 ---
 
@@ -280,7 +280,7 @@ curl -X POST http://localhost:4540/api/reset      # 지상국 정상 복귀 + �
 | ----------------------- | ---------------------------------------------------------------------------------- | ------------------------------------- |
 | 업링크 후 경보까지 지연 | 지상국 env `ATTACK_DELAY_MS`                                                       | 기본 4000 ms, 부스 **1500–3000** 권장 |
 | 안전 토크 임계값        | `attacker/openvsa/satellites/demosat/c2protocol.json` opcode `0x21` → `safeAbsMax` | 기본 500                              |
-| 방전·태양추적 이탈 속도 | `victim/backend/satellite-state.js` → `adcs_torque_magnitude`                      | 토크 크기 비례                        |
+| 방전·태양추적 이탈 속도 | `victim/backend/satellite-state.js` → `spin_control_magnitude`                      | 토크 크기 비례                        |
 | 안테나 스윕 범위        | `arduino/antenna_gimbal.ino` → `SWEEP_LO_AZ` / `SWEEP_HI_AZ`                       | 기본 150 / 210                        |
 | 솔라 회전 속도          | 안테나 보드 `SPIN <us>`(1000–2000, 1500=정지) 또는 브릿지 기본 2000                | 연속회전 서보                         |
 | 지상국 포트             | 지상국 env `GS_HTTP_PORT` / `UPLINK_PORT`                                          | 기본 4540 / 4536                      |
@@ -298,13 +298,13 @@ curl -X POST http://localhost:4540/api/reset      # 지상국 정상 복귀 + �
 | gpredict가 안테나를 못 움직임                | Rotators 설정 Host/Port=OpenVSA `rotctld :4533`인지, Engage/Track 눌렀는지, 위성 el>0인지                               |
 | ③에서 🛰️ 물리 안테나가 안 움직임             | `curl -X POST :4540/api/acquire` 실행했는지, 브릿지 실행·`ANT_PORT` 맞는지, 시리얼 모니터로 `SWEEP` 단독 확인           |
 | ④에서 ☀️ 솔라패널이 회전 안 함               | 연속회전 서보인지(표준 SG90 불가), 브릿지에 **`PANEL_SPIN=1`** 붙였는지, `SOLAR_PORT` 맞는지, 시리얼로 `SPIN` 단독 확인 |
-| TRANSMIT 눌러도 경보 없음                    | 명령이 `adcs_torque`·값 999인지, `UPLINK_DEST`가 지상국 `:4536`인지, `ATTACK_DELAY_MS`만큼 기다렸는지                   |
+| TRANSMIT 눌러도 경보 없음                    | 명령이 `spin_control`·값 999인지, `UPLINK_DEST`가 지상국 `:4536`인지, `ATTACK_DELAY_MS`만큼 기다렸는지                   |
 | OpenVSA cf32 디코드 실패                     | `satellites/demosat/`에 `ccsds_ook.py`가 `decoder.py`와 함께 있는지                                                     |
 | 포트 인식 안 됨(macOS)                       | 데이터용 케이블인지, USB 허브 말고 직결인지, `cu.` 디바이스 사용                                                        |
 | 초기화                                       | `curl -X POST :4540/api/reset`                                                                                          |
 
 > **부분 점검(개발용, 시연 경로 아님):** 하드웨어/OpenVSA 없이 지상국 반응만 확인하려면
-> `curl -X POST :4540/api/inject -H 'Content-Type: application/json' -d '{"command":"adcs_torque","payload":["0x03","0xe7"]}'`.
+> `curl -X POST :4540/api/inject -H 'Content-Type: application/json' -d '{"command":"spin_control","payload":["0x03","0xe7"]}'`.
 > 이는 컴포넌트 단독 점검용이며, 실제 시연은 위 ①~⑤ 물리 경로로만 진행합니다.
 
 ---

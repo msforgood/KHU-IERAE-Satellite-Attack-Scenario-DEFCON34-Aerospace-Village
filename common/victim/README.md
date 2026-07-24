@@ -16,13 +16,13 @@ alarm on the dashboard.
 OpenVSA `server.js` sends:
 ```json
 { "type":"uplink-command", "satellite":"DEMOSAT", "frequency":449.5,
-  "command":"adcs_torque", "payload":["0x03","0xe7"], "purpose":"TT&C", "timestamp":"ISO8601" }
+  "command":"spin_control", "payload":["0x03","0xe7"], "purpose":"TT&C", "timestamp":"ISO8601" }
 ```
 The backend calls the state engine's `applyCommand(command, payload)` → effect chain →
 dashboard alarm.
 
 ## Main scenario
-`adcs_torque` received → tumbling + solarAttacked → panel swings off the sun (90°→0°)
+`spin_control` received → tumbling + solarAttacked → panel swings off the sun (90°→0°)
 → Power Gen collapses, Battery drains, TUMBLING → "ENERGY SUPPLY CRITICAL" alarm +
 Arduino trigger hook.
 
@@ -40,6 +40,6 @@ optional).
 ```
 curl -X POST http://localhost:4540/api/inject \
   -H 'Content-Type: application/json' \
-  -d '{"command":"adcs_torque","payload":["0x03","0xe7"],"frequency":449.5}'
+  -d '{"command":"spin_control","payload":["0x03","0xe7"],"frequency":449.5}'
 curl -X POST http://localhost:4540/api/reset   # back to nominal
 ```

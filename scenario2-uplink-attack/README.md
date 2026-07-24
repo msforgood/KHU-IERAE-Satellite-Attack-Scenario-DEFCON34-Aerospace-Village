@@ -39,7 +39,7 @@ generate → attack.cf32 → [OpenVSA load / uplink] → ws:4536 → [GS web UI 
 
 # terminal 3 — inject a mock uplink (until OpenVSA is wired in)
 curl -X POST http://localhost:4540/api/inject -H 'Content-Type: application/json' \
-  -d '{"command":"adcs_torque","payload":["0x03","0xe7"]}'
+  -d '{"command":"spin_control","payload":["0x03","0xe7"]}'
 ```
 
 Spec + guides live in `../common/docs/` (`command-spec.md`, `operator-guide.md`,

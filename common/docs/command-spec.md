@@ -78,15 +78,15 @@ format here; the demo collapses it to a simple opcode+payload.
 | APID | Subsystem | opcode | Command | Payload | Description |
 |---|---|---|---|---|---|
 | 0x010 | POWER | `0x10` | solar_panel | 1B angle(0-255) | Set solar panel angle |
-| **0x020** | **ADCS** | **`0x21`** | **adcs_torque** | **2B int16 torque(mNm), BE** | **Set reaction-wheel torque ★ MAIN SCENARIO** |
-| 0x020 | ADCS | `0x30` | subsystem_ctrl | 1B bitmask | bit0=stabilization, bit1=transponder |
-| 0x030 | COMM | `0x20` | antenna_gimbal | 2B (az,el) | Set antenna pointing |
-| 0x030 | COMM | `0x40` | transponder_ctrl | 1B 0/1 | Transponder on/off |
+| **0x020** | **ADCS** | **`0x21`** | **spin_control** | **2B int16 torque(mNm), BE** | **Set reaction-wheel torque ★ MAIN SCENARIO** |
+| 0x020 | ADCS | `0x30` | system_toggle | 1B bitmask | bit0=stabilization, bit1=transponder |
+| 0x030 | COMM | `0x20` | antenna_point | 2B (az,el) | Set antenna pointing |
+| 0x030 | COMM | `0x40` | radio_switch | 1B 0/1 | Transponder on/off |
 | 0x0E0 | OBC | `0xE0` | auth_change | 32B | Overwrite HMAC-SHA256 key |
 | 0x0F0 | OBC | `0xF0` | firmware_upload | 2B offset + data | Write to flash |
-| 0x0F0 | OBC | `0xFF` | obc_reboot | 0B | Hard reboot OBC |
+| 0x0F0 | OBC | `0xFF` | computer_reboot | 0B | Hard reboot OBC |
 
-### ★ Main attack: `adcs_torque` (opcode 0x21)
+### ★ Main attack: `spin_control` (opcode 0x21)
 
 - **Legitimate use**: a normal reaction-wheel torque command for attitude control.
   Payload = target torque (mNm, int16).
@@ -94,7 +94,7 @@ format here; the demo collapses it to a simple opcode+payload.
   (tumbling) → the solar panel loses sun-track → **power generation collapses (energy
   supply failure)** → battery drains → the ground station alarms.
 - Safe threshold (example): `|torque| > 500 mNm` → treated as an attack (tunable).
-- The effect chain is defined in `hardware-effects.json` (`adcs_torque`, reusing the
+- The effect chain is defined in `hardware-effects.json` (`spin_control`, reusing the
   shared `adcs_target` tumbling physics).
 
 ## 5. Roundtrip contract
@@ -102,8 +102,8 @@ format here; the demo collapses it to a simple opcode+payload.
 The `.cf32` produced by `generate.py` → `decoder.py` prints this JSON to stdout on
 success:
 ```json
-{ "success": true, "command": "adcs_torque", "opcode": "0x21",
-  "payload": ["0x03", "0xe7"], "message": "Command accepted: adcs_torque" }
+{ "success": true, "command": "spin_control", "opcode": "0x21",
+  "payload": ["0x03", "0xe7"], "message": "Command accepted: spin_control" }
 ```
 → OpenVSA turns `command` into an `uplink-transmit` event and, once the uplink
 validates, forwards `uplink-command` to the GS (:4536).

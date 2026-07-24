@@ -20,7 +20,7 @@
     잘못된 ID → 엉뚱한 위성 → 명령이 무시됩니다.
 
   STEP 2 — COMMAND SELECT (명령 선택)
-    서브시스템과 명령 선택:  [ ADCS ★ ] → adcs_torque
+    서브시스템과 명령 선택:  [ ADCS ★ ] → spin_control
     (위성의 리액션휠 토크)
 
   STEP 3 — COMMAND VALUE (명령 값)

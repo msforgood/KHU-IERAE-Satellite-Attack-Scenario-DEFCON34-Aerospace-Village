@@ -128,7 +128,7 @@ curl -X POST localhost:4540/api/acquire
 # terminal 3 — transmit/attack (real demo uses OpenVSA TRANSMIT → :4536 forward;
 #              this inject is a GS-only self-test, not the demo path)
 curl -X POST localhost:4540/api/inject -H 'Content-Type: application/json' \
-  -d '{"command":"adcs_torque","payload":["0x03","0xe7"]}'
+  -d '{"command":"spin_control","payload":["0x03","0xe7"]}'
 ```
 
 Expected: on `/api/acquire` the antenna sweeps left↔right; then after

@@ -21,9 +21,9 @@ Validation is server-authoritative (see `app.py` `validate()`). See
 
 ## CLI
 ```
-python3 generate.py adcs_torque --torque 999 -o attack.cf32   # ★ main scenario
+python3 generate.py spin_control --torque 999 -o attack.cf32   # ★ main scenario
 python3 generate.py solar_panel --angle 0    -o attack.cf32
-python3 generate.py obc_reboot               -o attack.cf32
+python3 generate.py computer_reboot               -o attack.cf32
 ```
 
 ## Structure
