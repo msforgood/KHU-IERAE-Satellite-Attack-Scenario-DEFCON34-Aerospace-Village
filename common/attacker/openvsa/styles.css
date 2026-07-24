@@ -311,6 +311,35 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* labels the participant must fill in themselves — highlighted so the eye lands
+   on exactly the fields to enter (Uplink Freq / Antenna type / Azimuth / Elevation). */
+.control-row label.enter-hint { color: #ffcf3f; font-weight: 700; }
+
+/* az/el slider + its number turn GREEN once dragged onto the console banner's
+   target angle (controls.js toggles .matched on a 1-decimal match). */
+.control-row input[type="range"].matched { accent-color: #33d17a; }
+.control-row label span.matched { color: #33d17a; }
+
+/* fine-nudge arrows flanking a slider — ±0.1° so the exact target is reachable
+   without wrestling the drag handle. */
+.control-row .slider-nudge { display: flex; align-items: center; gap: 6px; }
+.control-row .slider-nudge input[type="range"] { flex: 1; min-width: 0; }
+.nudge {
+  flex: none;
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  background: #16212f;
+  color: #c8d8e4;
+  border: 1px solid #2a3a4d;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+.nudge:hover:not(:disabled) { border-color: #d66a2d; color: #fff; }
+.nudge:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .control-row input[type="range"] {
   width: 100%;
   accent-color: #d66a2d;
