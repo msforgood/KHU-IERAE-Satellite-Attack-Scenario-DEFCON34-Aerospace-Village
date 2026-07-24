@@ -3,12 +3,12 @@
 # 시나리오 폴더에 두지만 phase 1-3 자원은 전부 공용 ../common/attacker 아래에 있어
 # 스스로 그리로 진입한다. 시나리오별 차이는 이 폴더의 scenario.json + extras/ 로만 표현.
 #
-# 단일 포트(:8000) 하나로 ①②③ 전부. 별도 창/프록시 포트 없음.
-#   http://localhost:8000  Command Builder (Python)
+# 단일 포트(:8003) 하나로 ①②③ 전부. 별도 창/프록시 포트 없음.
+#   http://localhost:8003  Command Builder (Python)
 #     ├ 페이즈① 명령 조립  ·  페이즈② IQ 생성
 #     └ 페이즈③ 위성 조준:  /targeting(콘솔) + /vsa(OpenVSA 렌더러) + gpredict(:6080) 직접 iframe
 #
-# ※ OpenVSA는 Electron 앱이지만 렌더러는 정적 웹(+WS :4534)이라 :8000이 /vsa 로 서빙한다.
+# ※ OpenVSA는 Electron 앱이지만 렌더러는 정적 웹(+WS :4534)이라 :8003이 /vsa 로 서빙한다.
 #   gpredict noVNC는 Docker :6080 을 그대로 iframe(프록시 불필요). TRANSMIT은 피해 GS API(/api/inject).
 #
 # 사용법 (시나리오 폴더에서):
@@ -18,8 +18,8 @@
 #   ./start-attacker.sh up         # 화면 실행만 (설치가 끝난 뒤)
 #
 # 환경변수(선택):
-#   GS_URL       피해 지상국 base (ACQUIRE/RESET·forward 대상). 기본 http://localhost:4540
-#   BUILDER_PORT ① Command Builder 포트. 기본 8000
+#   GS_URL       피해 지상국 base (ACQUIRE/RESET·forward 대상). 기본 http://localhost:4543
+#   BUILDER_PORT ① Command Builder 포트. 기본 8003
 #   CONSOLE_PORT ③ 조준 콘솔 단일 포트(console+vsa+gpredict). 기본 8090
 #   GP_PORT      gpredict noVNC Docker 포트(프록시 대상). 기본 6080
 #   GP_IMG       gpredict Docker 이미지명. 기본 demosat-gpredict
@@ -46,8 +46,8 @@ SCN_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCN_DIR/../common/attacker"
 
 MODE="${1:-all}"
-GS_URL="${GS_URL:-http://localhost:4540}"
-BUILDER_PORT="${BUILDER_PORT:-8000}"
+GS_URL="${GS_URL:-http://localhost:4543}"
+BUILDER_PORT="${BUILDER_PORT:-8003}"
 CONSOLE_PORT="${CONSOLE_PORT:-8090}"   # 단일 포트: console(/) + OpenVSA(/vsa) + gpredict(/gpredict)
 GP_PORT="${GP_PORT:-6080}"
 CTRL_PORT="${CTRL_PORT:-6079}"   # gpredict 시간제어 서버(phase3 → /arm). noVNC(GP_PORT)와 한 쌍.
@@ -231,7 +231,7 @@ motor_selftest() {
   c_ok "모터 자가진단 완료 → 준비 자세 az=${raz}° el=${rel}° (ENGAGE 시 여기서 목표각으로 움직이는 게 보임)"
 }
 
-# Arduino 브리지 기동(best-effort). 피해 GS(:4540) 상태를 폴링해 물리 안테나(AZEL/SWEEP)와
+# Arduino 브리지 기동(best-effort). 피해 GS(:4543) 상태를 폴링해 물리 안테나(AZEL/SWEEP)와
 # 솔라 패널 모터를 시리얼로 구동한다. detect_boards 가 찾은 포트를 사용. 보드가 없으면(부스 미연결)
 # 경고만 남기고 건너뛴다 — 브리지는 모터 구동 전용이라 나머지 공격 화면과 무관하다.
 start_bridge() {
@@ -243,7 +243,7 @@ start_bridge() {
   ( cd ../arduino/bridge && GS_URL="$GS_URL" ANT_PORT="$ANT_DEV" SOLAR_PORT="$SOLAR_DEV" \
       ${PANEL_SPIN:+PANEL_SPIN="$PANEL_SPIN"} node bridge.js ) >/tmp/demosat-bridge.log 2>&1 &
   pids+=($!)
-  c_ok "Arduino 브리지 실행 (ant=${ANT_DEV:-—} solar=${SOLAR_DEV:-—}) → 피해 GS(:4540) 폴링. 로그: /tmp/demosat-bridge.log"
+  c_ok "Arduino 브리지 실행 (ant=${ANT_DEV:-—} solar=${SOLAR_DEV:-—}) → 피해 GS(:4543) 폴링. 로그: /tmp/demosat-bridge.log"
 }
 
 # ── 최초 설치 ────────────────────────────────────────────────────────────────
@@ -371,7 +371,7 @@ up() {
   fi
 
   # ③ OpenVSA 백엔드(rotctld :4533 ← gpredict / rigctld :4532 / WS :4534 → 렌더러 시각화 / forward :4536).
-  #   OpenVSA UI(렌더러)는 :8000 이 /vsa 로 서빙한다 — 별도 :8090 프록시·데스크탑 창 없음.
+  #   OpenVSA UI(렌더러)는 :8003 이 /vsa 로 서빙한다 — 별도 :8090 프록시·데스크탑 창 없음.
   ( cd openvsa && UPLINK_DEST="$UPLINK_DEST" node server.js ) >/tmp/demosat-openvsa.log 2>&1 &
   pids+=($!)
   # WS :4534 가 실제로 떴는지 확인 — 안 뜨면 STEP 2 'VIRTUAL ANTENNA UPLINK' 가 백지로 남으므로
@@ -389,7 +389,7 @@ up() {
   fi
 
   # ③ Arduino (scn2 전용) — 보드 감지 → 스케치 업로드 → 모터 자가진단 → 브리지 기동.
-  #   피해 GS(:4540) /api/state 를 폴링해 물리 안테나(AZ/EL)·솔라 '모터'를 구동한다.
+  #   피해 GS(:4543) /api/state 를 폴링해 물리 안테나(AZ/EL)·솔라 '모터'를 구동한다.
   #   보드가 USB로 연결돼 있어야 실제로 돈다. 없으면 경고만 하고 건너뜀(화면은 정상).
   if grep -q '"arduinoBridge"[[:space:]]*:[[:space:]]*true' "$SCENARIO_CONFIG" 2>/dev/null; then
     detect_boards      # 시리얼 포트 1회 탐지(WHOAMI 역할 분류) → ANT_DEV/SOLAR_DEV
@@ -398,11 +398,11 @@ up() {
     start_bridge       # 브리지 기동(이후 피해 GS 지향각·acquire 스윕 반영)
   fi
 
-  # 단일 진입점 = :8000 하나. ① 명령 조립 → ② IQ 생성 → ③ 위성 조준 이 한 앱 안에서 전부.
-  #   ③ 조준: 콘솔=:8000 /targeting · OpenVSA=:8000 /vsa · gpredict noVNC=Docker(:GP_PORT) 직접 iframe.
+  # 단일 진입점 = :8003 하나. ① 명령 조립 → ② IQ 생성 → ③ 위성 조준 이 한 앱 안에서 전부.
+  #   ③ 조준: 콘솔=:8003 /targeting · OpenVSA=:8003 /vsa · gpredict noVNC=Docker(:GP_PORT) 직접 iframe.
   local BUILDER_URL="http://localhost:$BUILDER_PORT/?gs=$GS_URL&gpport=$GP_PORT"
 
-  # 빌더(:8000)가 응답할 때까지 대기(최대 ~10초)
+  # 빌더(:8003)가 응답할 때까지 대기(최대 ~10초)
   for _ in $(seq 1 50); do
     curl -fsS "http://localhost:$BUILDER_PORT/" >/dev/null 2>&1 && break
     sleep 0.2
@@ -416,7 +416,7 @@ up() {
   echo "   ⑤ 피해 지상국은 별도 실행:  ./start-victim.sh  (또는 cd ../common/victim/backend && node server.js)"
   echo "   ℹ️ ③ TRANSMIT은 피해 GS API(/api/inject)로 공격 명령을 발사합니다."
   grep -q '"arduinoBridge"[[:space:]]*:[[:space:]]*true' "$SCENARIO_CONFIG" 2>/dev/null && \
-    echo "   🔩 Arduino(보드 연결 시): 스케치 자동 업로드 → 모터 자가진단(왕복+준비자세) → 브리지가 피해 GS(:4540) 지향각/스윕 반영. 로그 /tmp/demosat-{flash-ant,flash-solar,bridge}.log"
+    echo "   🔩 Arduino(보드 연결 시): 스케치 자동 업로드 → 모터 자가진단(왕복+준비자세) → 브리지가 피해 GS(:4543) 지향각/스윕 반영. 로그 /tmp/demosat-{flash-ant,flash-solar,bridge}.log"
   echo "───────────────────────────────────────────────"
 
   open_url "$BUILDER_URL"   # 단일 진입점 (②③ 전부 이 앱 안에서)
