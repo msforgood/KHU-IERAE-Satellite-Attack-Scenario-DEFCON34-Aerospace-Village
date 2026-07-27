@@ -169,14 +169,27 @@ Either port may be omitted — the bridge drives whichever board is present.
 
 ---
 
-## 6. Port not showing up? (macOS)
+## 6. Port not showing up?
 
-Find the port:
+포트 이름은 OS 마다 다르다 — **macOS `/dev/cu.usbmodemXXXX` · Linux `/dev/ttyACM0` ·
+Windows `COM3`**. 어느 OS든 아래 한 줄로 후보를 뽑을 수 있다(설치 필요 없음):
+
 ```bash
-ls /dev/cu.usbmodem*
+node bridge/serial.js list      # 후보 포트
+node bridge/serial.js boards    # "포트<TAB>FQBN" (arduino-cli 가 있으면 FQBN 까지)
 ```
-If nothing lists while the board is plugged in:
-- The **cable may be charge-only** — swap for a known data cable.
-- **Connect directly** to the Mac, not through a USB hub / multiport adapter.
-- Confirm the board enumerates: `ioreg -p IOUSB -l -w 0 | grep -i arduino`
-- Use the **`cu.`** device (not `tty.`) for uploads and the bridge.
+
+`PORT`/`ANT_PORT`/`SOLAR_PORT` 에는 이 이름을 그대로 넣으면 된다:
+```bash
+PORT=/dev/cu.usbmodem1101 ./motor.sh antenna ping    # macOS
+PORT=COM3 ./motor.sh antenna ping                    # Windows
+```
+
+플러그를 꽂았는데 아무것도 안 잡히면:
+- **충전 전용 케이블**일 수 있다 — 데이터 되는 케이블로 교체.
+- USB 허브/멀티포트 어댑터 말고 **본체에 직접** 연결.
+- macOS: 보드 인식 확인 `ioreg -p IOUSB -l -w 0 | grep -i arduino`, 업로드·브리지는
+  **`cu.`** 장치를 쓴다(`tty.` 아님).
+- Windows: 장치 관리자 → **포트(COM & LPT)** 에 보이는지 확인. 안 보이면 CH340/CP210x
+  **드라이버 미설치**인 경우가 많다(정품 Uno·MKR 은 드라이버 불필요).
+- Windows: `COM10` 이상도 그대로 쓰면 된다 — serial.js 가 내부적으로 `\\.\COM10` 으로 연다.
