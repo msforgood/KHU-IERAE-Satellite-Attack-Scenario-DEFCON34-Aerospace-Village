@@ -1,0 +1,51 @@
+{
+  "name": "DEMOSAT",
+  "standard": "CCSDS-TC-over-OOK",
+  "physical": {
+    "modulation": "OOK",
+    "baudRate": 100,
+    "sampleRate": 24000,
+    "preamble": "AAAA",
+    "bitOrder": "MSB-first"
+  },
+  "frame": {
+    "type": "CCSDS TC Transfer Frame",
+    "primaryHeaderBytes": 5,
+    "fields": {
+      "tfVersion": { "bits": 2, "value": 0 },
+      "bypassFlag": { "bits": 1, "value": 1 },
+      "controlCommandFlag": { "bits": 1, "value": 0 },
+      "reservedSpare": { "bits": 2, "value": 0 },
+      "spacecraftId": { "bits": 10, "value": 200 },
+      "virtualChannelId": { "bits": 6, "value": 0 },
+      "frameLength": { "bits": 10, "note": "total frame octets - 1" },
+      "frameSeqNumber": { "bits": 8 }
+    },
+    "frameErrorControl": { "type": "CRC-16-CCITT", "polynomial": "0x1021", "init": "0xFFFF", "bytes": 2 }
+  },
+  "packet": {
+    "type": "CCSDS Space Packet",
+    "primaryHeaderBytes": 6,
+    "fields": {
+      "packetVersion": { "bits": 3, "value": 0 },
+      "packetType": { "bits": 1, "value": 1 },
+      "secHeaderFlag": { "bits": 1, "value": 0 },
+      "apid": { "bits": 11, "note": "subsystem id, see opcodes[].apid" },
+      "sequenceFlags": { "bits": 2, "value": 3 },
+      "packetSeqCount": { "bits": 14 },
+      "packetDataLength": { "bits": 16, "note": "data field octets - 1" }
+    },
+    "dataField": "[opcode 1B] [payload N B]"
+  },
+  "opcodes": {
+    "0x50": { "name": "orbit_maneuver",   "apid": "0x050", "payloadSize": 6,  "description": "★ Orbit maneuver (target altitude km + inclination + RAAN, deg x10, int16 BE). Abuse: swing the orbit onto a neighbouring satellite → collision → debris cascade", "safeAbsMax": 2 },
+    "0x10": { "name": "solar_panel",      "apid": "0x010", "payloadSize": 1,  "description": "Set solar panel angle (0-255)" },
+    "0x21": { "name": "adcs_torque",      "apid": "0x020", "payloadSize": 2,  "description": "Set reaction-wheel torque (int16 mNm, BE)", "safeAbsMax": 500 },
+    "0x30": { "name": "subsystem_ctrl",   "apid": "0x020", "payloadSize": 1,  "description": "Bitmask: bit0=stabilization, bit1=transponder" },
+    "0x20": { "name": "antenna_gimbal",   "apid": "0x030", "payloadSize": 2,  "description": "Set antenna pointing (az, el)" },
+    "0x40": { "name": "transponder_ctrl", "apid": "0x030", "payloadSize": 1,  "description": "0=off, 1=on" },
+    "0xE0": { "name": "auth_change",      "apid": "0x0E0", "payloadSize": 32, "description": "Overwrite HMAC-SHA256 key" },
+    "0xF0": { "name": "firmware_upload",  "apid": "0x0F0", "payloadSize": -1, "description": "Write to flash (offset 2B + data)" },
+    "0xFF": { "name": "obc_reboot",       "apid": "0x0F0", "payloadSize": 0,  "description": "Hard reboot OBC" }
+  }
+}

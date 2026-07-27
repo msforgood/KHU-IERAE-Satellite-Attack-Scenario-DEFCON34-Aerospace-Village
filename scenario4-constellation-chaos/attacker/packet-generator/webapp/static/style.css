@@ -1,0 +1,902 @@
+:root{
+  --bg:#0a0e14; --panel:#0f1620; --panel2:#131c28; --line:#1e2b3a;
+  --ink:#c7d3e0; --dim:#7f92a6; --accent:#39c5ff; --amber:#ffb020;
+  --danger:#ff3b4e; --ok:#33d17a; --star:#ffd23f;
+  --f-pre:#5a6b7d; --f-tc:#39c5ff; --f-sp:#8a7dff; --f-op:#33d17a;
+  --f-pl:#ffb020; --f-crc:#ff6ad5;
+  --mono:'SFMono-Regular',ui-monospace,'Cascadia Code','Consolas',monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:18px;line-height:1.5}
+h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-weight:700}
+.hidden{display:none!important}
+.muted{color:var(--dim);font-size:16px}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;
+  padding:16px 22px;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{display:flex;gap:14px;align-items:center}
+.sat{font-size:34px}
+.title{font-weight:700;letter-spacing:.06em;color:#eaf2fb;font-size:22px}
+.sub{font-size:15px;color:var(--dim)}
+.linkinfo{display:flex;gap:12px;align-items:center;font-size:16px;color:var(--dim)}
+.linkinfo .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+
+/* ── MISSION briefing ── */
+.mission{display:flex;gap:18px;align-items:flex-start;margin:16px 16px 0;padding:18px 22px;
+  background:linear-gradient(90deg,rgba(57,197,255,.08),rgba(19,28,40,.5));
+  border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px}
+.mtag{font-size:16px;font-weight:800;letter-spacing:.1em;color:var(--accent);white-space:nowrap;padding-top:2px}
+.mtext{font-size:18px;line-height:1.6;color:#dbe6f2;max-width:1200px}
+.mtext b{color:#fff}
+
+.grid{display:grid;grid-template-columns:400px 1fr 480px;gap:16px;padding:16px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+
+/* ── TARGET INTEL dossier ── */
+.dossier{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:14px}
+.drow{display:flex;justify-content:space-between;padding:7px 0;font-size:16px}
+.drow span{color:var(--dim)} .drow b{color:#eaf2fb}
+.dsep{margin:12px 0 5px;font-size:13px;letter-spacing:.14em;color:var(--accent)}
+.dnote{margin-top:12px;font-size:15px;color:var(--amber)}
+.dnote.dim{color:var(--dim)}
+.progresswrap{margin-top:18px}
+.prow{display:flex;justify-content:space-between;font-size:15px;color:var(--dim);letter-spacing:.08em}
+.prail{height:10px;background:#0a121c;border:1px solid var(--line);border-radius:6px;margin:8px 0;overflow:hidden}
+.prail > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--ok));transition:.3s}
+.phint{font-size:15px;color:var(--dim)}
+
+/* ── step cards ── */
+.steps #stepList{display:flex;flex-direction:column;gap:14px}
+.step{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--panel2);
+  border-left:4px solid var(--line)}
+.step.done{border-left-color:var(--ok)}
+.step.mismatch{border-left-color:var(--danger)}
+.step.locked{opacity:.5}
+.step.locked .stitle{color:var(--dim)}
+/* collapsible steps — completed ones fold to a one-line recap */
+.step:not(.locked) > .shead{cursor:pointer}
+.step.collapsed > .shead{margin-bottom:0}
+.step.collapsed .sbody,.step.collapsed .sprompt{display:none}
+.ssum{font-size:14px;color:var(--dim);font-family:var(--mono);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
+.step:not(.collapsed) .ssum{display:none}
+.chev{color:var(--dim);font-size:13px;margin-left:4px}
+.lockmsg{padding:16px;text-align:center;color:var(--dim);font-size:15px;
+  border:1px dashed var(--line);border-radius:8px;background:#0a121c}
+.pill.locked{background:rgba(127,146,166,.12);color:var(--dim)}
+.shead{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.snum{width:30px;height:30px;border-radius:50%;background:#0a121c;border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;color:var(--dim)}
+.step.done .snum{background:var(--ok);color:#001018;border-color:var(--ok)}
+.step.mismatch .snum{background:var(--danger);color:#fff;border-color:var(--danger)}
+.stitle{flex:1;font-weight:700;letter-spacing:.05em;color:#eaf2fb;font-size:18px}
+.pill{font-size:14px;padding:4px 11px;border-radius:6px;letter-spacing:.05em;font-weight:700}
+.pill.pending{background:rgba(127,146,166,.2);color:var(--dim)}
+.pill.ok{background:rgba(51,209,122,.18);color:var(--ok)}
+.pill.bad{background:rgba(255,59,78,.2);color:var(--danger)}
+.sprompt{margin-top:12px;font-size:15px;color:var(--dim)}
+/* per-step hint button + the value-location highlight it fires */
+.stephint{margin-left:10px;padding:5px 12px;border:1px solid var(--star);border-radius:7px;
+  background:rgba(255,210,63,.08);color:var(--star);font-family:var(--mono);font-weight:700;font-size:13px;
+  cursor:pointer;vertical-align:middle}
+.stephint:hover{background:rgba(255,210,63,.18)}
+.hlpulse{border-radius:8px;background:rgba(255,210,63,.12);
+  box-shadow:0 0 0 2px var(--star),0 0 22px rgba(255,210,63,.55);animation:hlpulse 1.05s ease-in-out infinite}
+@keyframes hlpulse{50%{box-shadow:0 0 0 2px var(--star),0 0 34px rgba(255,210,63,.95)}}
+/* "do this next" cue: the chain blocks while building, then the burn variables once the chain is done.
+   the ring sits a few px OUTSIDE the box (outline-offset) so it does not hug the content edges. */
+.needsdo{border-radius:9px;outline:2px solid var(--star);outline-offset:6px;box-shadow:0 0 22px rgba(255,210,63,.45);animation:needsdoglow 1.1s ease-in-out infinite}
+@keyframes needsdoglow{50%{box-shadow:0 0 34px rgba(255,210,63,.9)}}
+@media(prefers-reduced-motion:reduce){.needsdo{animation:none}}
+
+/* chips (SCID / RF options) */
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:10px 16px;border:1px solid var(--line);border-radius:7px;background:#0a121c;
+  color:var(--ink);font-family:var(--mono);font-size:16px;cursor:pointer}
+.chip:hover{border-color:var(--accent)}
+.chip.sel{background:var(--accent);color:#001018;border-color:var(--accent);font-weight:700}
+.rfrow{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.rflabel{width:130px;font-size:15px;color:var(--dim);letter-spacing:.05em}
+.modlegend{margin:2px 0 14px 142px;display:flex;flex-direction:column;gap:6px;
+  font-size:13.5px;line-height:1.5;color:var(--dim)}
+.modlegend b{color:var(--ink)}
+
+/* command catalog (step 2) */
+.tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.tab{padding:8px 14px;border:1px solid var(--line);border-radius:7px;cursor:pointer;font-size:15px;
+  color:var(--dim);background:#0a121c;font-family:var(--mono)}
+.tab.active{color:#001018;background:var(--accent);border-color:var(--accent);font-weight:700}
+.cmdlist{display:flex;flex-direction:column;gap:8px}
+.cmd{padding:12px;border:1px solid var(--line);border-radius:8px;cursor:pointer;background:#0a121c}
+.cmd:hover{border-color:var(--accent)}
+.cmd.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.cmd .n{font-weight:700;color:#eaf2fb;font-size:18px} .cmd .o{font-size:14px;color:var(--dim);margin-top:2px}
+.cmd .role{font-size:14px;color:var(--dim);margin-top:6px;line-height:1.45}
+.cmd.sel .role{color:var(--ink)}
+.star{color:var(--star);font-size:13px}
+
+/* value (step 3) */
+.vhead{font-size:20px;font-weight:700;color:#eaf2fb;margin-bottom:5px}
+.fields{margin-top:16px;display:flex;flex-direction:column;gap:20px}
+.field .flabel{display:flex;justify-content:space-between;margin-bottom:8px}
+.field .fk{color:var(--accent);font-size:16px} .field .fv{font-size:28px;font-weight:700;color:#eaf2fb}
+.field .fv.bad{color:var(--danger)}
+input[type=range]{width:100%;-webkit-appearance:none;height:10px;border-radius:6px;outline:none;background:#0a121c}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;
+  background:#eaf2fb;border:4px solid var(--accent);cursor:pointer}
+.zonebar{display:flex;height:8px;border-radius:5px;overflow:hidden;margin-top:8px}
+.zone-safe{background:var(--ok)}.zone-danger{background:var(--danger)}
+.ticks{display:flex;justify-content:space-between;font-size:14px;color:var(--dim);margin-top:5px}
+input[type=number]{background:#0a121c;border:1px solid var(--line);color:#eaf2fb;padding:10px;border-radius:7px;
+  font-family:var(--mono);width:150px;font-size:20px}
+.toggle{display:inline-flex;gap:10px;align-items:center;cursor:pointer;font-size:16px}
+.toggle .sw{width:52px;height:28px;border-radius:14px;background:var(--line);position:relative;transition:.15s}
+.toggle .sw::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#eaf2fb;transition:.15s}
+.toggle.on .sw{background:var(--ok)}.toggle.on .sw::after{left:27px}
+.confirm{margin-top:16px;padding:11px 20px;border:1px solid var(--accent);border-radius:8px;background:transparent;
+  color:var(--accent);font-family:var(--mono);font-weight:700;font-size:16px;cursor:pointer}
+.confirm:hover{background:rgba(57,197,255,.12)}
+.confirm.done{background:var(--ok);border-color:var(--ok);color:#001018}
+.danger{margin-top:16px;padding:12px;border:1px solid var(--danger);border-radius:8px;
+  background:rgba(255,59,78,.1);color:#ff9aa5;font-weight:700;font-size:16px;animation:pulse 1.1s infinite}
+@keyframes pulse{50%{box-shadow:0 0 16px rgba(255,59,78,.5)}}
+.effect{margin-top:14px;padding:12px;border-left:4px solid var(--amber);background:#0a121c;
+  border-radius:0 8px 8px 0;font-size:16px}
+.effect b{color:var(--amber)}
+.goal{margin-bottom:14px;padding:12px;border-left:4px solid var(--accent);background:#08151f;
+  border-radius:0 8px 8px 0;font-size:15px;line-height:1.55;color:#dbe6f2}
+.goal b{color:#eaf2fb}
+
+/* frame breakdown */
+.breakdown{display:flex;flex-wrap:wrap;gap:8px;min-height:44px}
+.await{color:var(--dim);font-size:16px;font-style:italic}
+.seg{border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:var(--panel2)}
+.seg .sl{font-size:12px;letter-spacing:.05em;color:var(--dim);margin-bottom:6px;white-space:nowrap;text-transform:uppercase}
+.seg .bytes{display:flex;gap:5px}
+.byte{font-size:16px;padding:4px 7px;border-radius:5px;background:#0a121c;color:#eaf2fb;cursor:default;border-bottom:3px solid transparent}
+.f-preamble .byte{border-color:var(--f-pre)} .f-preamble .sl{color:var(--f-pre)}
+.f-tc_header .byte{border-color:var(--f-tc)} .f-tc_header .sl{color:var(--f-tc)}
+.f-sp_header .byte{border-color:var(--f-sp)} .f-sp_header .sl{color:var(--f-sp)}
+.f-opcode .byte{border-color:var(--f-op)} .f-opcode .sl{color:var(--f-op)}
+.f-payload .byte{border-color:var(--f-pl)} .f-payload .sl{color:var(--f-pl)}
+.f-crc .byte{border-color:var(--f-crc)} .f-crc .sl{color:var(--f-crc)}
+.metaline{margin-top:12px;font-size:15px;color:var(--dim)}
+
+#wave{width:100%;height:100px;background:#070c12;border:1px solid var(--line);border-radius:8px;margin-bottom:14px}
+
+.genbtn{width:100%;padding:16px;border:none;border-radius:9px;cursor:pointer;font-family:var(--mono);
+  font-weight:700;font-size:19px;letter-spacing:.04em}
+.genbtn.locked{background:#131c28;color:var(--dim);border:1px solid var(--line);cursor:not-allowed}
+.genbtn.armed{background:linear-gradient(90deg,var(--danger),#c02234);color:#fff}
+.genbtn.armed:hover{filter:brightness(1.1)}
+.result{margin-top:14px;padding:14px;border:1px solid var(--ok);border-radius:8px;background:rgba(51,209,122,.08);font-size:16px}
+.result a{color:var(--accent)} .result .path{color:#eaf2fb;word-break:break-all}
+
+.tooltip{position:fixed;z-index:50;background:#050a10;border:1px solid var(--accent);border-radius:6px;
+  padding:10px 12px;font-size:15px;color:var(--ink);max-width:280px;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+.tooltip b{color:var(--accent)}
+
+/* ═══════════ PHASE A · BRIEFING ═══════════ */
+.phase{}
+.briefwrap{max-width:1180px;margin:0 auto;padding:26px 20px 40px}
+.phasetag{display:inline-block;font-size:14px;font-weight:800;letter-spacing:.14em;color:var(--accent);
+  border:1px solid var(--accent);border-radius:6px;padding:5px 12px;margin-bottom:16px}
+.brieftitle{font-size:30px;color:#eaf2fb;margin:0 0 26px;font-weight:700;letter-spacing:.02em}
+.briefgrid{display:grid;grid-template-columns:480px 1fr;gap:34px;align-items:start}
+
+.scene{background:linear-gradient(180deg,#0b1220,#070c14);border:1px solid var(--line);
+  border-radius:14px;padding:16px}
+.satscene{width:100%;height:auto;display:block}
+:root{--dur:10s}
+.sat{transform-box:fill-box;transform-origin:center;animation:tumble var(--dur) linear infinite}
+.panel{fill:#12324a;stroke:#39c5ff;stroke-width:2}
+.pgrid{stroke:#0a2033;stroke-width:1.5}
+.rays{animation:raysfade var(--dur) ease-in-out infinite}
+.cmdflash{opacity:0;animation:cmdpop var(--dur) ease-out infinite}
+@keyframes tumble{0%,22%{transform:rotate(0)}100%{transform:rotate(720deg)}}
+@keyframes raysfade{0%,24%{opacity:.85}46%,100%{opacity:.1}}
+@keyframes cmdpop{0%,19%{opacity:0;transform:translateY(8px)}23%{opacity:1;transform:none}
+  54%{opacity:1}60%{opacity:.85}100%{opacity:.85}}
+.statebar{position:relative;height:26px;margin-top:12px;text-align:center}
+.stlabel{position:absolute;left:0;right:0;font-size:16px;font-weight:700;letter-spacing:.04em}
+.stlabel.ok{color:var(--ok);animation:okfade var(--dur) ease-in-out infinite}
+.stlabel.bad{color:var(--danger);animation:badfade var(--dur) ease-in-out infinite}
+@keyframes okfade{0%,26%{opacity:1}33%,100%{opacity:0}}
+@keyframes badfade{0%,26%{opacity:0}33%,100%{opacity:1}}
+.powerwrap{display:flex;align-items:center;gap:12px;margin-top:14px;font-size:15px;color:var(--dim)}
+.powerbar{flex:1;height:14px;border-radius:7px;background:#0a121c;border:1px solid var(--line);overflow:hidden}
+.powerfill{display:block;height:100%;width:100%;background:var(--ok);animation:powerdrop var(--dur) ease-in-out infinite}
+@keyframes powerdrop{0%,25%{width:100%;background:var(--ok)}45%{width:46%;background:var(--amber)}
+  65%,100%{width:7%;background:var(--danger)}}
+
+/* compact persistent scene inside the builder's intel panel */
+.minisc{margin-top:16px;padding:12px}
+.minisc .scenecap{font-size:13px;font-weight:800;letter-spacing:.1em;color:var(--accent);margin-bottom:8px}
+.minisc .statebar{height:22px;margin-top:8px}
+.minisc .stlabel{font-size:14px}
+.minisc .powerwrap{margin-top:10px;font-size:14px}
+
+.brieftext{display:flex;flex-direction:column;gap:20px}
+.bsec h3{margin:0 0 6px;font-size:18px;color:var(--accent);letter-spacing:.03em}
+.bsec p{margin:0;font-size:17px;line-height:1.6;color:#dbe6f2}
+.bsec b{color:#fff}
+.hl{display:inline;color:#ff6a78;font-weight:700}
+.understand{display:flex;gap:12px;align-items:flex-start;margin:30px 0 18px;padding:16px 18px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:17px;color:#dbe6f2}
+.understand input{width:22px;height:22px;margin-top:1px;accent-color:var(--accent);cursor:pointer}
+.bigbtn{padding:16px 34px;border:none;border-radius:10px;font-family:var(--mono);font-weight:700;
+  font-size:19px;letter-spacing:.04em;cursor:pointer;background:linear-gradient(90deg,var(--accent),#2a8fd0);color:#001018}
+.bigbtn:disabled{background:#131c28;color:var(--dim);cursor:not-allowed}
+.bigbtn:not(:disabled):hover{filter:brightness(1.1)}
+
+/* ═══════════ PHASE B extras ═══════════ */
+/* per-phase instruction bar: strongly highlighted so participants always see WHAT TO DO */
+.objbar{display:flex;gap:16px;align-items:center;margin:16px 16px 0;padding:16px 22px;
+  background:linear-gradient(90deg,rgba(57,197,255,.17),rgba(19,28,40,.55));
+  border:1px solid rgba(57,197,255,.5);border-left:6px solid var(--accent);border-radius:12px;
+  font-size:16.5px;line-height:1.55;color:#eaf3fb;
+  box-shadow:0 0 0 1px rgba(57,197,255,.12),0 6px 22px rgba(57,197,255,.12);
+  animation:objglow 3.2s ease-in-out infinite}
+.objbar b{color:#fff}
+.objbar .phasetag{margin:0;background:var(--accent);color:#04121e;border-color:var(--accent);
+  box-shadow:0 0 12px rgba(57,197,255,.5);white-space:nowrap}
+.objbar span:not(.phasetag)::before{content:'▶ ';color:var(--accent);font-weight:800}
+@keyframes objglow{0%,100%{box-shadow:0 0 0 1px rgba(57,197,255,.12),0 4px 18px rgba(57,197,255,.08)}
+  50%{box-shadow:0 0 0 1px rgba(57,197,255,.34),0 8px 28px rgba(57,197,255,.24)}}
+@media(prefers-reduced-motion:reduce){.objbar,.todobox{animation:none}}
+#frameProg{color:var(--accent);font-weight:700}
+.wavehint{font-size:14px;color:var(--dim);margin:-6px 0 12px}
+/* progressive frame: pending vs filled segments */
+.seg.pending{border-style:dashed;opacity:.6}
+.seg.pending .bytes{opacity:.5}
+.byte.ph{color:var(--dim);background:#0a121c;border-bottom-color:transparent}
+.seg .anno{font-size:12px;color:var(--ok);margin-top:4px}
+.seg.pending .anno{color:var(--amber)}
+
+@media(max-width:1300px){.grid{grid-template-columns:1fr}.briefgrid{grid-template-columns:1fr}}
+
+/* ═══════════ SCENARIO 4 · orbit planner + thrust pad + uplink ═══════════ */
+h2.mt{margin-top:20px}
+.simhint{font-size:12px;letter-spacing:.02em;color:var(--dim);text-transform:none;font-weight:400}
+.simwrap{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#05090f}
+.plansim{display:block;width:100%;height:50vh;min-height:360px;cursor:grab;background:#05090f;border-radius:8px}
+.plansim:active{cursor:grabbing}
+.planstatus{padding:10px 12px;font-size:14px;line-height:1.5;border-top:1px solid var(--line);
+  background:#0a121c;color:var(--dim)}
+.planstatus b{color:#eaf2fb}
+.planstatus.course{background:rgba(255,59,78,.12);color:#ffb3bb;border-top-color:var(--danger)}
+.planstatus.course b{color:#fff}
+.planstatus.short{background:rgba(255,176,32,.10);color:#ffd9a0;border-top-color:var(--amber)}
+.planstatus.over{background:rgba(255,176,32,.10);color:#ffd9a0;border-top-color:var(--amber)}
+.simlegend{display:flex;gap:16px;margin:10px 2px 0;font-size:13px;color:var(--dim);flex-wrap:wrap}
+.simlegend i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.simlegend .lg-atk{background:#eaf2ff;box-shadow:0 0 0 1.5px #39c5ff}
+.simlegend .lg-nbr{background:var(--amber)}
+.simlegend .lg-pred{background:transparent;border:2px dashed #e45cff;width:12px;height:12px;border-radius:0}
+
+/* thrust pad (step 3, orbit_maneuver) */
+.thrustpad{margin-top:16px;display:flex;flex-direction:column;gap:16px}
+.axisrow{background:#0a121c;border:1px solid var(--line);border-radius:9px;padding:12px 14px}
+.axlabel{font-size:15px;color:var(--accent);margin-bottom:10px;letter-spacing:.02em}
+.axctl{display:flex;align-items:center;gap:10px}
+.stepbtn{width:44px;height:44px;border:1px solid var(--line);border-radius:8px;background:#131c28;
+  color:#eaf2fb;font-size:26px;font-weight:700;cursor:pointer;line-height:1;font-family:var(--mono)}
+.stepbtn:hover{border-color:var(--accent);background:#17222f}
+.axinput{background:#05090f;border:1px solid var(--line);color:#eaf2fb;padding:10px;border-radius:8px;
+  font-family:var(--mono);width:100px;font-size:24px;text-align:center;font-weight:700}
+.axinput:focus{outline:none;border-color:var(--accent)}
+.axunit{font-size:15px;color:var(--dim)}
+.axhint{display:flex;justify-content:space-between;margin-top:8px;font-size:13px;color:var(--dim)}
+.goal .rz{color:var(--danger)}
+
+/* uplink + reset buttons */
+.uplinkbtn{width:100%;margin-top:12px;padding:15px;border:none;border-radius:9px;cursor:pointer;
+  font-family:var(--mono);font-weight:700;font-size:18px;letter-spacing:.03em;
+  background:linear-gradient(90deg,var(--danger),#c02234);color:#fff}
+.uplinkbtn:hover:not(:disabled){filter:brightness(1.12)}
+.uplinkbtn:disabled{background:#131c28;color:var(--dim);cursor:not-allowed}
+.resetbtn{width:100%;margin-top:12px;padding:13px;border:1px solid var(--accent);border-radius:9px;
+  background:transparent;color:var(--accent);font-family:var(--mono);font-weight:700;font-size:16px;cursor:pointer}
+.resetbtn:hover{background:rgba(57,197,255,.12)}
+.result.hit{border-color:var(--danger);background:rgba(255,59,78,.10);color:#ffb3bb}
+.result.hit b{color:#fff}
+.result.miss{border-color:var(--amber);background:rgba(255,176,32,.10);color:#ffd9a0}
+.result.miss b{color:#fff}
+
+/* briefing concept illustration */
+.orbscene{width:100%;height:auto;display:block;max-height:100%}
+.orbscene .maneuver{animation:manpulse 3s ease-in-out infinite}
+.orbscene .burst{transform-box:fill-box;transform-origin:290px 165px;animation:burstpulse 3s ease-in-out infinite}
+.orbscene .blast{transform-box:fill-box;transform-origin:50% 50%;animation:blastpulse 2.4s ease-in-out infinite}
+@keyframes blastpulse{0%,100%{transform:scale(.93);opacity:.9}50%{transform:scale(1.07);opacity:1}}
+@keyframes manpulse{0%,100%{opacity:.35}50%{opacity:1}}
+@keyframes burstpulse{0%,45%{opacity:0;transform:scale(.4)}60%{opacity:1;transform:scale(1)}
+  85%{opacity:.7;transform:scale(1.15)}100%{opacity:0;transform:scale(1.3)}}
+
+/* ═══════════ SCENARIO 4 · phase flow (monitor 1) ═══════════ */
+.phasebar{display:flex;gap:2px;padding:0 16px;margin-top:14px}
+.pstep{flex:1;display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--panel2);
+  border:1px solid var(--line);color:var(--dim);font-size:15px;letter-spacing:.06em;font-weight:700}
+.pstep:first-child{border-radius:10px 0 0 10px}.pstep:last-child{border-radius:0 10px 10px 0}
+.pstep .pnum{width:26px;height:26px;border-radius:50%;background:#0a121c;border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-size:14px}
+.pstep.active{color:#eaf2fb;border-color:var(--accent);background:rgba(57,197,255,.1)}
+.pstep.active .pnum{background:var(--accent);color:#001018;border-color:var(--accent)}
+.pstep.done{color:var(--ok)}
+.pstep.done .pnum{background:var(--ok);color:#001018;border-color:var(--ok)}
+
+/* phase 1 plan layout — sim + thruster controls share the LEFT column (same width),
+   satellite info on the right. So the input area matches the sim's width. */
+.planwrap{display:grid;grid-template-columns:1fr 320px;gap:16px;padding:16px;align-items:start;
+  grid-template-areas:"sim info" "controls info"}
+.planwrap > .simcol{grid-area:sim}
+.planwrap > .satpanel{grid-area:info}
+.planwrap > .plancontrols{grid-area:controls}
+@media(max-width:900px){.planwrap{grid-template-columns:1fr;grid-template-areas:"sim" "info" "controls"}}
+.simcol{padding:14px 16px}
+.planctl-grid{display:grid;grid-template-columns:300px 1fr 340px;gap:22px;align-items:start}
+.pc-thrust .thrustpad{margin-top:12px}
+.thrustpad{display:flex;flex-direction:column;gap:14px}
+.pc-go{display:flex;flex-direction:column;gap:14px}
+.pc-go .bigbtn{width:100%;justify-content:center}
+@media(max-width:1100px){.planctl-grid{grid-template-columns:1fr}}
+
+/* phase 2 top: phase-1 maneuver recap + packet build guide */
+.p2top{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 16px 0}
+.planrecap,.buildguide{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.planrecap{border-left:4px solid var(--danger)}
+.buildguide{border-left:4px solid var(--accent)}
+.prtag,.bgtag{font-size:13px;font-weight:800;letter-spacing:.12em;margin-bottom:14px}
+.prtag{color:var(--danger)} .bgtag{color:var(--accent)}
+.prcells{display:flex;flex-wrap:wrap;gap:12px 22px;align-items:flex-end}
+.prcell{display:flex;flex-direction:column;gap:3px}
+.prcell span{font-size:13px;color:var(--dim);letter-spacing:.04em}
+.prcell b{font-size:23px;color:#eaf2fb;font-weight:700;line-height:1}
+.prcell.arrow{justify-content:flex-end;font-size:22px;color:var(--dim);padding-bottom:2px}
+.prcell.res b{color:var(--accent)}
+.prtarget{margin-top:12px;font-size:14px;color:#ffd9a0}
+.prhint{margin-top:8px;font-size:13px;color:var(--dim)}
+.prhint a{color:var(--accent)}
+.bglist{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:1.5;color:#dbe6f2}
+.bglist li b{color:#fff}
+.bglist .bgstep{color:var(--accent);font-weight:700}
+@media(max-width:1000px){.p2top{grid-template-columns:1fr}}
+
+/* burn recap (phase 2 intel) */
+.burnrecap{margin-top:14px;padding:12px;border-left:4px solid var(--danger);background:#12060a;border-radius:0 8px 8px 0}
+.burnrecap .brl{font-size:12px;letter-spacing:.14em;color:var(--danger);font-weight:800}
+.burnrecap .brv{margin-top:6px;font-size:16px;color:#eaf2fb}
+.burnrecap .brhint{margin-top:6px;font-size:13px;color:var(--dim)}
+
+/* phase 2 step-3 read-only planned value */
+.planval{margin:14px 0;padding:14px;background:#0a121c;border:1px solid var(--line);border-radius:9px}
+.pvrow{display:flex;justify-content:space-between;padding:6px 0;font-size:17px}
+.pvrow span{color:var(--dim)} .pvrow b{color:#eaf2fb;font-size:20px}
+.pvnote{margin-top:8px;font-size:13px;color:var(--dim)} .pvnote a{color:var(--accent)}
+
+/* phase 3 uplink */
+.uplinkwrap{padding:16px;display:flex;justify-content:center}
+.uplinkcard{width:100%;max-width:760px}
+.uplinksummary{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:16px;margin-bottom:16px}
+.usrow{display:flex;justify-content:space-between;padding:9px 0;font-size:17px;border-bottom:1px solid rgba(30,43,58,.5)}
+.usrow:last-of-type{border-bottom:none}.usrow span{color:var(--dim)}.usrow b{color:#eaf2fb}
+.usnote{margin-top:12px;font-size:14px;color:var(--amber)}
+
+/* phase 4 observe */
+.observewrap{padding:16px;display:flex;justify-content:center}
+.observecard{width:100%;max-width:760px;text-align:center;padding:34px}
+.observeresult{font-size:20px;line-height:1.6;color:#dbe6f2;padding:20px;border-radius:10px;border:1px solid var(--line);background:var(--panel2)}
+.observeresult.hit{border-color:var(--danger);background:rgba(255,59,78,.1);color:#ffb3bb}
+.observeresult.hit b{color:#fff}
+.observeresult.miss{border-color:var(--amber);background:rgba(255,176,32,.1);color:#ffd9a0}
+.observeresult.miss b{color:#fff}
+/* phase 4 · celebratory success */
+.observeresult.celebrate{border-color:var(--ok);background:linear-gradient(180deg,rgba(51,209,122,.14),rgba(255,210,63,.06));
+  animation:celebpulse 1.2s ease-in-out infinite}
+@keyframes celebpulse{50%{box-shadow:0 0 44px rgba(51,209,122,.4)}}
+.celebico{font-size:56px;line-height:1;margin-bottom:8px;animation:celebbounce 1s ease-in-out infinite}
+@keyframes celebbounce{50%{transform:translateY(-8px)}}
+.celebtitle{font-size:30px;font-weight:800;color:var(--ok);letter-spacing:.02em}
+.celebsub{margin-top:12px;font-size:17px;color:#dbe6f2;line-height:1.6}
+.celebsub b{color:#fff}
+.observebtns{margin-top:22px}
+.observenote{margin-top:14px;font-size:14px;color:var(--dim)}
+/* phase 4 · uplink-in-flight animation (command travelling to the satellite) */
+.observeresult.uplinking{border-color:var(--accent);background:rgba(57,197,255,.08)}
+.uplinkanim{padding:10px 4px}
+.ua-row{display:flex;align-items:center;justify-content:center}
+.ua-gs,.ua-sat{font-size:40px;line-height:1}
+.ua-sat{animation:uawiggle 1.5s ease-in-out infinite}
+@keyframes uawiggle{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.ua-beam{position:relative;flex:1;max-width:300px;height:4px;margin:0 16px;border-radius:2px;
+  background:linear-gradient(90deg,rgba(57,197,255,.12),rgba(57,197,255,.28))}
+.ua-beam i{position:absolute;top:50%;margin-top:-6px;width:12px;height:12px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 12px var(--accent);animation:uapacket 1.4s linear infinite}
+.ua-beam i:nth-child(2){animation-delay:.35s}.ua-beam i:nth-child(3){animation-delay:.7s}.ua-beam i:nth-child(4){animation-delay:1.05s}
+@keyframes uapacket{0%{left:-2%;opacity:0}12%{opacity:1}88%{opacity:1}100%{left:100%;opacity:0}}
+.ua-label{margin-top:18px;font-size:19px;font-weight:800;letter-spacing:.04em;color:var(--accent)}
+.ua-sub{margin-top:8px;font-size:14px;color:var(--dim);line-height:1.5}
+/* phase 4 · live impact countdown (predicted hit, waiting for monitor 2 to confirm) */
+.observeresult.counting{border-color:var(--amber);background:rgba(255,176,32,.09)}
+.observeresult.counting.impact{border-color:var(--danger);background:rgba(255,59,78,.12);animation:cdimpact .5s ease-in-out infinite}
+@keyframes cdimpact{50%{box-shadow:0 0 40px rgba(255,59,78,.45)}}
+.cdtag{font-family:var(--mono);font-size:15px;letter-spacing:.04em;color:var(--amber);font-weight:700}
+.cdtag.danger{color:var(--danger)} .cdtag b{color:#fff}
+.cdclock{margin:16px 0 6px;font-family:var(--mono);font-size:26px;font-weight:800;letter-spacing:.05em;color:#ffd9a0}
+.cdclock b{font-size:58px;color:var(--amber);margin:0 8px}
+.cdclock span{font-size:24px;color:var(--dim);margin-left:2px}
+.cdclock.danger{color:#ffb3bb;font-size:44px}.cdclock.danger b{color:var(--danger)}
+.cdrail{height:10px;border-radius:6px;background:#0a121c;border:1px solid var(--line);overflow:hidden;margin:14px auto;max-width:520px}
+.cdrail i{display:block;height:100%;background:linear-gradient(90deg,var(--amber),var(--danger));transition:width .12s linear}
+.cdsub{margin-top:10px;font-size:15px;color:var(--dim);line-height:1.5}
+/* phase 4 · miss / not-confirmed */
+.obico{font-size:46px;line-height:1;margin-bottom:6px;color:var(--amber)}
+.obtitle{font-size:26px;font-weight:800;color:var(--amber);letter-spacing:.02em}
+.obsub{margin-top:12px;font-size:16px;color:#ffd9a0;line-height:1.6} .obsub b{color:#fff}
+
+/* phase nav */
+.phasenav{padding:0 16px 20px}
+.navback{padding:11px 20px;border:1px solid var(--line);border-radius:8px;background:transparent;
+  color:var(--dim);font-family:var(--mono);font-size:15px;cursor:pointer}
+.navback:hover{border-color:var(--accent);color:var(--accent)}
+.bigbtn.hidden{display:none!important}
+@media(max-width:1100px){.planlayout{grid-template-columns:1fr}}
+
+/* ═══════════ SCENARIO 4 · phase-1 v2 (sim + info, inputs below) + intro ═══════════ */
+.plantop{display:grid;grid-template-columns:1fr 320px;gap:16px}
+.satpanel{align-self:start}
+.satinfo{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:14px;min-height:150px}
+.siempty{color:var(--dim);font-size:15px;font-style:italic;line-height:1.6}
+.sihead{font-size:18px;font-weight:700;color:#eaf2fb;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sirole{font-size:11px;padding:2px 8px;border-radius:5px;letter-spacing:.06em;font-weight:700}
+.sirole.atk{background:rgba(57,197,255,.18);color:var(--accent)}
+.sirole.tgt{background:rgba(255,176,32,.18);color:var(--amber)}
+.sirow{display:flex;justify-content:space-between;padding:9px 0;font-size:16px;border-bottom:1px solid rgba(30,43,58,.5)}
+.sirow:last-child{border-bottom:none}
+.sirow span{color:var(--dim)} .sirow b{color:#eaf2fb;font-size:20px}
+.sihint{margin-top:12px;font-size:13px;color:var(--amber);line-height:1.5}
+/* hint button (highlights the reachable answer orbit) */
+.hintbtn{margin-top:14px;width:100%;padding:12px;border:1px solid var(--star);border-radius:9px;
+  background:rgba(255,210,63,.08);color:var(--star);font-family:var(--mono);font-weight:700;font-size:15px;cursor:pointer}
+.hintbtn:hover{background:rgba(255,210,63,.16)}
+.hintbtn.on{background:var(--star);color:#1a1400;border-color:var(--star)}
+/* planner status: path crosses a satellite on a different plane (unreachable) */
+.planstatus.plane{background:rgba(180,120,255,.12);color:#d9b3ff;border-top-color:#b98cff}
+.planstatus.plane b{color:#fff}
+.plancontrols{display:block}
+.pclabel{font-size:14px;letter-spacing:.12em;color:var(--dim);font-weight:700;margin-bottom:14px}
+.pclabel .simhint{letter-spacing:normal}
+/* thruster blocks, always one horizontal row */
+.thrustrow{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.thrustcol{background:#0a121c;border:1px solid var(--line);border-radius:12px;padding:16px}
+.txhead{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px}
+.txname{font-size:17px;font-weight:700;color:var(--accent);letter-spacing:.02em}
+.txko{font-size:15px;color:#eaf2fb;font-weight:700}
+.txdesc{font-size:12.5px;color:var(--dim);line-height:1.4;margin-bottom:12px;min-height:34px}
+.thrustcol .axctl{display:flex;align-items:center;gap:8px}
+.thrustcol .axinput{flex:1;text-align:center;font-size:20px;font-weight:700}
+.txunit{font-size:11.5px;color:var(--dim);letter-spacing:.06em;text-align:center;margin-top:8px}
+.txresult{margin-top:10px;padding-top:10px;border-top:1px dashed rgba(57,197,255,.28);
+  font-size:14px;color:#cfe6ff;text-align:center}
+.txresult b{color:#fff;font-size:16px}
+.planfoot{display:flex;align-items:center;gap:20px;margin-top:16px;flex-wrap:wrap}
+.planfoot .planstatus{flex:1;min-width:300px;margin:0;border-top:none;border-radius:9px;
+  background:rgba(255,255,255,.02)}
+.planfoot .bigbtn{white-space:nowrap}
+.planstatus.off{background:rgba(255,176,32,.10);color:#ffd9a0;border-top-color:var(--amber)}
+/* phase 2 editable value */
+.valgrid{display:flex;gap:16px;flex-wrap:wrap;margin:16px 0}
+.valfield{display:flex;flex-direction:column;gap:6px}
+.valfield label{font-size:14px;color:var(--accent)} .valfield .vu{color:var(--dim)}
+/* intro */
+.introwrap{max-width:1080px;margin:0 auto;padding:26px 20px 40px}
+.introgrid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:30px;align-items:stretch;margin-bottom:24px}
+.introgrid .scene{background:linear-gradient(180deg,#0b1220,#070c14);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;justify-content:center}
+@media(max-width:900px){.plantop{grid-template-columns:1fr}.introgrid{grid-template-columns:1fr}}
+/* intro right column: overall goal + emoji step flow (short, scannable at a glance) */
+.briefright{display:flex;flex-direction:column;gap:12px}
+.briefright .brieftitle{margin:0;font-size:28px;line-height:1.18}
+.hlgreen{color:#5cf0a0}
+.brieflede{margin:0;font-size:16px;line-height:1.55;color:#c6d4e2}
+.brieflede b{color:#fff}
+.stepflow{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.stepitem{display:flex;align-items:center;gap:14px;background:var(--panel2);border:1px solid var(--line);border-left:3px solid #3a5f8f;border-radius:11px;padding:12px 16px}
+.stepitem .se{font-size:22px;line-height:1;width:42px;height:42px;display:flex;align-items:center;justify-content:center;background:#0a121c;border:1px solid var(--line);border-radius:10px;flex-shrink:0}
+.stepitem .stx{flex:1;font-size:16px;color:#dbe6f2;min-width:0}
+.stepitem .stx b{color:#fff}
+.stepitem .snum{font-family:var(--mono);font-size:18px;font-weight:800;color:var(--dim);opacity:.65;letter-spacing:.04em;flex-shrink:0}
+#toIntel{margin-top:24px}   /* space between the difficulty picker and START */
+.briefmore{margin-top:16px;width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--accent);font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:.02em;cursor:pointer}
+.briefmore:hover{border-color:var(--accent);background:#0f1a26}
+.briefmore.on{border-color:var(--accent);background:#0f1a26}
+.bmhint{color:var(--dim);font-weight:400;font-size:13px;opacity:.85}
+.briefdetails{margin-top:14px;display:flex;flex-direction:column;gap:16px;border-top:1px solid var(--line);padding-top:16px}
+
+/* phase 3 · VSA <-> GPredict link diagram */
+.linkdiag{display:flex;align-items:center;gap:14px;margin:6px 0 18px}
+.linknode{flex:0 0 160px;text-align:center;padding:16px 10px;border:1px solid var(--line);border-radius:12px;
+  background:#0a121c;opacity:.55;transition:.3s}
+.linknode.on{opacity:1;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 22px rgba(57,197,255,.2)}
+.lnicon{font-size:34px;line-height:1}
+.lnname{font-weight:700;font-size:18px;color:#eaf2fb;margin-top:6px;letter-spacing:.04em}
+.lnsub{font-size:13px;color:var(--dim);margin-top:2px}
+.linkwire{flex:1;height:4px;border-radius:2px;background:#13202e;position:relative;overflow:hidden}
+.linkwire.linked{background:linear-gradient(90deg,var(--accent),#2a8fd0)}
+.linkwire .lnbeam{position:absolute;top:0;left:-40%;width:40%;height:100%;background:rgba(255,255,255,.7);
+  filter:blur(2px);opacity:0}
+.linkwire.linked .lnbeam{opacity:1;animation:lnbeam 1s linear infinite}
+@keyframes lnbeam{from{left:-40%}to{left:100%}}
+.linksteps{display:flex;flex-direction:column;gap:9px;margin-bottom:6px}
+.lstep{display:flex;align-items:center;gap:11px;font-size:15px;color:var(--dim);opacity:.5;transition:.3s}
+.lstep .lsdot{width:11px;height:11px;border-radius:50%;background:#1e2b3a;border:1px solid var(--line);flex:0 0 auto}
+.lstep.on{opacity:1;color:#dbe6f2}
+.lstep.on .lsdot{background:var(--ok);border-color:var(--ok);box-shadow:0 0 8px var(--ok)}
+
+/* phase 3 · gpredict iframe */
+/* phase 3: VSA + gpredict side by side (top row), uplink card full width below */
+.uplinkwrap2{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;padding:16px}
+.uplinkwrap2 .uplinkcard{grid-column:1 / -1;max-width:none;width:auto}
+.vsapanel,.gpredictpanel{padding:14px 16px}
+.vsaframewrap,.gpframewrap{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#05090f}
+.vsaframe,.gpredictframe{display:block;width:100%;height:56vh;min-height:420px;border:0;background:#0a121c}
+.gpfallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;
+  padding:30px;color:var(--amber);font-size:15px;line-height:1.7;background:#0a121c}
+.gpfallback code{color:#eaf2fb;background:#131c28;padding:2px 7px;border-radius:5px}
+/* phase 3 · gpredict position-reset (next pass) */
+.gpctl{display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap}
+.resetpassbtn{padding:10px 16px;border:1px solid var(--amber);border-radius:8px;background:rgba(255,176,32,.1);
+  color:var(--amber);font-family:var(--mono);font-weight:700;font-size:15px;cursor:pointer}
+.resetpassbtn:hover:not(:disabled){background:rgba(255,176,32,.2)}
+.resetpassbtn:disabled{opacity:.6;cursor:not-allowed}
+.resetpassbtn.engagebtn{border-color:var(--accent);background:rgba(57,197,255,.1);color:var(--accent)}
+.resetpassbtn.engagebtn:hover:not(:disabled){background:rgba(57,197,255,.2)}
+.passstatus{font-size:14px;color:var(--dim)}
+.passstatus.ok{color:var(--ok)} .passstatus.err{color:var(--danger)}
+@media(max-width:1100px){.uplinkwrap2{grid-template-columns:1fr}}
+
+/* ═══════════ SCENARIO 4 · orbital collision UI ═══════════ */
+.simlegend .lg-tgt{background:var(--danger);box-shadow:0 0 0 1.5px #ff8a95}
+/* phase 1 intel */
+.intelwrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px}
+.tleraw{background:#0a121c;border:1px solid var(--line);border-radius:9px;padding:14px;font-family:var(--mono);font-size:13px;color:#bcd;white-space:pre;overflow:auto;line-height:1.55}
+.inteltable{min-height:120px}
+.intelgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.intelcard{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:14px}
+.intelname{font-size:17px;font-weight:800;color:#eaf2fb;margin-bottom:10px}
+.intelrow{display:flex;justify-content:space-between;padding:6px 0;font-size:14px;border-bottom:1px solid rgba(30,43,58,.5)}
+.intelrow:last-child{border-bottom:none}.intelrow span{color:var(--dim)}.intelrow b{color:#eaf2fb}
+.intelread{margin-top:14px;padding:12px 14px;background:rgba(57,197,255,.08);border:1px solid rgba(57,197,255,.3);border-radius:9px;font-size:14px;line-height:1.6;color:#cfe6f6}
+.intelread b{color:#fff}
+/* phase 2 geometry (stage 1) */
+.stagewrap{display:grid;grid-template-columns:2fr 340px;gap:16px;padding:16px}
+.stagesim{width:100%;height:520px;display:block;border-radius:9px;background:#050b12}
+.stagectl{align-self:start;display:flex;flex-direction:column;gap:14px}
+.ctlblock{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:12px}
+.ctlhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.ctlname{font-size:15px;font-weight:800;letter-spacing:.04em;color:#eaf2fb}
+.ctltag{font-size:12px;color:var(--dim)}
+/* colour-code the three Phase 3 blocks so each block's name + role is easy to tell apart.
+   cyan = build the chain, violet = tune the values, green = the computed burn plan. These are
+   all distinct from the amber "do this next" highlight. */
+.chainhead h2.mt{color:var(--accent);border-left:3px solid var(--accent);padding-left:10px}
+#varBlock{border-left:3px solid #b98cff}
+#varBlock .ctlname{color:#b98cff}
+#thrBlock{border-left:3px solid var(--ok)}
+#thrBlock .ctlname{color:var(--ok)}
+.axctl{display:flex;gap:8px;align-items:stretch}
+.axinput{flex:1;background:#0a121c;border:1px solid var(--line);border-radius:7px;color:#eaf2fb;font-size:20px;font-family:var(--mono);text-align:center;padding:8px;min-width:0}
+.stepbtn{width:44px;border:1px solid var(--line);border-radius:7px;background:#0f1a26;color:var(--accent);font-size:20px;cursor:pointer}
+.stepbtn:hover{border-color:var(--accent);background:rgba(57,197,255,.12)}
+.ctlunit{margin-top:6px;font-size:12px;color:var(--dim)}
+.moidbox{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:14px;text-align:center}
+.moidbox.locked{border-color:var(--danger);background:rgba(255,59,78,.1);animation:moidpulse 1s ease-in-out infinite}
+@keyframes moidpulse{50%{box-shadow:0 0 30px rgba(255,59,78,.35)}}
+.moidlabel{font-size:11px;letter-spacing:.06em;color:var(--dim)}
+.moidval{margin:6px 0;font-family:var(--mono)}.moidval b{font-size:40px;color:var(--amber)}.moidval span{font-size:18px;color:var(--dim);margin-left:4px}
+.moidbox.locked .moidval b{color:var(--danger)}
+.moidrail{height:8px;border-radius:5px;background:#0a121c;border:1px solid var(--line);overflow:hidden;margin:8px 0}
+.moidrail i{display:block;height:100%;width:3%;background:linear-gradient(90deg,var(--amber),var(--danger));transition:width .1s}
+.moidstate{font-size:13px;color:var(--dim)}.moidbox.locked .moidstate{color:#ffb3bb}
+.hitpanel{background:#0a121c;border:1px solid var(--line);border-radius:9px;padding:12px}
+.hitrow{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:13px;border-bottom:1px solid rgba(30,43,58,.5)}
+.hitrow:last-child{border-bottom:none}.hitrow span{color:var(--dim)}.hitrow b{color:#eaf2fb;font-family:var(--mono);text-align:right}
+.placeholder{margin:40px 16px;padding:40px;text-align:center;color:var(--dim);border:1px dashed var(--line);border-radius:10px;font-size:16px}
+/* phase 3 timing (stage 2) */
+.gapbox{background:var(--panel2);border:1px solid var(--amber);border-radius:9px;padding:14px;text-align:center}
+.gaplabel{font-size:11px;letter-spacing:.06em;color:var(--dim)}
+.gapval{margin:4px 0;font-family:var(--mono)}.gapval b{font-size:34px;color:var(--amber)}.gapval span{font-size:16px;color:var(--dim);margin-left:3px}
+.gapdesc{font-size:13px;color:#cfe6f6;line-height:1.5;margin-top:6px}.gapdesc b{color:#fff}
+.dirtoggle{display:flex;gap:8px}
+.dirbtn{flex:1;padding:9px;border:1px solid var(--line);border-radius:7px;background:#0f1a26;color:var(--dim);font-size:13px;font-weight:700;cursor:pointer}
+.dirbtn.active{border-color:var(--accent);color:var(--accent);background:rgba(57,197,255,.14)}
+.timingcanvas{width:100%;height:200px;display:block;background:#0a121c;border:1px solid var(--line);border-radius:9px}
+.timingnote{margin-top:10px;font-size:13px;color:var(--dim);line-height:1.5}.timingnote b{color:#cfe6f6}
+/* phase 4 packet, layered CCSDS view */
+.pktwrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,440px);gap:16px;padding:16px;align-items:start}
+.pkhint{color:var(--dim);font-weight:400;font-size:12px}
+.pksublabel{font-size:12px;letter-spacing:.06em;color:var(--accent);font-weight:700;margin:16px 0 8px}
+.pksublabel:first-of-type{margin-top:0}
+/* clickable layer stack */
+.pkstack{background:#0a121c;border:1px solid var(--line);border-radius:11px;padding:14px}
+.pklbox{border:1px solid;border-radius:9px;padding:10px 12px 12px}
+.pklbox.pl-b-tf{border-color:#b98cff;background:rgba(185,140,255,.06)}
+.pklhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:9px;font-size:13px}
+.pklname{font-weight:800;letter-spacing:.04em}.pklspec{color:var(--dim);font-size:12px}.pklsize{font-weight:800}
+.pkrow{display:flex;gap:8px;flex-wrap:wrap}.pkrow-stretch{align-items:stretch}
+.pkseg{border:1px solid var(--line);border-radius:8px;padding:9px 11px;flex:1 1 auto;min-width:0;cursor:pointer;transition:opacity .15s,filter .15s,box-shadow .15s}
+.pksname{font-size:12.5px;color:#eaf2fb;display:block}.pksbytes{font-size:11px;color:var(--dim)}
+.pkspp{border:1px solid #39c5ff;border-radius:9px;padding:10px 12px;flex:3 1 300px;background:rgba(57,197,255,.05)}
+.pkseg.L-tf{background:rgba(185,140,255,.20);border-color:#b98cff}
+.pkseg.L-pri{background:rgba(57,197,255,.20);border-color:#39c5ff}
+.pkseg.L-sec{background:rgba(51,209,122,.20);border-color:#33d17a}
+.pkseg.L-data{background:rgba(255,210,63,.19);border-color:#ffd23f}
+.pkseg.L-crc{background:rgba(255,90,90,.20);border-color:#ff5a5a}
+.pkseg.L-fecf{background:rgba(143,119,201,.26);border-color:#8f77c9}
+.pkseg:hover{filter:brightness(1.18)}
+.pkseg.sel{outline:2px solid #fff;outline-offset:2px;box-shadow:0 0 16px rgba(255,255,255,.20);filter:brightness(1.25)}
+.pkstack.filtering .pkseg:not(.sel){opacity:.35}
+/* filter bar */
+.pkfilter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 4px;font-size:13px;min-height:26px}
+.pkfitag{display:inline-block;padding:3px 10px;border-radius:6px;font-weight:800;color:#0a0f16}
+.pkfitag.pl-b-tf{background:#b98cff}.pkfitag.pl-b-pri{background:#39c5ff}.pkfitag.pl-b-sec{background:#33d17a}
+.pkfitag.pl-b-data{background:#ffd23f}.pkfitag.pl-b-crc{background:#ff5a5a}.pkfitag.pl-b-fecf{background:#8f77c9}
+.pkfidim{color:var(--dim)}
+.pkshowall{background:transparent;border:1px solid var(--line);color:#c7d3e0;border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:12px;cursor:pointer}
+.pkshowall:hover{border-color:#c7d3e0}
+/* field table */
+.pktbl{width:100%;border-collapse:collapse;font-size:13px}
+.pktbl th,.pktbl td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.pktbl th{color:var(--dim);font-weight:700;font-size:12px;letter-spacing:.05em}
+.pktbl td.pksz{color:#eaf2fb;white-space:nowrap;font-weight:700}
+.pktbl td.pkbits{color:var(--dim);font-size:12px;white-space:nowrap}
+.pktbl td.pkval{color:#eaf2fb;font-family:var(--mono)}
+.pktbl tr.pklz td{background:#0b1420;font-weight:800;letter-spacing:.04em}
+.pklzspec{color:var(--dim);font-weight:400;font-size:12px}
+.pkdot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;vertical-align:middle}
+.pl-tf{background:#b98cff}.pl-pri{background:#39c5ff}.pl-sec{background:#33d17a}.pl-data{background:#ffd23f}.pl-crc{background:#ff5a5a}.pl-fecf{background:#8f77c9}
+.pl-t-tf{color:#b98cff}.pl-t-pri{color:#39c5ff}
+.pkbadge{display:inline-block;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:700;border:1px solid;white-space:nowrap}
+.pkbadge.b-fic{color:#ff9aa5;border-color:rgba(255,90,90,.5);background:rgba(255,90,90,.08)}
+.pkbadge.b-cmp{color:#8fd0ff;border-color:rgba(57,197,255,.5);background:rgba(57,197,255,.08)}
+.pkbadge.b-p2{color:#ffd98a;border-color:rgba(255,210,63,.5);background:rgba(255,210,63,.08)}
+.pkbadge.b-p3{color:#9ff0c4;border-color:rgba(51,209,122,.5);background:rgba(51,209,122,.08)}
+.pkbadge.b-lnk{color:#cbb6ff;border-color:rgba(185,140,255,.5);background:rgba(185,140,255,.08)}
+.pkbadge.b-fix{color:var(--dim);border-color:var(--line)}
+/* size cards */
+.pksizes{display:grid;grid-template-columns:1fr;gap:10px}
+.pkscard{background:#0a121c;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.pkscard.pl-b-pri{border-left:3px solid #39c5ff}.pkscard.pl-b-tf{border-left:3px solid #b98cff}
+.pkst{font-size:11.5px;color:var(--dim);letter-spacing:.05em}
+.pksv{font-size:26px;font-weight:800;margin:2px 0}
+.pksb{font-size:12px;color:var(--dim)}
+/* byte map (transmit side), coloured by layer */
+.pkthex{display:flex;flex-wrap:wrap;gap:5px;font-family:var(--mono);margin-bottom:10px}
+.pb{width:31px;height:27px;display:flex;align-items:center;justify-content:center;border-radius:5px;font-size:12px;font-weight:700;color:#0a0f16;transition:opacity .15s}
+.pkthex.sel-tf .pb:not(.pl-tf),.pkthex.sel-pri .pb:not(.pl-pri),.pkthex.sel-sec .pb:not(.pl-sec),.pkthex.sel-data .pb:not(.pl-data),.pkthex.sel-crc .pb:not(.pl-crc),.pkthex.sel-fecf .pb:not(.pl-fecf){opacity:.16}
+.pktlegend{display:flex;flex-wrap:wrap;gap:10px 14px;font-size:12px;color:var(--dim)}
+.pktlegend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.pktcall{background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.3);border-radius:9px;padding:12px;font-size:13px;line-height:1.7;color:#ffd9a0;margin-bottom:14px}
+.pktcall b{color:#fff}
+@media(max-width:1100px){.stagewrap{grid-template-columns:1fr}.intelwrap{grid-template-columns:1fr}.pktwrap{grid-template-columns:1fr}.solvewrap{grid-template-columns:1fr}}
+
+/* ═══════════ SCENARIO 4 · LIVE FORMULA PANELS ═══════════ */
+/* a full-width band under each stage that shows the ACTUAL orbital-mechanics
+   equations with the participant's live values substituted in real time. */
+.formulasec{margin:0 16px 4px;padding:16px 18px}
+.formulahead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.formulahead h2{margin:0}
+.formulahead .fhsub{font-size:13px;color:var(--dim);letter-spacing:.02em;text-transform:none;font-weight:400}
+/* which knob drives which symbol */
+.knobmap{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 16px}
+.knobchip{font-size:12.5px;padding:6px 11px;border-radius:7px;background:#0a121c;border:1px solid var(--line);color:var(--dim)}
+.knobchip b{color:var(--star)} .knobchip i{color:var(--accent);font-style:normal;font-family:var(--mono)}
+/* equation chain: responsive columns so the whole pipeline is visible at a glance */
+.feqgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.feq{background:#0a121c;border:1px solid var(--line);border-radius:9px;padding:12px 14px;border-left:3px solid var(--line)}
+.feq.drive{border-left-color:var(--star)}      /* equation a knob feeds directly */
+.feqhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:9px}
+.feqt{font-size:13.5px;color:#eaf2fb;font-weight:700;letter-spacing:.02em}
+.feqc{font-size:11.5px;color:var(--dim);white-space:nowrap}
+.feqsym{font-size:19px;color:#cfe0f0;line-height:1.6;letter-spacing:.01em}
+.feqsub{margin-top:8px;font-size:14px;color:var(--dim);line-height:1.7;font-family:var(--mono)}
+.fvar{color:var(--star);font-weight:700}        /* a value the participant controls */
+.fout{color:var(--ok);font-weight:700}          /* the value this equation produces */
+.fconst{color:#8fa5c0}                          /* a physical constant */
+.feqwhy{margin-top:9px;font-size:12.5px;color:#9fb3c8;line-height:1.55}
+/* inline fraction (numerator over denominator with a rule) */
+.frac{display:inline-flex;flex-direction:column;text-align:center;vertical-align:middle;margin:0 4px}
+.frac>.fn{padding:0 6px 1px}
+.frac>.fd{padding:1px 6px 0;border-top:1.5px solid currentColor}
+/* inline square root: a √ glyph plus an overline (vinculum) over the radicand */
+.rt{display:inline-flex;align-items:stretch;vertical-align:middle}
+.rt::before{content:'√';font-size:1.05em;line-height:1}
+.rt>.rb{border-top:1.5px solid currentColor;padding:2px 4px 0;margin-top:.05em}
+/* the "what physically happens" callout under the chain */
+.fx{margin-top:14px;padding:11px 14px;border-left:4px solid var(--amber);background:rgba(255,176,32,.06);
+  border-radius:0 8px 8px 0;font-size:14px;line-height:1.65;color:#ffd9a0}
+.fx b{color:#fff}
+.fx + .fx{margin-top:8px}
+.fx.acc{border-left-color:var(--accent);background:rgba(57,197,255,.06);color:#cfe6f6}
+.fx.acc b{color:#fff}
+@media(max-width:1100px){.feqgrid{grid-template-columns:1fr}}
+
+/* ═══════════ SCENARIO 4 v2 · REVERSED 4-PHASE FLOW ═══════════ */
+/* PHASE 2 · propagate + time */
+/* Phase 2 mission clock: gold-accented so it clearly stands out as the thing to scrub */
+.timescrub{margin-top:12px;background:linear-gradient(180deg,rgba(255,210,63,.09),#0a121c);border:1px solid rgba(255,210,63,.5);border-left:3px solid var(--star);border-radius:9px;padding:12px 14px;box-shadow:0 0 18px rgba(255,210,63,.15)}
+.tsrow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.tslabel{font-size:12px;letter-spacing:.12em;color:var(--star);font-weight:800}
+.tsrow b{font-family:var(--mono);font-size:19px;color:var(--star)}
+.tslider{width:100%;-webkit-appearance:none;height:10px;border-radius:6px;background:#0a1622;border:1px solid rgba(255,210,63,.35);outline:none}
+.tslider::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff7df;border:4px solid var(--star);cursor:pointer}
+/* correct answer: when the slider lands on a valid collision pass the mission clock turns green */
+.timescrub.onpass{background:linear-gradient(180deg,rgba(51,209,122,.14),#0a121c);border-color:rgba(51,209,122,.55);border-left-color:var(--ok);box-shadow:0 0 22px rgba(51,209,122,.25)}
+.timescrub.onpass .tslabel{color:var(--ok)}
+.timescrub.onpass .tsrow b{color:var(--ok)}
+.timescrub.onpass .tslider{border-color:rgba(51,209,122,.5)}
+.timescrub.onpass .tslider::-webkit-slider-thumb{border-color:var(--ok)}
+.tshint{margin-top:8px;font-size:12.5px;color:var(--dim);line-height:1.5}.tshint b{color:#cfe6f6}
+.keplerbox{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:12px}
+.kbtitle{font-size:11px;letter-spacing:.1em;color:var(--accent);font-weight:800;margin-bottom:10px}
+.krow{padding:8px 0;border-bottom:1px solid rgba(30,43,58,.5)}.krow:last-child{border-bottom:none}
+.kname{font-size:13px;font-weight:700;color:#eaf2fb;margin-bottom:5px}
+.kcell{display:inline-flex;flex-direction:column;margin-right:16px;font-family:var(--mono)}
+.kcell span{font-size:11px;color:var(--dim)}.kcell b{font-size:14px;color:#cfe0f0}
+.passbox{margin-top:12px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:12px}
+.passlabel{font-size:11px;letter-spacing:.08em;color:var(--dim);margin-bottom:8px}
+.passintro{font-size:12.5px;color:#9fb3c8;line-height:1.6;margin-bottom:12px;padding:9px 11px;background:rgba(57,197,255,.06);border-left:3px solid var(--accent);border-radius:0 7px 7px 0}
+.passintro b{color:#cfe6f6}
+.passlist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.passrow{display:flex;flex-direction:column;gap:4px;align-items:flex-start;padding:9px 11px;border-radius:8px;background:#0a121c;border:1px solid var(--line);font-size:13px}
+.passrow.ok{cursor:pointer;border-left:3px solid var(--ok)}.passrow.ok:hover{border-color:var(--accent)}
+.passrow.no{opacity:.5;border-left:3px solid var(--line)}
+.passrow.sel{border-color:var(--danger);box-shadow:inset 0 0 0 1px var(--danger)}
+.passrow .pt{font-weight:700;color:#eaf2fb}.passrow .ptime{font-family:var(--mono);color:var(--dim);font-size:12px}
+.passrow .ptag{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--ok)}.passrow.no .ptag{color:var(--dim)}
+.feasnote{margin-top:10px;font-size:12.5px;color:var(--dim);line-height:1.55}.feasnote b{color:#ffd9a0}
+/* phase 2 · task + hint system */
+/* Phase 2 · YOUR TASK: highlighted to match the instruction bar so the action is unmissable */
+.todobox{background:linear-gradient(90deg,rgba(57,197,255,.15),rgba(19,28,40,.5));
+  border:1px solid rgba(57,197,255,.5);border-left:6px solid var(--accent);border-radius:10px;padding:14px 16px;
+  box-shadow:0 0 0 1px rgba(57,197,255,.12),0 6px 20px rgba(57,197,255,.12);
+  animation:objglow 3.2s ease-in-out infinite}
+.todolabel{display:inline-block;font-size:12px;letter-spacing:.12em;color:#04121e;font-weight:800;
+  background:var(--accent);border-radius:6px;padding:4px 11px;margin-bottom:11px;box-shadow:0 0 12px rgba(57,197,255,.45)}
+.todolist{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:7px;font-size:13px;line-height:1.55;color:#c4d3e2}
+.todolist li b{color:#fff}
+.timewindow{margin-top:11px;padding:9px 11px;border-radius:8px;background:#0a121c;border:1px solid var(--line);font-size:13px;line-height:1.5;color:#9fb3c8}
+.timewindow.ok{border-color:var(--ok);background:rgba(51,209,122,.1);color:#a7ecc6}
+.timewindow b{color:#eaf2fb}.timewindow.ok b{color:#dfffdf}
+.hintrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.hintbtn2{padding:9px 10px;border:1px solid var(--star);border-radius:8px;background:rgba(255,210,63,.08);
+  color:var(--star);font-family:var(--mono);font-weight:700;font-size:12.5px;cursor:pointer;line-height:1.3}
+.hintbtn2:hover{background:rgba(255,210,63,.18)}
+/* toggled ON: filled amber so the active state reads at a glance */
+.hintbtn2.on{background:var(--star);border-color:var(--star);color:#0a0f16;box-shadow:0 0 0 1px var(--star)}
+.hintbtn2.on:hover{background:var(--star);filter:brightness(1.05)}
+.hintbtn2.used{border-color:var(--line);color:var(--dim);background:rgba(255,210,63,.04)}
+.hintmsg{padding:10px 12px;border-radius:8px;background:rgba(255,210,63,.08);border:1px solid rgba(255,210,63,.3);
+  font-size:12.5px;line-height:1.6;color:#ffd9a0}
+.hintmsg b{color:#fff}
+
+/* PHASE 3 · solve — left column (sim + equation chain, same width) + right controls */
+.solvewrap{display:grid;grid-template-columns:1fr 372px;gap:16px;padding:16px;align-items:start}
+.puzzlecol{align-self:start}
+.solvesim{width:100%;height:300px;display:block;border-radius:9px;background:#050b12;transition:box-shadow .2s}
+.solvesim.simpulse{animation:simpulse .7s ease-out}
+@keyframes simpulse{0%{box-shadow:0 0 0 0 rgba(57,197,255,.55)}100%{box-shadow:0 0 0 14px rgba(57,197,255,0)}}
+.solvectl{align-self:start;display:flex;flex-direction:column;gap:14px}
+/* equation chain directly under the sim, matching its width */
+.chainhead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:16px 0 12px}
+.chainhead h2{margin:0}
+.chaingrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.chainempty{grid-column:1/-1;color:var(--dim);font-size:14px;font-style:italic;padding:14px;border:1px dashed var(--line);border-radius:9px}
+/* dependency arrows: each result → the next equation that uses it. Faint by default,
+   bright on card hover or while a variable is being tuned (hover/tune highlight). */
+.chainarrows{position:absolute;left:0;top:0;pointer-events:none;z-index:9;overflow:visible;color:var(--accent)}
+/* solve-chain arrows: thin faint guides by default so they never obscure the cards */
+.chainarrow{fill:none;stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 5;opacity:.3;
+  transition:opacity .16s,stroke-width .16s}
+.chainarrow.hot{opacity:1;stroke-width:2.6}
+.chainstart{fill:var(--accent);opacity:.3;transition:opacity .16s}
+.chainstart.hot{opacity:1}
+/* labels are HIDDEN by default (no clutter) and appear large + readable only on hover */
+.chainlabel{opacity:0;transition:opacity .16s}
+.chainlabel.hot{opacity:1}
+.chainlabel rect{fill:#071019;stroke:var(--accent);stroke-width:1.6}
+.chainlabel text{fill:#eafaff;font-family:"Segoe UI",system-ui,sans-serif;font-weight:800;font-size:15px}
+/* perturbation arrows: hidden until you hover the card */
+.chainarrow.pert,.chainstart.pert{opacity:0}
+.chainarrow.pert.hot{opacity:1;stroke-width:2.6}
+.chainstart.pert.hot{opacity:1}
+.chainpool{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
+.ccard{border:1px solid var(--line);border-radius:9px;background:#0a121c;cursor:pointer;transition:.15s}
+.ccard.placed{padding:11px 12px;border-left:3px solid var(--ok);display:flex;flex-direction:column;min-width:0}
+.ccard.placed:hover{border-color:var(--accent)}
+.ccard.pool{padding:10px 13px;display:flex;flex-direction:column;gap:2px}
+.ccard.pool:hover{border-color:var(--accent);background:#0f1a26}
+.ccard.pool .ct{font-size:13px;color:#eaf2fb}.ccard.pool .cpc{font-size:11px;color:var(--dim)}
+.cchead{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.cnum{width:22px;height:22px;border-radius:50%;background:var(--ok);color:#001018;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex:0 0 auto}
+/* perturbation cards (the perturbation force group expands into these): amber ∿ badge + amber edge */
+.cnum.pgroup{background:rgba(255,210,63,.2);color:var(--star);font-size:15px}
+.ccard.pcard{border-left-color:rgba(255,210,63,.6)}
+.cchead .ct{font-size:13px;font-weight:700;color:#eaf2fb;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cdrv{font-size:10px;color:var(--star);background:rgba(255,210,63,.1);border:1px solid rgba(255,210,63,.3);border-radius:5px;padding:2px 6px;white-space:nowrap}
+.cexp{width:20px;height:20px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--accent);font-size:12px;cursor:pointer;flex:0 0 auto;line-height:1}
+.cexp:hover{background:rgba(57,197,255,.14);border-color:var(--accent)}
+.ccard .csym{font-size:15.5px;color:#cfe0f0;line-height:1.5}
+.ccard .cout{margin-top:8px;font-size:13px;color:#cfe0f0;font-family:var(--mono);border-top:1px dashed rgba(30,43,58,.7);padding-top:7px}
+.cout .colabel{color:var(--dim);font-size:11px;margin-right:4px;font-family:inherit}
+.cfeedchip{margin-top:7px;font-size:11px;color:var(--accent);letter-spacing:.02em}
+.ccard.justplaced{animation:cardpop .75s ease-out}
+@keyframes cardpop{0%{transform:scale(.8);opacity:.2;box-shadow:0 0 0 0 rgba(51,209,122,.6)}
+  45%{transform:scale(1.05);box-shadow:0 0 0 8px rgba(51,209,122,.35)}100%{transform:scale(1);box-shadow:0 0 0 0 rgba(51,209,122,0)}}
+/* detail drawer */
+.cardexplain{margin-top:14px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:14px 16px;min-height:80px}
+.cetitle{font-size:15px;font-weight:700;color:var(--accent);margin-bottom:10px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.cetitle .cesymsm{font-size:17px;color:#cfe0f0;font-weight:400}
+.cesec{margin-bottom:11px}.cesec:last-child{margin-bottom:0}
+.cel{display:block;font-size:10.5px;letter-spacing:.1em;color:var(--dim);font-weight:800;margin-bottom:5px}
+.cet{font-size:13.5px;color:#c4d3e2;line-height:1.6}
+.cevars{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:6px 18px}
+.cev{display:flex;gap:8px;font-size:13px;line-height:1.5}
+.cev b{color:var(--star);font-family:var(--mono);white-space:nowrap;flex:0 0 auto;min-width:64px}
+.cev span{color:#9fb3c8}
+.ceflash{background:rgba(255,176,32,.14);border:1px solid var(--amber);color:#ffd9a0;border-radius:7px;padding:8px 11px;margin-bottom:10px;font-size:13px}
+@media(max-width:1100px){.solvewrap{grid-template-columns:1fr}}
+.ctlblock.locked{opacity:.5;pointer-events:none}
+.ctlblock.locked .ctltag{color:var(--dim)}
+/* label spans two rows on the left; the stepper sits top-right and its unit hint
+   sits directly under it. The control column is 1fr (not auto), so the number input
+   can never push the "+" button past the panel edge. */
+.varrow{display:grid;grid-template-columns:110px minmax(0,1fr);
+  grid-template-areas:"label control" "label unit";column-gap:10px;row-gap:4px;align-items:center;padding:8px 0}
+.varrow .vk{grid-area:label;font-size:13px;color:var(--accent)}
+.varrow .vu{grid-area:unit;font-size:11px;color:var(--dim)}
+.varrow .axctl{grid-area:control;display:flex;gap:6px;min-width:0}
+.varrow .axinput{min-width:0}
+/* per-variable hint: a distinct violet callout block under each variable (hidden until the toggle is on) */
+.varhint{display:none;font-size:11.5px;color:#e4d8ff;line-height:1.45;margin:2px 0 10px;padding:7px 10px 8px;
+  background:rgba(185,140,255,.12);border:1px solid rgba(185,140,255,.3);border-left:3px solid #b98cff;border-radius:7px}
+.varhint b{color:#fff}
+#varBlock.showvarhints .varhint{display:block}
+.gaugewrap{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.gauge{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:12px;text-align:center}
+.gauge.lock{border-color:var(--ok);background:rgba(51,209,122,.1)}
+.gauge .gl{font-size:11px;letter-spacing:.05em;color:var(--dim)}
+.gauge .gv{margin:4px 0;font-family:var(--mono)}.gauge .gv b{font-size:30px;color:var(--amber)}.gauge .gv span{font-size:13px;color:var(--dim);margin-left:3px}
+.gauge.lock .gv b{color:var(--ok)}
+.grail{height:7px;border-radius:5px;background:#0a121c;border:1px solid var(--line);overflow:hidden}
+.grail i{display:block;height:100%;width:3%;background:linear-gradient(90deg,var(--amber),var(--ok));transition:width .12s}
+.solvestate{font-size:13.5px;color:var(--dim);padding:10px 12px;border-radius:8px;background:#0a121c;border:1px solid var(--line)}
+.solvestate.lock{color:var(--ok);border-color:var(--ok);background:rgba(51,209,122,.1);font-weight:700}
+.thrsel{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.thropt{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:#0a121c;cursor:pointer}
+.thropt:hover{border-color:var(--accent)}.thropt.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.thropt b{display:block;font-size:14px;color:#eaf2fb}.thropt span{font-family:var(--mono);font-size:13px;color:var(--accent)}
+.thropt i{display:block;font-style:normal;font-size:12px;color:var(--dim);margin-top:3px}
+.burnpanel{background:#0a121c;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.brow{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:13px;border-bottom:1px solid rgba(30,43,58,.5)}
+.brow:last-child{border-bottom:none}.brow span{color:var(--dim)}.brow b{color:#eaf2fb;font-family:var(--mono)}
+.bdim{color:var(--dim)!important;font-weight:400}
+.bnote{margin-top:8px;font-size:11.5px;color:var(--dim);line-height:1.5}
+@media(max-width:1100px){.solvewrap{grid-template-columns:1fr}}
+
+/* INTRO · difficulty picker (sets the collision thresholds) */
+.diffsel{margin-top:22px}
+.difflabel{font-size:13px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase;margin-bottom:10px}
+.difflabel span{text-transform:none;letter-spacing:normal;color:var(--dim);font-size:12.5px;margin-left:8px}
+.diffopts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.diffopt{padding:12px 14px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--ink);cursor:pointer;text-align:left;transition:.12s}
+.diffopt b{display:block;font-size:15px;margin-bottom:4px}
+.diffopt span{font-size:12px;color:var(--dim)}
+.diffopt:hover{border-color:var(--accent)}
+.diffopt.sel{border-color:var(--star);background:rgba(255,210,63,.1);box-shadow:0 0 0 1px var(--star)}
+.diffopt.sel b{color:var(--star)}
+@media(max-width:720px){.diffopts{grid-template-columns:1fr}}
+
+/* PHASE 3 · lock gauges live behind a toggle hint */
+.lockfeedback{display:flex;flex-direction:column;gap:10px;margin-top:2px}
+
+
