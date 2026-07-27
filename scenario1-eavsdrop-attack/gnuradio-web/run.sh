@@ -30,8 +30,10 @@ else
   SAMP_RATE=96000
 fi
 export SAMP_RATE
-SIG="/home/sunhyuk/projects/vsa4lv-defcon/vsa4lv-challenges/scenario-1/signal/ENIGMA-1_433_506MHz_2026-07-08T02-25-04.cf32"
-SOL="/home/sunhyuk/projects/vsa4lv-defcon/vsa4lv-challenges/scenario-1/solution"
+# Neutral container mount targets (NOT a host absolute path); start.sh reads these via -e and
+# points the flowgraph's File Source + output at them.
+SIG="/data/input.cf32"
+SOL="/data/out"
 OUT="$(cd .. && pwd)/gnuradio-out"                            # recovered PNG lands here (host)
 mkdir -p "$OUT"
 
@@ -50,6 +52,7 @@ echo " web-guide integration -> GNURADIO_URL='$URL' python3 ../web-guide/server.
 echo "-----------------------------------------------"
 exec docker run --rm -p "$PORT:6081" \
   -e SAMP_RATE="$SAMP_RATE" \
+  -e SIG="$SIG" -e SOL="$SOL" \
   -v "$REC:$SIG:ro" \
   -v "$OUT:$SOL" \
   -v "$(cd .. && pwd)/decoder:/grc:ro" \
