@@ -611,24 +611,70 @@ h2.mt{margin-top:20px}
 .dirbtn.active{border-color:var(--accent);color:var(--accent);background:rgba(57,197,255,.14)}
 .timingcanvas{width:100%;height:200px;display:block;background:#0a121c;border:1px solid var(--line);border-radius:9px}
 .timingnote{margin-top:10px;font-size:13px;color:var(--dim);line-height:1.5}.timingnote b{color:#cfe6f6}
-/* phase 4 packet byte map */
-.pktwrap{display:grid;grid-template-columns:1fr 380px;gap:16px;padding:16px}
-.pkthex{display:flex;flex-wrap:wrap;gap:6px;font-family:var(--mono);margin-bottom:14px}
-.pb{width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:6px;font-size:15px;border:1px solid var(--line);background:#0a121c;color:#cfe0f0}
-.pg-hdr{border-color:#33445a;color:#8fa5c0}
-.pg-fc{border-color:var(--danger);background:rgba(255,59,78,.16);color:#ffb3bb;font-weight:800}
-.pg-time{border-color:var(--amber);background:rgba(255,176,32,.14);color:#ffd9a0}
-.pg-dv{border-color:var(--accent);background:rgba(57,197,255,.14);color:#bfe6ff}
-.pg-mode{border-color:#a06cff;background:rgba(160,108,255,.14);color:#d9c4ff}
-.pg-chk{border-color:#33445a;color:#7f92a6}
-.pktlegend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--dim)}
-.pktlegend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid}
-.pktlegend .pg-hdr{background:#0a121c}.pktlegend .pg-fc{background:rgba(255,59,78,.16)}.pktlegend .pg-time{background:rgba(255,176,32,.14)}
-.pktlegend .pg-dv{background:rgba(57,197,255,.14)}.pktlegend .pg-mode{background:rgba(160,108,255,.14)}.pktlegend .pg-chk{background:#0a121c}
-.pktfields{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
-.pktfield{display:grid;grid-template-columns:52px 1fr auto;gap:8px;align-items:center;padding:7px 9px;border-radius:7px;background:#0a121c;border-left:3px solid var(--line);font-size:12px}
-.pktfield.pg-fc{border-left-color:var(--danger)}.pktfield.pg-time{border-left-color:var(--amber)}.pktfield.pg-dv{border-left-color:var(--accent)}.pktfield.pg-mode{border-left-color:#a06cff}
-.pkoff{font-family:var(--mono);color:var(--dim)}.pklbl{color:#cfe0f0}.pktfield b{font-family:var(--mono);color:#eaf2fb;white-space:nowrap}
+/* phase 4 packet, layered CCSDS view */
+.pktwrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,440px);gap:16px;padding:16px;align-items:start}
+.pkhint{color:var(--dim);font-weight:400;font-size:12px}
+.pksublabel{font-size:12px;letter-spacing:.06em;color:var(--accent);font-weight:700;margin:16px 0 8px}
+.pksublabel:first-of-type{margin-top:0}
+/* clickable layer stack */
+.pkstack{background:#0a121c;border:1px solid var(--line);border-radius:11px;padding:14px}
+.pklbox{border:1px solid;border-radius:9px;padding:10px 12px 12px}
+.pklbox.pl-b-tf{border-color:#b98cff;background:rgba(185,140,255,.06)}
+.pklhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:9px;font-size:13px}
+.pklname{font-weight:800;letter-spacing:.04em}.pklspec{color:var(--dim);font-size:12px}.pklsize{font-weight:800}
+.pkrow{display:flex;gap:8px;flex-wrap:wrap}.pkrow-stretch{align-items:stretch}
+.pkseg{border:1px solid var(--line);border-radius:8px;padding:9px 11px;flex:1 1 auto;min-width:0;cursor:pointer;transition:opacity .15s,filter .15s,box-shadow .15s}
+.pksname{font-size:12.5px;color:#eaf2fb;display:block}.pksbytes{font-size:11px;color:var(--dim)}
+.pkspp{border:1px solid #39c5ff;border-radius:9px;padding:10px 12px;flex:3 1 300px;background:rgba(57,197,255,.05)}
+.pkseg.L-tf{background:rgba(185,140,255,.20);border-color:#b98cff}
+.pkseg.L-pri{background:rgba(57,197,255,.20);border-color:#39c5ff}
+.pkseg.L-sec{background:rgba(51,209,122,.20);border-color:#33d17a}
+.pkseg.L-data{background:rgba(255,210,63,.19);border-color:#ffd23f}
+.pkseg.L-crc{background:rgba(255,90,90,.20);border-color:#ff5a5a}
+.pkseg.L-fecf{background:rgba(143,119,201,.26);border-color:#8f77c9}
+.pkseg:hover{filter:brightness(1.18)}
+.pkseg.sel{outline:2px solid #fff;outline-offset:2px;box-shadow:0 0 16px rgba(255,255,255,.20);filter:brightness(1.25)}
+.pkstack.filtering .pkseg:not(.sel){opacity:.35}
+/* filter bar */
+.pkfilter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 4px;font-size:13px;min-height:26px}
+.pkfitag{display:inline-block;padding:3px 10px;border-radius:6px;font-weight:800;color:#0a0f16}
+.pkfitag.pl-b-tf{background:#b98cff}.pkfitag.pl-b-pri{background:#39c5ff}.pkfitag.pl-b-sec{background:#33d17a}
+.pkfitag.pl-b-data{background:#ffd23f}.pkfitag.pl-b-crc{background:#ff5a5a}.pkfitag.pl-b-fecf{background:#8f77c9}
+.pkfidim{color:var(--dim)}
+.pkshowall{background:transparent;border:1px solid var(--line);color:#c7d3e0;border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:12px;cursor:pointer}
+.pkshowall:hover{border-color:#c7d3e0}
+/* field table */
+.pktbl{width:100%;border-collapse:collapse;font-size:13px}
+.pktbl th,.pktbl td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.pktbl th{color:var(--dim);font-weight:700;font-size:12px;letter-spacing:.05em}
+.pktbl td.pksz{color:#eaf2fb;white-space:nowrap;font-weight:700}
+.pktbl td.pkbits{color:var(--dim);font-size:12px;white-space:nowrap}
+.pktbl td.pkval{color:#eaf2fb;font-family:var(--mono)}
+.pktbl tr.pklz td{background:#0b1420;font-weight:800;letter-spacing:.04em}
+.pklzspec{color:var(--dim);font-weight:400;font-size:12px}
+.pkdot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;vertical-align:middle}
+.pl-tf{background:#b98cff}.pl-pri{background:#39c5ff}.pl-sec{background:#33d17a}.pl-data{background:#ffd23f}.pl-crc{background:#ff5a5a}.pl-fecf{background:#8f77c9}
+.pl-t-tf{color:#b98cff}.pl-t-pri{color:#39c5ff}
+.pkbadge{display:inline-block;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:700;border:1px solid;white-space:nowrap}
+.pkbadge.b-fic{color:#ff9aa5;border-color:rgba(255,90,90,.5);background:rgba(255,90,90,.08)}
+.pkbadge.b-cmp{color:#8fd0ff;border-color:rgba(57,197,255,.5);background:rgba(57,197,255,.08)}
+.pkbadge.b-p2{color:#ffd98a;border-color:rgba(255,210,63,.5);background:rgba(255,210,63,.08)}
+.pkbadge.b-p3{color:#9ff0c4;border-color:rgba(51,209,122,.5);background:rgba(51,209,122,.08)}
+.pkbadge.b-lnk{color:#cbb6ff;border-color:rgba(185,140,255,.5);background:rgba(185,140,255,.08)}
+.pkbadge.b-fix{color:var(--dim);border-color:var(--line)}
+/* size cards */
+.pksizes{display:grid;grid-template-columns:1fr;gap:10px}
+.pkscard{background:#0a121c;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.pkscard.pl-b-pri{border-left:3px solid #39c5ff}.pkscard.pl-b-tf{border-left:3px solid #b98cff}
+.pkst{font-size:11.5px;color:var(--dim);letter-spacing:.05em}
+.pksv{font-size:26px;font-weight:800;margin:2px 0}
+.pksb{font-size:12px;color:var(--dim)}
+/* byte map (transmit side), coloured by layer */
+.pkthex{display:flex;flex-wrap:wrap;gap:5px;font-family:var(--mono);margin-bottom:10px}
+.pb{width:31px;height:27px;display:flex;align-items:center;justify-content:center;border-radius:5px;font-size:12px;font-weight:700;color:#0a0f16;transition:opacity .15s}
+.pkthex.sel-tf .pb:not(.pl-tf),.pkthex.sel-pri .pb:not(.pl-pri),.pkthex.sel-sec .pb:not(.pl-sec),.pkthex.sel-data .pb:not(.pl-data),.pkthex.sel-crc .pb:not(.pl-crc),.pkthex.sel-fecf .pb:not(.pl-fecf){opacity:.16}
+.pktlegend{display:flex;flex-wrap:wrap;gap:10px 14px;font-size:12px;color:var(--dim)}
+.pktlegend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .pktcall{background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.3);border-radius:9px;padding:12px;font-size:13px;line-height:1.7;color:#ffd9a0;margin-bottom:14px}
 .pktcall b{color:#fff}
 @media(max-width:1100px){.stagewrap{grid-template-columns:1fr}.intelwrap{grid-template-columns:1fr}.pktwrap{grid-template-columns:1fr}.solvewrap{grid-template-columns:1fr}}
@@ -836,11 +882,6 @@ h2.mt{margin-top:20px}
 .bdim{color:var(--dim)!important;font-weight:400}
 .bnote{margin-top:8px;font-size:11.5px;color:var(--dim);line-height:1.5}
 @media(max-width:1100px){.solvewrap{grid-template-columns:1fr}}
-
-/* PHASE 4 · packet actuation colour (in addition to existing pg-* colours) */
-.pg-act{border-color:#33d17a;background:rgba(51,209,122,.12);color:#a7ecc6}
-.pktlegend .pg-act{background:rgba(51,209,122,.12)}
-.pktfield.pg-act{border-left-color:var(--ok)}
 
 /* INTRO · difficulty picker (sets the collision thresholds) */
 .diffsel{margin-top:22px}
