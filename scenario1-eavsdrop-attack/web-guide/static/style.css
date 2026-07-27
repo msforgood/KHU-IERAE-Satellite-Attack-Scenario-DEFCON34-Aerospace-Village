@@ -215,7 +215,7 @@ code{background:#0a121c;border:1px solid var(--line);border-radius:5px;padding:1
 .embedframe{width:100%;height:100%;border:0;background:#000;display:block}
 /* Gpredict embed shows only the main window: the Antenna/Radio Control windows stay open
    (needed for the button automation) but are clipped out of the noVNC view. The iframe keeps
-   the full framebuffer aspect (1280x1440); .gpclip clips to the top main-window band. The main
+   the full framebuffer aspect (1280x1750, = Dockerfile GEOM); .gpclip clips to the top main-window band. The main
    window is wide/short (marker on the left, data panel on the right) so it can't fill a tall
    narrow card without cropping content - it is centered (letterboxed) in the taller card. */
 /* Show ONLY the gpredict main window. start.sh sizes that window to 870x580 (a taller, less-wide
@@ -224,8 +224,9 @@ code{background:#0a121c;border:1px solid var(--line);border-radius:5px;padding:1
 #gpredictSlot{aspect-ratio:870 / 580;overflow:hidden;position:relative;background:#000}
 /* Scale the full framebuffer so its top-left 870x580 region (the gpredict window) fills this box:
    width 1280/870 of the box, anchored top-left; the box (overflow hidden) crops the empty area to
-   the right and the control windows below. noVNC resize=scale fills the iframe at 1280/1440. */
-.gpclip{position:absolute;top:0;left:0;width:calc(100% * 1280 / 870);aspect-ratio:1280 / 1440;overflow:hidden}
+   the right and the control windows below. noVNC resize=scale fills the iframe at 1280/1750 (the
+   Dockerfile framebuffer GEOM). MUST match GEOM or the framebuffer is letterboxed and mis-scaled. */
+.gpclip{position:absolute;top:0;left:0;width:calc(100% * 1280 / 870);aspect-ratio:1280 / 1750;overflow:hidden}
 .gpclip .embedframe{width:100%;height:100%;display:block}
 .twopane{align-items:start}
 
