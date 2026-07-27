@@ -16,11 +16,19 @@ RUN_GRC=/root/enigma1_decoder.grc
 #      PHASE-4-uploaded VSA capture), (2) enable the QT GUI Waterfall Sink (shipped
 #     disabled) so Run shows a live spectrum window while it decodes.
 SR="${SAMP_RATE:-96000}"
-sed "s/value: 0.05e6/value: ${SR}/; s/state: disabled/state: enabled/" "$SRC" > "$RUN_GRC" 2>/dev/null || cp "$SRC" "$RUN_GRC"
-
-# Container paths for the File Source (mounted recording) and solution (output) - same as the -v mount targets in run.sh.
-SIG="/home/sunhyuk/projects/vsa4lv-defcon/vsa4lv-challenges/scenario-1/signal/ENIGMA-1_433_506MHz_2026-07-08T02-25-04.cf32"
-SOL="/home/sunhyuk/projects/vsa4lv-defcon/vsa4lv-challenges/scenario-1/solution"
+# Container mount targets for the File Source (recording) and the output directory. Passed in by
+# run.sh via -e; neutral defaults NOT tied to any host absolute path. (Kept in sync with run.sh.)
+SIG="${SIG:-/data/input.cf32}"
+SOL="${SOL:-/data/out}"
+# Runnable copy of the shipped .grc: patch samp_rate + enable the waterfall, AND rewrite the File
+# Source path and reassembler out_path to the mount targets above. This makes the flow path-agnostic:
+# whatever run.sh mounts is used regardless of what the .grc has baked in (the .grc itself uses
+# relative paths so opening it directly in GRC on any machine also works).
+sed -e "s/value: 0.05e6/value: ${SR}/" \
+    -e "s/state: disabled/state: enabled/" \
+    -e "s#^\( *\)file: .*#\1file: ${SIG}#" \
+    -e "s#^\( *\)out_path: .*#\1out_path: '''${SOL}/enigma1_recovered0708.png'''#" \
+    "$SRC" > "$RUN_GRC" 2>/dev/null || cp "$SRC" "$RUN_GRC"
 mkdir -p "$SOL"
 
 # B2 slant drive value: measure the recording's center-frequency offset (normalized, amplitude-weighted mean instantaneous frequency).

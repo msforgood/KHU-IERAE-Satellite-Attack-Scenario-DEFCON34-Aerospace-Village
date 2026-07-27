@@ -38,7 +38,7 @@ file pads 1 s of silence before the cycle loops (7.22 s loop).
 
 ## Orbit
 
-LEO sun-synchronous, ~700 km, inclination 98.5°, period ~98 min.
+LEO sun-synchronous, ~166 km (very low orbit), inclination 98.5°, period ~88 min.
 NORAD ID 90001 (fresh fictional range — does not collide with mrradio).
 
 ## Recommended SDR settings (booth crew reference)

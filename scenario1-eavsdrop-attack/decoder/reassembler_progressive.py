@@ -26,7 +26,7 @@ from gnuradio import gr
 
 
 class blk(gr.sync_block):
-    def __init__(self, img_w=486, img_h=320, out_path='/home/sunhyuk/projects/vsa4lv-defcon/vsa4lv-challenges/scenario-1/solution/enigma1_recovered.png'):
+    def __init__(self, img_w=486, img_h=320, out_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'gnuradio-out', 'enigma1_recovered.png')):
         gr.sync_block.__init__(self, name='ENIGMA-1 Image Reassembler', in_sig=[], out_sig=[])
         self.message_port_register_in(pmt.intern('frame'))          # ax25_deframer(out) -> frames are received on this port
         self.set_msg_handler(pmt.intern('frame'), self.handle)

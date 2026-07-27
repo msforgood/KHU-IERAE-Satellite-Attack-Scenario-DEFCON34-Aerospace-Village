@@ -42,7 +42,7 @@ EOF
     cat > "$CFG/modules/${NAME}.mod" <<EOF
 [GLOBAL]
 VERSION=1.4
-TIMEOUT=250
+TIMEOUT=200
 GRID=1
 QTHFILE=defcon.qth
 SATELLITES=${CAT}
@@ -89,12 +89,32 @@ EOF
 
 # ── window layout: open Radio Control + Antenna (Rotator) Control from the module popup
 # menu and stack them under the main window (top to bottom: GPredict / Antenna / Radio).
-# The item positions are relative to the module popup button (top-right hamburger), computed
-# from the live window geometry. Re-runs whenever a control window is missing (e.g. after the
-# reset button relaunches gpredict), so the layout self-heals.
+# The 870-wide main window puts its top-right hamburger well inside the 1280-wide screen, so
+# gpredict pops the menu to the RIGHT of the button (items at +82 px x, NOT to the left). Each
+# open is verified via wmctrl and retried if the click missed. Re-runs whenever a control window
+# is missing (e.g. after the reset button relaunches gpredict), so the layout self-heals.
 (
   set +e
   sleep 4
+  # open one control window from the hamburger popup, verifying it actually appeared
+  open_ctrl() {   # $1=main win id  $2=window-title match  $3=menu-item y offset below hamburger
+    _m=$1; _t=$2; _dy=$3
+    for _a in 1 2 3 4 5; do
+      wmctrl -l 2>/dev/null | grep -q "$_t" && return 0
+      eval "$(xdotool getwindowgeometry --shell "$_m" 2>/dev/null)"
+      _hx=$((X + WIDTH - 14)); _hy=$((Y + 24))                       # hamburger (top-right of main)
+      xdotool windowactivate "$_m"; sleep 0.3
+      xdotool mousemove "$_hx" "$_hy" click 1; sleep 0.7            # open the popup menu
+      xdotool mousemove "$((_hx + 82))" "$((_hy + _dy))" click 1; sleep 0.9   # click the item (menu opens right)
+      xdotool key Escape 2>/dev/null; sleep 0.2                     # dismiss the menu if the click missed
+    done
+    return 1
+  }
+  # set a gpredict spin-button (Cycle/Threshold) by selecting its entry and typing a value.
+  set_spin() {   # $1=x $2=y $3=value
+    xdotool mousemove "$1" "$2" click 1 click 1 click 1; sleep 0.2   # triple-click selects the entry text
+    xdotool type --delay 30 "$3"; xdotool key Tab; sleep 0.2         # replace + commit (focus-out)
+  }
   while true; do
     MAIN=$(xdotool search --name "Gpredict: " 2>/dev/null | head -1)
     if [ -n "$MAIN" ]; then
@@ -102,20 +122,21 @@ EOF
       HASA=$(wmctrl -l 2>/dev/null | grep -c "Rotator Control")
       if [ "$HASR" = "0" ] || [ "$HASA" = "0" ]; then
         wmctrl -ir "$MAIN" -e "0,0,0,870,580"; sleep 0.6   # taller, less-wide main window (gpredict redraws to fit; it may grow past 580 tall, so the control windows below are pushed down to clear it)
-        eval "$(xdotool getwindowgeometry --shell "$MAIN")"
-        HX=$((X + WIDTH - 24)); HY=$((Y + 22))                     # module popup (hamburger) button
-        if [ "$HASR" = "0" ]; then                                # open Radio Control
-          xdotool windowactivate "$MAIN"; sleep 0.3
-          xdotool mousemove "$HX" "$HY" click 1; sleep 0.5
-          xdotool mousemove "$((HX - 156))" "$((HY + 168))" click 1; sleep 0.8
-        fi
-        if [ "$HASA" = "0" ]; then                                # open Antenna (Rotator) Control
-          xdotool windowactivate "$MAIN"; sleep 0.3
-          xdotool mousemove "$HX" "$HY" click 1; sleep 0.5
-          xdotool mousemove "$((HX - 156))" "$((HY + 183))" click 1; sleep 0.8
-        fi
+        [ "$HASR" = "0" ] && open_ctrl "$MAIN" "Radio Control"   170   # Radio Control menu item
+        [ "$HASA" = "0" ] && open_ctrl "$MAIN" "Rotator Control" 195   # Antenna (Rotator) Control menu item
         wmctrl -r "Gpredict Rotator Control" -e "0,0,930,1280,330"    # Antenna (moved down +340 to clear the taller main window)
         wmctrl -r "Gpredict Radio Control"   -e "0,0,1270,1280,412"   # Radio (moved down +340; control.py hit coords shifted to match)
+        sleep 0.5
+        # Tighten the control-loop cadence: ENIGMA-1 is a very low (~166 km) orbit that crosses the sky
+        # at ~1.9 deg/s, so gpredict's default 1000 ms rotor/radio cycle + 5 deg threshold make the radar/
+        # antenna view lag the map (they sample the sat up to ~1 s apart) and step ~2 deg at a time (looks
+        # like jumping). Drop the cycle to 200 ms and the threshold to 1 deg so the antenna follows tightly
+        # and the two views stay in sync. These are UI-only settings (not stored in .rot/.rig), so they must
+        # be re-applied each time the windows (re)open. Coordinates are stable because the windows are pinned.
+        ROT=$(xdotool search --name "Gpredict Rotator Control" 2>/dev/null | head -1)
+        RAD=$(xdotool search --name "Gpredict Radio Control" 2>/dev/null | head -1)
+        [ -n "$ROT" ] && { xdotool windowactivate "$ROT"; sleep 0.2; set_spin 1075 1211 200; set_spin 1075 1250 1; }   # Cycle 200 ms, Threshold 1 deg
+        [ -n "$RAD" ] && { xdotool windowactivate "$RAD"; sleep 0.2; set_spin 557 1618 200; }                          # Radio Cycle 200 ms
         xdotool mousemove 12 12                                      # park the pointer
       fi
     fi
