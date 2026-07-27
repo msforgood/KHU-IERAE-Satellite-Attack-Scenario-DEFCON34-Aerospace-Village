@@ -194,7 +194,18 @@ stop_motors() {
 # 그래서 여기서 데몬을 자동 기동하고 올라올 때까지 기다린다. Docker CLI 자체가 없으면(미설치)
 # 조용히 실패(1) → 호출부가 gpredict 없이 진행. 성공 0 / 실패 1. 최대 DOCKER_WAIT(기본 90)초 대기.
 ensure_docker() {
-  have docker || return 1
+  if ! have docker; then
+    # 미설치 → 자동 설치 시도(gpredict ③ 조준 전용, 선택). Docker Desktop 은 대용량이고 최초
+    # 실행에 WSL2/재부팅·라이선스 동의가 필요할 수 있어 '이번 세션'에서 바로 못 쓸 수 있다 →
+    # 설치만 걸고 안내한다. 실패해도 나머지(①②③ Virtual Antenna·모터)는 정상.
+    if [ "${IS_WINDOWS:-0}" = 1 ] && have winget; then
+      say "docker 미설치 → Docker Desktop 자동 설치 시도(gpredict ③ 조준용, 선택)"
+      winget install --id Docker.DockerDesktop -e --silent \
+        --accept-package-agreements --accept-source-agreements >/tmp/demosat-docker-install.log 2>&1 || true
+      hash -r 2>/dev/null || true
+    fi
+    have docker || { c_warn "docker 없음 — Docker Desktop 설치/실행 후 '새 터미널'에서 재실행하면 gpredict ③ 이 켜집니다(선택). 나머지는 지금도 정상. 로그: /tmp/demosat-docker-install.log"; return 1; }
+  fi
   docker info >/dev/null 2>&1 && return 0     # 이미 떠 있으면 끝
   say "Docker 데몬이 꺼져 있음 → 자동 기동 시도 (gpredict ③ 조준용)"
   case "$(uname)" in
@@ -294,6 +305,61 @@ EOF
   fi
 }
 
+# arduino-cli 자체 자동 설치 — 이게 없으면 스케치(antenna_gimbal·solar)가 한 번도 업로드되지
+# 않아 보드가 빈/옛 펌웨어로 남고 → WHOAMI 무응답 + 모터가 전혀 안 움직인다. 그래서 flash 전에
+# arduino-cli 부재 시 자동 설치한다. Windows=winget(ArduinoSA.CLI)·macOS=brew·Linux=공식 install.sh.
+# ※ winget 은 shim 을 '새 셸'부터 PATH 에 넣으므로, 이번 세션에서 바로 쓰도록 설치 경로를 찾아
+#   PATH 앞에 붙인다(안 그러면 방금 깔고도 have arduino-cli 가 거짓이라 또 스킵된다). best-effort.
+ensure_arduino_cli() {
+  have arduino-cli && return 0
+  say "arduino-cli 미설치 → 자동 설치 시도(모터 펌웨어 업로드에 필수)"
+  local log=/tmp/demosat-arduino-cli-install.log
+  case "$(uname)" in
+    Darwin)
+      have brew && brew install arduino-cli >"$log" 2>&1 \
+        || c_warn "brew 로 arduino-cli 설치 실패 — 'brew install arduino-cli' 수동 실행" ;;
+    Linux)
+      if have curl; then
+        curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
+          | BINDIR="$HOME/.local/bin" sh >"$log" 2>&1 || true
+        [ -d "$HOME/.local/bin" ] && PATH="$HOME/.local/bin:$PATH"
+      else
+        c_warn "curl 없음 — arduino-cli 수동 설치 필요"
+      fi ;;
+    *)  # Windows (Git Bash)
+      if have winget; then
+        winget install --id ArduinoSA.CLI -e --silent \
+          --accept-package-agreements --accept-source-agreements >"$log" 2>&1 || true
+        # winget/MSI 설치물은 '새 셸'부터 PATH 에 잡힌다 → 이번 세션에서 바로 쓰도록 설치 위치를
+        # 직접 찾아 PATH 앞에 붙인다. 설치 형태별로 위치가 다르다:
+        #   · MSI(ArduinoSA.CLI 1.5+) → "C:\Program Files\Arduino CLI\arduino-cli.exe"
+        #   · 포터블/구버전       → winget Links shim 또는 Packages 폴더
+        local la; la="$(cygpath -u "${LOCALAPPDATA:-}" 2>/dev/null)"; [ -z "$la" ] && la="$HOME/AppData/Local"
+        local pf; pf="$(cygpath -u "${ProgramFiles:-}" 2>/dev/null)"; [ -z "$pf" ] && pf="/c/Program Files"
+        local d
+        for d in "$pf/Arduino CLI" "/c/Program Files/Arduino CLI" "/c/Program Files (x86)/Arduino CLI" \
+                 "$la/Microsoft/WinGet/Links"; do
+          [ -x "$d/arduino-cli.exe" ] && { PATH="$d:$PATH"; break; }
+        done
+        if ! command -v arduino-cli >/dev/null 2>&1; then
+          local exe
+          exe="$(find "$pf" "/c/Program Files (x86)" "$la/Microsoft/WinGet/Packages" \
+                   -maxdepth 4 -iname 'arduino-cli.exe' 2>/dev/null | head -1)"
+          [ -n "$exe" ] && PATH="$(dirname "$exe"):$PATH"
+        fi
+      else
+        c_warn "winget 없음 — arduino-cli 수동 설치: winget install ArduinoSA.CLI"
+      fi ;;
+  esac
+  hash -r 2>/dev/null || true
+  if have arduino-cli; then
+    c_ok "arduino-cli 준비됨 ($(arduino-cli version 2>/dev/null | head -1))"
+    return 0
+  fi
+  c_warn "arduino-cli 가 이번 세션 PATH 에 아직 안 잡힘 — 부스를 '새 터미널'에서 다시 실행하면 잡힙니다. 로그: $log"
+  return 1
+}
+
 # arduino-cli 코어/라이브러리 자동 설치 — 자동 업로드(flash_boards)가 '첫 실행부터' 성공하도록.
 # 안테나 스케치(antenna_gimbal)는 Stepper 라이브러리를 쓰는데, 이게 없으면 compile 이
 # 'Stepper.h: No such file or directory' 로 실패한다. 또 보드 코어(MKR=arduino:samd,
@@ -302,15 +368,24 @@ EOF
 ensure_arduino_deps() {
   [ "${NO_FLASH:-0}" = "1" ] && return 0
   have arduino-cli || return 0
-  # ① 스케치 의존 라이브러리(antenna_gimbal → AccelStepper). 없으면 안테나 compile 이 바로 실패.
-  if ! arduino-cli lib list 2>/dev/null | grep -qi '^AccelStepper[[:space:]]'; then
-    say "arduino-cli: AccelStepper 라이브러리 설치(안테나 스케치 의존)"
-    if arduino-cli lib install AccelStepper >/tmp/demosat-ard-deps.log 2>&1; then
-      c_ok "AccelStepper 라이브러리 준비됨"
-    else
-      c_warn "AccelStepper 설치 실패 — /tmp/demosat-ard-deps.log (안테나 컴파일이 실패할 수 있음)"
+  # ① 스케치 의존 라이브러리:
+  #    · antenna_gimbal              → AccelStepper
+  #    · solar_panel_uno/_spin       → Servo
+  #   ⚠ 최신 arduino-cli(1.5+)/AVR 코어는 Servo 가 '코어 번들'이 아니라 별도 라이브러리다.
+  #     없으면 솔라 컴파일이 'Servo.h: No such file or directory' 로 실패 → 솔라 모터가 flash
+  #     안 돼 안 움직인다. 그래서 AccelStepper 와 Servo 를 둘 다 확인·설치한다.
+  : >/tmp/demosat-ard-deps.log
+  local lib
+  for lib in AccelStepper Servo; do
+    if ! arduino-cli lib list 2>/dev/null | grep -qi "^$lib[[:space:]]"; then
+      say "arduino-cli: $lib 라이브러리 설치(스케치 의존)"
+      if arduino-cli lib install "$lib" >>/tmp/demosat-ard-deps.log 2>&1; then
+        c_ok "$lib 라이브러리 준비됨"
+      else
+        c_warn "$lib 설치 실패 — /tmp/demosat-ard-deps.log (해당 스케치 컴파일이 실패할 수 있음)"
+      fi
     fi
-  fi
+  done
   # ② 감지된 보드 FQBN 의 코어 설치. FQBN 'vendor:arch:board' 에서 'vendor:arch' 만 추출.
   #    예) arduino:samd:mkrwifi1010 → arduino:samd,  arduino:avr:uno → arduino:avr.
   local fqbn core seen=""
@@ -602,6 +677,7 @@ up() {
   #   보드가 USB로 연결돼 있어야 실제로 돈다. 없으면 경고만 하고 건너뜀(화면은 정상).
   if grep -q '"arduinoBridge"[[:space:]]*:[[:space:]]*true' "$SCENARIO_CONFIG" 2>/dev/null; then
     free_serial_bridge # 이전 실행의 좀비 브리지 정리(포트 해제) → 업로드/자가진단/새 브리지 충돌 방지
+    ensure_arduino_cli # arduino-cli 자체가 없으면 자동 설치(없으면 스케치 미업로드 → 모터 미동작)
     detect_boards      # 시리얼 포트 1회 탐지(WHOAMI 역할 분류) → ANT_DEV/SOLAR_DEV
     ensure_arduino_deps # 코어(MKR SAMD·Uno AVR) + Stepper 라이브러리 자동 설치 → flash 첫 실행부터 성공
     flash_boards       # antenna_gimbal / solar 스케치 자동 업로드(arduino-cli)
