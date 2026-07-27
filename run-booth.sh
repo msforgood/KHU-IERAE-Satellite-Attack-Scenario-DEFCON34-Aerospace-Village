@@ -20,12 +20,19 @@
 set -uo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
+# 포트/프로세스 정리는 OS 마다 도구가 다르다(macOS·Linux=lsof/pkill, Windows Git Bash=
+# netstat/taskkill). 공용 헬퍼로 흡수 — 이게 없으면 Windows 에서 이전 실행이 살아남아
+# 다음 실행이 EADDRINUSE(0.0.0.0:4552/4553 등)로 죽는다.
+. "$DIR/common/proc.sh"
 
 # Scenario is required — map the short alias (scn2/scn3) to its folder. No argument →
 # show the two examples and ask which one to start, then quit.
+# BOOTH_PORTS: 그 시나리오가 쓰는 TCP 포트 전부(피해 GS HTTP·업링크 WS, 빌더, OpenVSA).
+#   재시작 때 이 포트들을 직접 회수해, 래퍼 kill 이 실패해도 다음 실행이 반드시 bind 되게 한다.
+#   (gpredict 는 Docker 라 포트 주인이 도커 데몬 — free_gpredict 가 docker stop 으로 따로 처리.)
 case "${1:-}" in
-  scn2) SCN="scenario2-uplink-attack" ;;
-  scn3) SCN="scenario3-spoofing" ;;
+  scn2) SCN="scenario2-uplink-attack"; BOOTH_PORTS="4542 4552 8002 4534 4533 4532" ;;
+  scn3) SCN="scenario3-spoofing";      BOOTH_PORTS="4543 4553 8003 4534 4533 4532" ;;
   "")
     echo "무엇을 시동할까요?  시나리오 인자가 필요합니다 (scn2 | scn3):"
     echo "  ./run-booth.sh scn2    # 시나리오 2 · Uplink Attack"
@@ -62,13 +69,20 @@ start_all() {   # $1 = attacker mode: 'all' (install+check+up) first time, 'up' 
 }
 
 stop_all() {
-  # Kill the two script wrappers; their background services (GS, builder, OpenVSA,
-  # gpredict container, Arduino bridge) are reclaimed by the NEXT launch's own
-  # free_port / free_gpredict / free_serial_bridge, which match by port/container/name.
-  [ -n "$APID" ] && kill "$APID" 2>/dev/null || true
-  [ -n "$VPID" ] && kill "$VPID" 2>/dev/null || true
-  pkill -f 'start-attacker.sh' 2>/dev/null || true
-  pkill -f 'start-victim.sh'   2>/dev/null || true
+  # Kill the two script wrappers TOGETHER WITH their children. On macOS/Linux the wrapper's
+  # own EXIT trap tears the services down; on Windows a killed bash subshell leaves its
+  # node.exe children running (no signal propagation), so kill_shell_tree uses taskkill /T.
+  kill_shell_tree "$APID"
+  kill_shell_tree "$VPID"
+  kill_by_pattern 'start-attacker\.sh'
+  kill_by_pattern 'start-victim\.sh'
+  # Belt and braces: reclaim the scenario's ports directly. The next launch's free_port
+  # would normally do this, but a service that outlives its wrapper (Windows) must be gone
+  # BEFORE we relaunch — otherwise the new GS dies with
+  #   Error: listen EADDRINUSE: address already in use 0.0.0.0:4553
+  local p
+  for p in $BOOTH_PORTS; do free_tcp_port "$p" "booth :$p"; done
+  kill_by_pattern 'bridge\.js'   # Arduino 시리얼 브리지(포트가 아니라 시리얼을 물어 포트 회수로는 안 잡힘)
   sleep 2
 }
 
