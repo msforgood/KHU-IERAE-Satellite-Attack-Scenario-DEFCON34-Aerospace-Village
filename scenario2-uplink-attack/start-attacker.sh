@@ -46,6 +46,8 @@ set -uo pipefail
 # 아래에 있다. 시나리오 폴더(scenario.json·extras/ 위치)를 먼저 절대경로로 잡은 뒤
 # 공용 트리로 진입해 이하 상대경로를 그대로 쓴다. scn2·scn3·scn4가 이 스크립트를 공유한다.
 SCN_DIR="$(cd "$(dirname "$0")" && pwd)"
+# 포트/프로세스 정리 헬퍼(OS 별 lsof·pkill ↔ netstat·taskkill). cd 前에 절대경로로 source.
+. "$SCN_DIR/../common/proc.sh"
 cd "$SCN_DIR/../common/attacker"
 
 MODE="${1:-all}"
@@ -93,16 +95,11 @@ pick_python() {
 # 지정 포트를 잡고 있는 '이전 실행의 좀비 서버'를 정리한다 (데모 전용 포트라 안전).
 # 이걸 안 하면 새 서버가 bind 실패(Address already in use)하고, 죽은 옛 서버가 화면을
 # 계속 서빙해서 디버깅이 꼬인다(예: /api/mission 이 옛 경로 때문에 500).
+# (조회·종료 자체는 proc.sh 의 free_tcp_port 가 OS 별로 처리한다 — macOS·Linux 는 lsof+kill,
+#  Windows Git Bash 는 netstat+taskkill //T. 예전엔 lsof 전용이라 Windows 에서 통째로 no-op 이었고,
+#  그 결과 이전 실행이 포트를 문 채 남아 다음 실행이 EADDRINUSE 로 죽었다.)
 free_port() {
-  local port="$1" name="$2" pids
-  have lsof || return 0
-  pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null)" || true
-  [ -z "$pids" ] && return 0
-  c_warn ":$port 사용 중(${name}) → 이전 인스턴스 정리: $(echo "$pids" | tr '\n' ' ')"
-  echo "$pids" | xargs kill 2>/dev/null || true
-  sleep 1
-  pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null)" || true
-  [ -n "$pids" ] && { echo "$pids" | xargs kill -9 2>/dev/null || true; sleep 1; }
+  free_tcp_port "$1" "$2"
 }
 
 # 이전 실행이 남긴 Arduino 브리지(node bridge.js)를 정리한다. TCP 가 아니라 시리얼 포트를 물기
@@ -111,13 +108,13 @@ free_port() {
 #      서보·모터가 제대로 안 돈다.  ② flash 업로드가 'Resource busy' 로 실패한다.
 # 그래서 detect/flash/selftest/새 브리지 이전에 반드시 정리한다. 데모 전용이라 bridge.js 매칭 안전.
 free_serial_bridge() {
-  have pkill || return 0
-  local victims; victims="$(pgrep -f 'bridge\.js' 2>/dev/null || true)"
+  local victims; victims="$(pids_by_pattern 'bridge\.js')"
   [ -z "$victims" ] && return 0
   c_warn "이전 Arduino 브리지 정리(시리얼 중복 write 방지) → kill: $(echo $victims | tr '\n' ' ')"
-  pkill -f 'bridge\.js' 2>/dev/null || true
+  kill_by_pattern 'bridge\.js'
   sleep 1
-  pgrep -f 'bridge\.js' >/dev/null 2>&1 && { pkill -9 -f 'bridge\.js' 2>/dev/null || true; sleep 1; }
+  [ -n "$(pids_by_pattern 'bridge\.js')" ] && { kill_by_pattern 'bridge\.js'; sleep 1; }
+  return 0
 }
 
 # 종료(Ctrl+C 등) 시 모터를 정지시킨다. 스케치는 공격(mode 1)이면 스스로 계속 왕복하므로,
@@ -496,7 +493,9 @@ up() {
     echo; echo "[cleanup] 종료 중…"
     free_serial_bridge   # 브리지(node) 확실히 종료 → 그 SIGTERM 핸들러가 보드에 MODE 0 전송(모터 정지)
     stop_motors          # 안전빵: 보드에 MODE 0 직접 전송(브리지가 못 보냈을 경우)
-    [ "${#pids[@]}" -gt 0 ] && kill "${pids[@]}" 2>/dev/null || true
+    # Windows 는 bash 서브셸을 죽여도 그 아래 node/python 자식이 살아 포트를 계속 문다 →
+    # kill_shell_tree 가 WINPID 로 변환해 taskkill //T 로 트리째 내린다(그 외 OS 는 kill 과 동일).
+    local _p; for _p in "${pids[@]:-}"; do kill_shell_tree "$_p"; done
     if have docker; then
       docker ps -q --filter "ancestor=$GP_IMG" | xargs -r docker stop >/dev/null 2>&1 || true
     fi
@@ -547,7 +546,7 @@ up() {
   # 조용히 넘어가지 않고 원인을 명시한다(대개 포트 잔존·bind 실패).
   local VSA_OK=0
   for _ in $(seq 1 25); do
-    lsof -tiTCP:4534 -sTCP:LISTEN >/dev/null 2>&1 && { VSA_OK=1; break; }
+    [ -n "$(port_pids 4534)" ] && { VSA_OK=1; break; }
     grep -qiE "EADDRINUSE|address already in use" /tmp/demosat-openvsa.log 2>/dev/null && break
     sleep 0.2
   done
