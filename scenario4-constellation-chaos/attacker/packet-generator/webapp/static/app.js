@@ -746,27 +746,12 @@ function renderBurn() {
   updateTransmitReady();
 }
 
-// ── PHASE 4 · TRANSMIT (extended CCSDS/cFS byte map + uplink) ─────────────────
-// 38-byte layout: header(6) fc(1) chk(1) time(6) mode(1) thrmask(1)
+// ── PHASE 4 · TRANSMIT (layered CCSDS view + uplink) ─────────────────────────
+// The command you solve is a 38-byte CCSDS Space Packet (SPP). For the uplink the
+// ground station wraps it in a 5-byte TC Transfer Frame header + a 2-byte FECF (TF),
+// so the on-the-wire frame is 45 bytes. SPP 38-byte layout:
+//   header(6) fc(1) chk(1) time(6) mode(1) thrmask(1)
 //   dvIn(4) dvCross(4) thrustN(4) yaw(2) pitch(2) burnDur(2) prop(2) crc(2)
-var PKT_FIELDS = [
-  { o: 0, n: 2, g: 'hdr', label: 'CCSDS primary: version / type=CMD / APID 0x1F0' },
-  { o: 2, n: 2, g: 'hdr', label: 'Sequence flags + count' },
-  { o: 4, n: 2, g: 'hdr', label: 'Packet data length (= total − 7)' },
-  { o: 6, n: 1, g: 'fc', label: 'Function code = 0x03 START BURN' },
-  { o: 7, n: 1, g: 'chk', label: 'cFS command XOR checksum (whole packet → 0)' },
-  { o: 8, n: 6, g: 'time', label: 'Execution time T (CUC: 4B sec + 2B subsec)' },
-  { o: 14, n: 1, g: 'act', label: 'Maneuver mode (RTN delta-v + burn)' },
-  { o: 15, n: 1, g: 'act', label: 'Thruster select mask (from pointing)' },
-  { o: 16, n: 4, g: 'dv', label: 'delta-v in-track / prograde (float32, m/s)' },
-  { o: 20, n: 4, g: 'dv', label: 'delta-v cross-track (float32, m/s)' },
-  { o: 24, n: 4, g: 'act', label: 'thrust magnitude F (float32, N)' },
-  { o: 28, n: 2, g: 'act', label: 'burn attitude yaw (int16, 0.1°)' },
-  { o: 30, n: 2, g: 'act', label: 'burn attitude pitch (int16, 0.1°)' },
-  { o: 32, n: 2, g: 'act', label: 'burn duration (uint16, 0.1 s)' },
-  { o: 34, n: 2, g: 'act', label: 'propellant Δm (uint16, 0.1 kg)' },
-  { o: 36, n: 2, g: 'chk', label: 'payload CRC-16-CCITT (bytes 8-35)' }
-];
 var PKT_LEN = 38;
 function crc16(u8, start, end) {
   var c = 0xFFFF;
@@ -796,32 +781,119 @@ function buildPacket() {
   var x = 0xFF; for (var i = 0; i < PKT_LEN; i++) x ^= u8[i]; u8[7] = x;
   return { u8: u8, w: w };
 }
-function fieldGroupAt(off) { for (var i = 0; i < PKT_FIELDS.length; i++) { var f = PKT_FIELDS[i]; if (off >= f.o && off < f.o + f.n) return f.g; } return 'hdr'; }
+// ── layered CCSDS/cFS view: a TC Transfer Frame (TF) wraps the Space Packet (SPP) ──
+var PKT_LAYERINFO = {
+  tf:   ['TC TRANSFER FRAME, frame header', 'link layer, CCSDS 232.0-B'],
+  pri:  ['SPACE PACKET, primary header', 'CCSDS 133.0-B'],
+  sec:  ['SPACE PACKET, cFS secondary header', 'NASA cFS'],
+  data: ['SPACE PACKET, user data (maneuver payload)', 'mission-defined'],
+  crc:  ['SPACE PACKET, packet CRC', 'CRC-16-CCITT over the payload'],
+  fecf: ['TC TRANSFER FRAME, FECF', 'link layer, CCSDS 232.0-B']
+};
+var PKT_SRC = { fic: ['Fictional', 'b-fic'], cmp: ['Computed', 'b-cmp'], p2: ['Phase 2', 'b-p2'],
+  p3: ['Phase 3', 'b-p3'], lnk: ['Link', 'b-lnk'], fix: ['Fixed', 'b-fix'] };
+function hx(b) { return ('0' + (b & 0xFF).toString(16)).slice(-2).toUpperCase(); }
+function hx16(v) { return ('000' + (v & 0xFFFF).toString(16)).slice(-4).toUpperCase(); }
+// each field: [ layer, name, bytes, bit-layout, source, valueFn(ctx) ] in on-the-wire order.
+// source: fic = fictional id, cmp = computed, p2 = Phase 2, p3 = Phase 3, lnk = link counter, fix = fixed
+var FRAME_FIELDS = [
+  ['tf', 'TF header: version, flags, spare, SCID', 2, '2+1+1+2+10', 'fic', function () { return 'SCID 200'; }],
+  ['tf', 'Virtual Channel ID + frame length', 2, '6+10', 'cmp', function (c) { return 'VC 1, len ' + (c.frame.length - 1); }],
+  ['tf', 'Frame sequence number', 1, '8', 'lnk', function () { return '0'; }],
+  ['pri', 'Packet ID: version, TC type, sec-hdr flag, APID', 2, '3+1+1+11', 'fic', function () { return 'TC, APID 0x1F0'; }],
+  ['pri', 'Packet sequence control: flags + count', 2, '2+14', 'lnk', function () { return 'unsegmented, count 0'; }],
+  ['pri', 'Packet data length (data octets minus 1)', 2, '16', 'cmp', function (c) { return String(c.w.getUint16(4, false)); }],
+  ['sec', 'Function code (command = START BURN)', 1, '8', 'fic', function () { return '0x03'; }],
+  ['sec', 'cFS command checksum (XOR of packet)', 1, '8', 'cmp', function (c) { return '0x' + hx(c.u8[7]); }],
+  ['data', 'Execution time T (CUC: 4B sec + 2B subsec)', 6, '', 'p2', function (c) { return 'T = ' + c.w.getUint32(8, false) + ' s'; }],
+  ['data', 'Maneuver mode (RTN delta-v burn)', 1, '', 'fix', function (c) { return '0x' + hx(c.u8[14]); }],
+  ['data', 'Thruster select mask (from pointing)', 1, '', 'p3', function (c) { return '0x' + hx(c.u8[15]); }],
+  ['data', 'Delta-v prograde (float32, m/s)', 4, '', 'p3', function (c) { return c.w.getFloat32(16, false).toFixed(1); }],
+  ['data', 'Delta-v cross-track (float32, m/s)', 4, '', 'p3', function (c) { return c.w.getFloat32(20, false).toFixed(1); }],
+  ['data', 'Thrust magnitude F (float32, N)', 4, '', 'p3', function (c) { return c.w.getFloat32(24, false).toFixed(0) + ' N'; }],
+  ['data', 'Burn attitude yaw (int16, 0.1°)', 2, '', 'p3', function (c) { return (c.w.getInt16(28, false) / 10).toFixed(1) + '°'; }],
+  ['data', 'Burn attitude pitch (int16, 0.1°)', 2, '', 'p3', function (c) { return (c.w.getInt16(30, false) / 10).toFixed(1) + '°'; }],
+  ['data', 'Burn duration (uint16, 0.1 s)', 2, '', 'p3', function (c) { return (c.w.getUint16(32, false) / 10).toFixed(1) + ' s'; }],
+  ['data', 'Propellant Δm (uint16, 0.1 kg)', 2, '', 'p3', function (c) { return (c.w.getUint16(34, false) / 10).toFixed(1) + ' kg'; }],
+  ['crc', 'Packet CRC-16-CCITT (over the payload)', 2, '', 'cmp', function (c) { return '0x' + hx16(c.w.getUint16(36, false)); }],
+  ['fecf', 'Frame Error Control Field (CRC-16)', 2, '', 'cmp', function (c) { return '0x' + hx16(c.fecf); }]
+];
+function pktSizes() { var spp = 0, tf = 0; FRAME_FIELDS.forEach(function (f) { tf += f[2]; if (f[0] !== 'tf' && f[0] !== 'fecf') spp += f[2]; }); return { spp: spp, tf: tf }; }
+function pktByteLayers() { var m = []; FRAME_FIELDS.forEach(function (f) { for (var i = 0; i < f[2]; i++) m.push(f[0]); }); return m; }
+// wrap the 38-byte SPP in a TC transfer frame (5-byte header + 2-byte FECF) for the on-the-wire view
+function buildFrame() {
+  var pk = buildPacket(); var spp = pk.u8, n = spp.length, scid = 200, vcid = 1, seq = 0;
+  var frame = new Uint8Array(5 + n + 2), fw = new DataView(frame.buffer);
+  fw.setUint16(0, (0 << 14) | (1 << 13) | (0 << 12) | (0 << 10) | (scid & 0x3FF), false);
+  fw.setUint16(2, ((vcid & 0x3F) << 10) | ((frame.length - 1) & 0x3FF), false);
+  frame[4] = seq & 0xFF; frame.set(spp, 5);
+  var fecf = crc16(frame, 0, 5 + n); frame[5 + n] = (fecf >> 8) & 0xFF; frame[5 + n + 1] = fecf & 0xFF;
+  return { pk: pk, u8: pk.u8, w: pk.w, frame: frame, fecf: fecf };
+}
+
+var pktSel = null, pktCtx = null;
 function enterTransmit() {
-  var pk = buildPacket(); S.packet = pk;
-  var hex = $('#pktHex');
-  if (hex) { var html = ''; for (var i = 0; i < pk.u8.length; i++) html += '<span class="pb pg-' + fieldGroupAt(i) + '" title="byte ' + i + '">' + ('0' + pk.u8[i].toString(16)).slice(-2).toUpperCase() + '</span>'; hex.innerHTML = html; }
-  var fields = $('#pktFields');
-  if (fields) {
-    var val = function (f) {
-      if (f.g === 'dv') return pk.w.getFloat32(f.o, false).toFixed(1) + ' m/s';
-      if (f.o === 24) return pk.w.getFloat32(24, false).toFixed(0) + ' N';
-      if (f.o === 28) return (pk.w.getInt16(28, false) / 10).toFixed(1) + '°';
-      if (f.o === 30) return (pk.w.getInt16(30, false) / 10).toFixed(1) + '°';
-      if (f.o === 32) return (pk.w.getUint16(32, false) / 10).toFixed(1) + ' s';
-      if (f.o === 34) return (pk.w.getUint16(34, false) / 10).toFixed(1) + ' kg';
-      if (f.g === 'time') return 'T = ' + pk.w.getUint32(8, false) + ' s';
-      if (f.o === 6) return '0x03';
-      if (f.o === 4) return (PKT_LEN - 7) + ' B';
-      return '';
-    };
-    fields.innerHTML = PKT_FIELDS.map(function (f) {
-      return '<div class="pktfield pg-' + f.g + '"><span class="pkoff">' + f.o + (f.n > 1 ? '–' + (f.o + f.n - 1) : '') + '</span>' +
-        '<span class="pklbl">' + f.label + '</span><b>' + val(f) + '</b></div>';
-    }).join('');
-  }
-  $('#pktLen').textContent = pk.u8.length;
+  // open on the payload layer, the part the participant actually solved (Δv, burn, timing)
+  pktCtx = buildFrame(); S.packet = pktCtx.pk; pktSel = 'data';
+  renderPktStack(); renderPktSizes(); renderPktHex(); renderPktTable(); renderPktFilter();
+  var pl = $('#pktLen'); if (pl) pl.textContent = pktCtx.frame.length;
   renderUplinkSummary();
+}
+function applyPktSel() {
+  var el = $('#pktStack');
+  if (el) {
+    el.classList.toggle('filtering', !!pktSel);
+    var segs = el.querySelectorAll('.pkseg');
+    for (var i = 0; i < segs.length; i++) segs[i].classList.toggle('sel', segs[i].getAttribute('data-layer') === pktSel);
+  }
+  var hex = $('#pktHex'); if (hex) hex.className = 'pkthex' + (pktSel ? ' sel-' + pktSel : '');
+}
+function setPktLayer(l) { pktSel = l; applyPktSel(); renderPktTable(); renderPktFilter(); }
+function renderPktStack() {
+  var el = $('#pktStack'); if (!el) return; var sz = pktSizes();
+  var seg = function (l, name, b) { return '<div class="pkseg L-' + l + '" data-layer="' + l + '"><span class="pksname">' + name + '</span><span class="pksbytes">' + b + ' B</span></div>'; };
+  var spp = '<div class="pkspp"><div class="pklhead"><span class="pklname pl-t-pri">SPACE PACKET</span><span class="pklspec">CCSDS 133.0-B</span><span class="pklsize pl-t-pri">' + sz.spp + ' B</span></div><div class="pkrow">' +
+    seg('pri', 'Primary header', 6) + seg('sec', 'cFS secondary', 2) + seg('data', 'Payload', 28) + seg('crc', 'CRC', 2) + '</div></div>';
+  el.innerHTML = '<div class="pklbox pl-b-tf"><div class="pklhead"><span class="pklname pl-t-tf">TC TRANSFER FRAME</span><span class="pklspec">CCSDS 232.0-B, on the wire</span><span class="pklsize pl-t-tf">' + sz.tf + ' B</span></div>' +
+    '<div class="pkrow pkrow-stretch">' + seg('tf', 'Frame header', 5) + spp + seg('fecf', 'FECF', 2) + '</div></div>';
+  if (!el._wired) {
+    el._wired = true;
+    el.addEventListener('click', function (e) {
+      var s = e.target.closest ? e.target.closest('.pkseg') : null; if (!s) return;
+      var l = s.getAttribute('data-layer'); setPktLayer(l === pktSel ? null : l);
+    });
+  }
+  applyPktSel();
+}
+function renderPktSizes() {
+  var el = $('#pktSizes'); if (!el) return; var sz = pktSizes();
+  el.innerHTML =
+    '<div class="pkscard pl-b-pri"><div class="pkst">SPACE PACKET (SPP)</div><div class="pksv pl-t-pri">' + sz.spp + ' B</div><div class="pksb">6 primary + 2 cFS secondary + 28 payload + 2 CRC</div></div>' +
+    '<div class="pkscard pl-b-tf"><div class="pkst">TC TRANSFER FRAME (on the wire)</div><div class="pksv pl-t-tf">' + sz.tf + ' B</div><div class="pksb">5 frame header + ' + sz.spp + ' Space Packet + 2 FECF</div></div>';
+}
+function renderPktHex() {
+  var el = $('#pktHex'); if (!el || !pktCtx) return; var fr = pktCtx.frame, map = pktByteLayers(), h = '';
+  for (var i = 0; i < fr.length; i++) h += '<span class="pb pl-' + map[i] + '" title="byte ' + i + '">' + ('0' + fr[i].toString(16)).slice(-2).toUpperCase() + '</span>';
+  el.innerHTML = h;
+}
+function renderPktTable() {
+  var tbl = $('#pktTable'); var tb = tbl ? tbl.querySelector('tbody') : null; if (!tb || !pktCtx) return;
+  var html = '', last = '';
+  FRAME_FIELDS.forEach(function (f) {
+    var layer = f[0]; if (pktSel && layer !== pktSel) return;
+    if (layer !== last) { html += '<tr class="pklz"><td colspan="5"><i class="pkdot pl-' + layer + '"></i>' + PKT_LAYERINFO[layer][0] + ' <span class="pklzspec">(' + PKT_LAYERINFO[layer][1] + ')</span></td></tr>'; last = layer; }
+    var s = PKT_SRC[f[4]];
+    html += '<tr><td><i class="pkdot pl-' + layer + '"></i>' + f[1] + '</td><td class="pksz">' + f[2] + ' B</td><td class="pkbits">' + (f[3] || '-') + '</td><td class="pkval">' + f[5](pktCtx) + '</td><td><span class="pkbadge ' + s[1] + '">' + s[0] + '</span></td></tr>';
+  });
+  tb.innerHTML = html;
+}
+function renderPktFilter() {
+  var el = $('#pktFilter'); if (!el) return;
+  if (!pktSel) { el.innerHTML = '<span class="pkfidim">All layers shown. Click a colored block above to inspect one region.</span>'; return; }
+  var L = PKT_LAYERINFO[pktSel], list = FRAME_FIELDS.filter(function (f) { return f[0] === pktSel; });
+  var b = list.reduce(function (s, f) { return s + f[2]; }, 0), n = list.length;
+  el.innerHTML = '<span class="pkfitag pl-b-' + pktSel + '">' + L[0] + '</span><span class="pkfidim">' + L[1] + ' &nbsp; ' + b + ' B &nbsp; ' + n + ' field' + (n > 1 ? 's' : '') + '</span><button id="pktShowAll" class="pkshowall">show all &times;</button>';
+  var sa = $('#pktShowAll'); if (sa) sa.onclick = function () { setPktLayer(null); };
 }
 function renderUplinkSummary() {
   var box = $('#uplinkSummary'); if (!box) return; var g = S.geom || {}, b = S.burn || {}, plan = b.plan || {};
