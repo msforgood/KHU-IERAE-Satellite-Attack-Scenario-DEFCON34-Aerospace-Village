@@ -42,7 +42,9 @@ def load_protocol(path=None):
         return _PROTOCOL_CACHE
     if path is None:
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "c2protocol.json")
-    with open(path) as f:
+    # encoding 고정: Windows 는 open() 기본 인코딩이 시스템 로케일(예: 일본어 cp932)이라
+    # UTF-8 JSON 의 비ASCII 바이트를 'illegal multibyte sequence' 로 못 읽고 죽는다. utf-8 명시.
+    with open(path, encoding="utf-8") as f:
         proto = json.load(f)
     if path is None or _PROTOCOL_CACHE is None:
         _PROTOCOL_CACHE = proto

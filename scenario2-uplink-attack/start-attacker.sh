@@ -72,6 +72,12 @@ EXTRA_DIR_ARG=""; [ -d "$SCN_DIR/extras" ] && EXTRA_DIR_ARG="$SCN_DIR/extras"
 BUILDER_DIR="packet-generator/webapp"
 VENV="$BUILDER_DIR/.venv"
 
+# Python UTF-8 모드 강제. Windows 는 open()·stdout 기본 인코딩이 시스템 로케일(예: 일본어
+# cp932)이라 ① UTF-8 JSON 읽기(codec c2protocol.json)와 ② 비ASCII 출력(→,— 등)이
+# 'illegal multibyte sequence' 로 죽는다. UTF-8 모드면 둘 다 UTF-8 로 고정돼 roundtrip
+# 테스트·app.py 로그가 로케일과 무관하게 동작한다. (POSIX 는 어차피 UTF-8 이라 무해.)
+export PYTHONUTF8=1
+
 # ── helpers (start-victim.sh와 동일 디자인) ───────────────────────────────────
 say()    { printf "\033[36m▸ %s\033[0m\n" "$*"; }
 c_ok()   { printf "\033[32m  ✓ %s\033[0m\n" "$*"; }
@@ -84,13 +90,50 @@ open_url() {
   case "$(uname)" in
     Darwin) open "$1" ;;
     Linux)  xdg-open "$1" >/dev/null 2>&1 || true ;;
-    *)      command -v powershell >/dev/null 2>&1 && powershell.exe start "$1" || true ;;
+    *)      # Windows: URL 의 '&'(쿼리 구분자)를 PowerShell 이 연산자로 오해해 파싱 에러가 난다
+            #   (증상: "The ampersand (&) character is not allowed"). → -Command 로 URL 을
+            #   작은따옴표 리터럴에 담아 Start-Process 에 통째로 넘긴다(리터럴 안에선 & 도 문자).
+            #   URL 내부의 ' 는 '' 로 이스케이프.
+            if command -v powershell.exe >/dev/null 2>&1; then
+              local u_ps="${1//\'/\'\'}"
+              powershell.exe -NoProfile -Command "Start-Process '$u_ps'" >/dev/null 2>&1 || true
+            fi ;;
   esac
 }
 
-# numpy 를 가진 python 인터프리터 경로를 고른다 (venv 우선).
+# ── python 해석(Windows 대응) ─────────────────────────────────────────────────
+# Windows(Git Bash)의 함정 두 가지를 흡수한다:
+#   ① python/python3 이 PATH 에 있어도 'Microsoft Store 실행 앨리어스' 스텁일 수 있다.
+#      이 스텁은 코드를 실행하지 않고 exit 49 로 죽어 venv 생성·numpy 가 전부 실패한다
+#      (증상: '✗ venv 생성 실패'). → command -v 존재만 믿지 말고 실제 실행(`-c import sys`)
+#      으로 검증하고, 안 되면 py 런처(Windows)로 진짜 python.exe 를 찾는다.
+#   ② venv 인터프리터 경로가 POSIX 는 bin/python, Windows 는 Scripts/python.exe 로 다르다.
+
+# 실제로 코드를 '실행'하는 시스템 python 을 고른다(venv 생성용). 없으면 빈 문자열+비0.
+sys_python() {
+  local c exe
+  for c in python3 python; do
+    have "$c" && "$c" -c "import sys" >/dev/null 2>&1 && { echo "$c"; return 0; }
+  done
+  # Windows: py 런처로 실제 python.exe 절대경로를 얻어 bash 경로(/c/...)로 변환해 쓴다.
+  if have py && exe="$(py -3 -c 'import sys;print(sys.executable)' 2>/dev/null)" && [ -n "$exe" ]; then
+    have cygpath && exe="$(cygpath -u "$exe")"
+    echo "$exe"; return 0
+  fi
+  return 1
+}
+
+# venv 안의 python 경로(bin/python ↔ Scripts/python.exe). 없으면 빈 문자열.
+venv_py() {
+  if   [ -x "$VENV/bin/python" ];         then echo "$VENV/bin/python"
+  elif [ -x "$VENV/Scripts/python.exe" ]; then echo "$VENV/Scripts/python.exe"
+  fi
+}
+
+# numpy 를 가진 python 인터프리터 경로를 고른다 (venv 우선, 없으면 실행 가능한 시스템 python).
 pick_python() {
-  if [ -x "$VENV/bin/python" ]; then echo "$VENV/bin/python"; else echo "python3"; fi
+  local v; v="$(venv_py)"
+  if [ -n "$v" ]; then echo "$v"; else sys_python; fi
 }
 
 # 지정 포트를 잡고 있는 '이전 실행의 좀비 서버'를 정리한다 (데모 전용 포트라 안전).
@@ -404,15 +447,17 @@ install() {
   say "1/3  최초 설치"
   have node   || die "node 가 없습니다 → https://nodejs.org (LTS) 설치 후 다시 실행"
   have npm    || die "npm 이 없습니다 (Node 설치 시 함께 제공)"
-  have python3|| die "python3 가 없습니다"
+  local SYSPY; SYSPY="$(sys_python)" \
+    || die "실행 가능한 Python 3 없음 → python.org 에서 설치(설치 시 'Add to PATH'). Windows 는 설정→앱→'앱 실행 별칭'에서 python/python3(Store 스텁)을 끄거나 py 런처를 두세요."
 
   # ① Command Builder — Python venv + numpy (전역 오염 방지)
   echo "[1/3] Command Builder Python 의존성 (numpy) → $VENV"
-  if [ ! -d "$VENV" ]; then
-    python3 -m venv "$VENV" || die "venv 생성 실패 (Debian이면 'sudo apt install python3-venv')"
+  if [ -z "$(venv_py)" ]; then   # venv 인터프리터가 없으면(미생성/이전 스텁 실패) 새로 만든다
+    "$SYSPY" -m venv "$VENV" || die "venv 생성 실패 (Debian이면 'sudo apt install python3-venv')"
   fi
-  "$VENV/bin/python" -m pip install --quiet --upgrade pip \
-    && "$VENV/bin/python" -m pip install --quiet numpy \
+  local VPY; VPY="$(venv_py)"; [ -n "$VPY" ] || die "venv python 을 찾을 수 없음 ($VENV)"
+  "$VPY" -m pip install --quiet --upgrade pip \
+    && "$VPY" -m pip install --quiet numpy \
     || die "numpy 설치 실패"
   c_ok "numpy 준비됨"
 
@@ -473,10 +518,16 @@ up() {
   say "3/3  attacker 화면 실행"
   rm -f "$READY_FLAG" 2>/dev/null || true   # not-ready until the full setup (incl. Arduino) finishes
   local py; py="$(pick_python)"
+  [ -n "$py" ] || die "python 인터프리터를 찾을 수 없음 → './start-attacker.sh install' 먼저"
   "$py" -c "import numpy" 2>/dev/null || die "numpy 없음 → './start-attacker.sh install' 먼저"
-  # 서브셸에서 cd 후에도 안전하도록 파이썬을 절대경로로 고정
-  local PY_ABS
-  if [ -x "$VENV/bin/python" ]; then PY_ABS="$(cd "$VENV/bin" && pwd)/python"; else PY_ABS="$(command -v python3)"; fi
+  # 서브셸에서 cd 후에도 안전하도록 파이썬을 절대경로로 고정.
+  #   · 경로형(venv 상대경로/변환된 py.exe) → dirname 을 절대경로화
+  #   · 명령이름형(python3 등) → command -v 로 절대경로 해석
+  local PY_ABS="$py"
+  case "$PY_ABS" in
+    */*) PY_ABS="$(cd "$(dirname "$PY_ABS")" && pwd)/$(basename "$PY_ABS")" ;;
+    *)   PY_ABS="$(command -v "$PY_ABS")" ;;
+  esac
 
   local pids=()
   cleanup() {
