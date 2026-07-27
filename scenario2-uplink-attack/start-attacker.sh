@@ -25,7 +25,8 @@
 #   GP_IMG       gpredict Docker 이미지명. 기본 demosat-gpredict
 #   UPLINK_OUT_DIR  attack.cf32 출력 폴더. 기본 ~/uplink
 #   NO_OPEN      1이면 브라우저 자동 열기 끄기 (기본: 실행 후 ①③ 화면 자동 오픈)
-#   ANT_PORT     안테나 아두이노 시리얼 포트 강제 지정(미지정 시 WHOAMI 자동탐지). 예 /dev/cu.usbmodem1101
+#   ANT_PORT     안테나 아두이노 시리얼 포트 강제 지정(미지정 시 WHOAMI 자동탐지).
+#                예 macOS /dev/cu.usbmodem1101 · Linux /dev/ttyACM0 · Windows COM3
 #   SOLAR_PORT   솔라 패널 아두이노 시리얼 포트 강제 지정(미지정 시 WHOAMI 자동탐지).
 #   PANEL_SPIN   1이면 솔라 패널을 연속회전 서보로 취급(공격 시 SPIN). bridge.js 로 전달.
 #   ── Arduino(scn2 전용, scenario.json 의 "arduinoBridge": true 일 때만) ──
@@ -117,15 +118,32 @@ free_serial_bridge() {
   return 0
 }
 
+# ── 시리얼 I/O 는 전부 공용 serial.js 를 거친다 ───────────────────────────────
+# 예전엔 여기서 직접 `stty -f` + `exec 3<>/dev/cu.xxx` 로 포트를 다뤘는데, 이건 macOS 전용이라
+# Windows(Git Bash)에선 stty 플래그도 장치 경로도 맞지 않아 아두이노가 통째로 죽었다.
+# serial.js 가 OS 별 차이(stty ↔ mode.com, /dev/cu.* ↔ COM3, 열기 플래그)를 흡수한다.
+SERIAL_JS="$SCN_DIR/../common/arduino/bridge/serial.js"
+
+# 포트 존재 확인. Windows 의 'COM3' 은 파일이 아니라서 `[ -e ]` 가 항상 거짓이다.
+port_exists() {
+  case "${1:-}" in
+    "") return 1 ;;
+    [Cc][Oo][Mm][0-9]*) return 0 ;;
+    *) [ -e "$1" ] ;;
+  esac
+}
+
 # 종료(Ctrl+C 등) 시 모터를 정지시킨다. 스케치는 공격(mode 1)이면 스스로 계속 왕복하므로,
 # 브리지를 죽이는 것만으로는 안 멈춘다 — 보드에 MODE 0(정지)을 직접 보내야 한다.
 # (브리지 SIGTERM 핸들러도 MODE 0 을 보내지만, 브리지가 이미 죽었을 때를 대비한 안전빵.)
 stop_motors() {
   local dev
+  have node || return 0
   for dev in "$SOLAR_DEV" "$ANT_DEV"; do
-    [ -n "$dev" ] && [ -e "$dev" ] || continue
-    stty -f "$dev" 9600 raw -echo clocal 2>/dev/null || continue
-    { printf 'MODE 0\n'; } > "$dev" 2>/dev/null || true
+    port_exists "$dev" || continue
+    # 포트를 여는 순간 Uno 는 리셋된다 → 부팅을 기다렸다가 MODE 0 을 보내야 먹는다.
+    # (MKR 같은 네이티브 USB 보드는 리셋되지 않으므로 이 MODE 0 이 유일한 정지 수단이다.)
+    node "$SERIAL_JS" send "$dev" 9600 "1800:" "300:MODE 0" >/dev/null 2>&1 || true
   done
 }
 
@@ -177,57 +195,25 @@ free_gpredict() {
 
 # 한 시리얼 포트를 열어 WHOAMI 를 보내고 펌웨어가 응답하는 역할(antenna/solar)을 echo 한다.
 # motor.sh 와 동일한 방식(펌웨어에 심은 ID 로 보드 식별). 응답 없으면 빈 문자열.
+# 실제 시리얼 열기·보율 설정·타임아웃 읽기는 serial.js 가 OS 별로 처리한다
+# (Windows 는 .NET SerialPort 를 써서 ReadTimeout 이 정확히 지켜지도록 한다).
 probe_serial_role() {
-  local p="$1" line role=""
-  [ -e "$p" ] || return 0
-  stty -f "$p" 9600 raw -echo -hupcl clocal 2>/dev/null || return 0
-  exec 3<>"$p" 2>/dev/null || return 0
-  sleep 2.2                                   # Uno 부트로더/USB 리셋 대기
-  printf 'WHOAMI\n' >&3
-  while IFS= read -r -t 2 line <&3; do
-    line="${line%$'\r'}"
-    case "$line" in
-      *"id=ANTENNA"*|*"ID=ANTENNA"*)          role="antenna"; break;;
-      *"ID=SOLAR_PANEL"*|*"SOLAR PANEL"*)      role="solar";   break;;
-    esac
-  done
-  exec 3>&- 2>/dev/null
-  printf '%s' "$role"
+  local p="$1"
+  port_exists "$p" || return 0
+  have node || return 0
+  node "$SERIAL_JS" whoami "$p" 9600 2>/dev/null | tr -d '\r' | head -1
 }
 
 # 연결된 USB 시리얼 포트를 스캔해 "포트<TAB>추정FQBN" 행으로 출력한다. arduino-cli 가 있으면
 # board list 로 칩 종류와 무관하게(정품 Uno·CH340/CP210x 클론 등) 포트를 잡고, 정품 보드는 FQBN
-# 까지 얻는다. 블루투스/디버그 포트(properties 없음·이름 불일치)는 제외. arduino-cli/python3 이
-# 없으면 /dev/cu.* glob 로 폴백(클론용 wchusbserial·SLAB_USBtoUART 포함).
+# 까지 얻는다. 블루투스/디버그 포트(properties 없음·이름 불일치)는 제외. arduino-cli 가 없으면
+# OS 별 포트 열거로 폴백(macOS cu.* · Linux ttyACM/ttyUSB · Windows COMx).
+#   ※ 예전엔 이 JSON 을 python3 로 팠는데 Windows 엔 'python3' 이름이 없는 설치가 흔해 조용히
+#     폴백으로 떨어졌고, 그 폴백마저 /dev/cu.* glob 이라 Windows 에선 결과가 늘 비었다.
+#     이제 파싱까지 serial.js(node) 가 맡는다 — node 는 어차피 필수 의존성이다.
 list_serial_ports() {
-  if have arduino-cli && have python3; then
-    arduino-cli board list --json 2>/dev/null | python3 -c '
-import sys, json
-try:
-    d = json.load(sys.stdin)
-except Exception:
-    sys.exit(0)
-for e in d.get("detected_ports", []) or []:
-    p = e.get("port", {}) or {}
-    if p.get("protocol") != "serial":
-        continue
-    addr = p.get("address", "")
-    if not addr:
-        continue
-    base = addr.rsplit("/", 1)[-1]
-    props = p.get("properties", {}) or {}
-    mb = e.get("matching_boards", []) or []
-    fqbn = (mb[0].get("fqbn", "") if mb else "")
-    usbish = base.startswith(("cu.usbmodem", "cu.usbserial", "cu.wchusbserial", "cu.SLAB_USBtoUART"))
-    if mb or props.get("vid") or props.get("pid") or usbish:
-        print(addr + "\t" + fqbn)
-' 2>/dev/null
-  else
-    local p
-    for p in /dev/cu.usbmodem* /dev/cu.usbserial-* /dev/cu.wchusbserial* /dev/cu.SLAB_USBtoUART*; do
-      [ -e "$p" ] && printf '%s\t\n' "$p"
-    done
-  fi
+  have node || return 0
+  node "$SERIAL_JS" boards 2>/dev/null | tr -d '\r'
 }
 
 # 연결된 보드를 1회 탐지해 역할별 포트를 전역에 저장한다(flash·selftest·bridge 공유).
@@ -241,7 +227,7 @@ detect_boards() {
   local p fq role
   local unknown=()
   while IFS=$'\t' read -r p fq; do
-    [ -n "$p" ] && [ -e "$p" ] || continue
+    port_exists "$p" || continue
     { [ "$p" = "$ANT_DEV" ] || [ "$p" = "$SOLAR_DEV" ]; } && continue
     role="$(probe_serial_role "$p")"
     if   [ "$role" = "antenna" ] && [ -z "$ANT_DEV" ];   then ANT_DEV="$p"; [ -z "$ANT_FQBN" ] && ANT_FQBN="$fq"
@@ -304,7 +290,7 @@ ensure_arduino_deps() {
 # 시 solar_panel_spin). 실패해도 기존 펌웨어로 계속. NO_FLASH=1 로 생략, FQBN 으로 보드 변경.
 flash_boards() {
   [ "${NO_FLASH:-0}" = "1" ] && { c_warn "NO_FLASH=1 → 스케치 업로드 생략(기존 펌웨어 사용)"; return 0; }
-  have arduino-cli || { c_warn "arduino-cli 없음 → 스케치 업로드 생략(기존 펌웨어 사용). 설치: brew install arduino-cli"; return 0; }
+  have arduino-cli || { c_warn "arduino-cli 없음 → 스케치 업로드 생략(기존 펌웨어 사용). 설치: macOS brew install arduino-cli · Windows winget install ArduinoSA.CLI"; return 0; }
   local fqbn="${FQBN:-arduino:avr:uno}"
   local ant_fqbn="${FQBN:-${ANT_FQBN:-arduino:avr:uno}}"   # 정품 보드면 스캔에서 얻은 FQBN, 아니면 Uno(28BYJ-48+ULN2003 기본)
   local solar_sketch; solar_sketch="$([ -n "${PANEL_SPIN:-}" ] && echo solar_panel_spin || echo solar_panel_uno)"
@@ -337,24 +323,28 @@ flash_boards() {
 motor_selftest() {
   [ "${NO_SELFTEST:-0}" = "1" ] && return 0
   local p="$ANT_DEV"
-  [ -n "$p" ] && [ -e "$p" ] || { c_warn "안테나 보드 없음 → 모터 자가진단 생략"; return 0; }
+  port_exists "$p" || { c_warn "안테나 보드 없음 → 모터 자가진단 생략"; return 0; }
+  have node || { c_warn "node 없음 → 모터 자가진단 생략"; return 0; }
   # 준비자세 방위각은 보드 부팅 가정값(180°)과 '같게' 둔다 — 다르게 두면(예 0°) 셋업 때
   # 180°→0° 로 반바퀴 돌아 선이 꼬인다. az 는 180° 부근에서만 움직인다.
   local raz="${READY_AZ:-180}" rel="${READY_EL:-50}"   # 준비자세 az 180°(부팅값)·el 50°(합의값). 조준 시 el 10°로 틸트.
-  stty -f "$p" 9600 raw -echo -hupcl clocal 2>/dev/null || { c_warn "자가진단: $p stty 실패 → 생략"; return 0; }
-  exec 3<>"$p" 2>/dev/null || { c_warn "자가진단: $p 열기 실패 → 생략"; return 0; }
-  sleep 2.2                                   # 스케치 부팅 대기(포트 열림 = Uno 리셋)
   say "안테나 모터 자가진단 — az·el 각각 왕복 후 준비 자세 ${raz}°/${rel}°"
-  printf 'TRACK\n'          >&3; sleep 0.4    # 스윕/스핀 해제 → 위치추종 모드
+  # 각 인자는 "대기ms:보낼줄" — serial.js 가 한 번 연 포트로 순서대로 흘려보낸다.
   # ⚠ 케이블 꼬임 방지 — AZ 는 보드 부팅 가정값(180°) 부근 ±30° 안에서만 살짝 왕복.
   #    (절대 0° 같은 먼 각을 주면 반바퀴 돌아 선이 꼬인다.) EL 은 절대 90° 초과 금지.
-  printf 'AZ 210\n'         >&3; sleep 1.6    # ① az 모터 확인 (180→210°, +30°만)
-  printf 'AZ 180\n'         >&3; sleep 1.6    # ② az 모터 원위치(부팅값)
-  printf 'EL 80\n'          >&3; sleep 2.0    # ③ el 모터 확인 (→80°, 90° 미만)
-  printf 'EL 20\n'          >&3; sleep 2.0    # ④ el 모터 반대로 (→20°)
-  printf 'AZEL %d %d\n' "$raz" "$rel" >&3; sleep 3.0   # ⑤ 준비 자세로 정렬(az 180°·el 50°)
-  exec 3>&- 2>/dev/null
-  c_ok "모터 자가진단 완료 → 준비 자세 az=${raz}° el=${rel}° (ENGAGE 시 여기서 목표각으로 움직이는 게 보임)"
+  if node "$SERIAL_JS" send "$p" 9600 \
+       "2200:"                        `# 스케치 부팅 대기(포트 열림 = Uno 리셋)` \
+       "400:TRACK"                    `# 스윕/스핀 해제 → 위치추종 모드` \
+       "1600:AZ 210"                  `# ① az 모터 확인 (180→210°, +30°만)` \
+       "1600:AZ 180"                  `# ② az 모터 원위치(부팅값)` \
+       "2000:EL 80"                   `# ③ el 모터 확인 (→80°, 90° 미만)` \
+       "2000:EL 20"                   `# ④ el 모터 반대로 (→20°)` \
+       "3000:AZEL $raz $rel"          `# ⑤ 준비 자세로 정렬(az 180°·el 50°)` \
+       2>/dev/null; then
+    c_ok "모터 자가진단 완료 → 준비 자세 az=${raz}° el=${rel}° (ENGAGE 시 여기서 목표각으로 움직이는 게 보임)"
+  else
+    c_warn "자가진단: $p 열기/전송 실패 → 생략(브리지는 그대로 시도)"
+  fi
 }
 
 # 연결신호 최종 확인 — 업로드가 끝난 뒤 두 보드가 실제로 WHOAMI 에 응답하는지 재프로브해 요약한다.
@@ -364,7 +354,7 @@ motor_selftest() {
 verify_boards() {
   say "안테나·솔라 연결신호 확인(WHOAMI 재프로브)"
   local any=0
-  if [ -n "$ANT_DEV" ] && [ -e "$ANT_DEV" ]; then
+  if port_exists "$ANT_DEV"; then
     any=1
     if [ "$(probe_serial_role "$ANT_DEV")" = "antenna" ]; then
       c_ok "안테나 연결신호 확인 (WHOAMI=ANTENNA) → $ANT_DEV"
@@ -372,7 +362,7 @@ verify_boards() {
       c_warn "안테나 WHOAMI 무응답 → $ANT_DEV — 펌웨어 업로드 실패? /tmp/demosat-flash-ant.log 확인(엉뚱한 펌웨어면 재플래시 필요)"
     fi
   fi
-  if [ -n "$SOLAR_DEV" ] && [ -e "$SOLAR_DEV" ]; then
+  if port_exists "$SOLAR_DEV"; then
     any=1
     if [ "$(probe_serial_role "$SOLAR_DEV")" = "solar" ]; then
       c_ok "솔라패널 연결신호 확인 (WHOAMI=SOLAR_PANEL) → $SOLAR_DEV"

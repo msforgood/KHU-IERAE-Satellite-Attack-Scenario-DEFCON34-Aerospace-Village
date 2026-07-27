@@ -25,7 +25,8 @@
 #   GP_IMG       gpredict Docker 이미지명. 기본 demosat-gpredict
 #   UPLINK_OUT_DIR  attack.cf32 출력 폴더. 기본 ~/uplink
 #   NO_OPEN      1이면 브라우저 자동 열기 끄기 (기본: 실행 후 ①③ 화면 자동 오픈)
-#   ANT_PORT     안테나 아두이노 시리얼 포트 강제 지정(미지정 시 WHOAMI 자동탐지). 예 /dev/cu.usbmodem1101
+#   ANT_PORT     안테나 아두이노 시리얼 포트 강제 지정(미지정 시 WHOAMI 자동탐지).
+#                예 macOS /dev/cu.usbmodem1101 · Linux /dev/ttyACM0 · Windows COM3
 #   SOLAR_PORT   솔라 패널 아두이노 시리얼 포트 강제 지정(미지정 시 WHOAMI 자동탐지).
 #   PANEL_SPIN   1이면 솔라 패널을 연속회전 서보로 취급(공격 시 SPIN). bridge.js 로 전달.
 #   ── Arduino(scn2 전용, scenario.json 의 "arduinoBridge": true 일 때만) ──
@@ -144,47 +145,55 @@ free_gpredict() {
   echo "$ids" | xargs docker stop >/dev/null 2>&1 || true
 }
 
+# ── 시리얼 I/O 는 전부 공용 serial.js 를 거친다 ───────────────────────────────
+# 예전엔 여기서 직접 `stty -f` + `exec 3<>/dev/cu.xxx` 로 포트를 다뤘는데, 이건 macOS 전용이라
+# Windows(Git Bash)에선 stty 플래그도 장치 경로도 맞지 않아 아두이노가 통째로 죽었다.
+# serial.js 가 OS 별 차이(stty ↔ mode.com, /dev/cu.* ↔ COM3, 열기 플래그)를 흡수한다.
+SERIAL_JS="$SCN_DIR/../common/arduino/bridge/serial.js"
+
+# 포트 존재 확인. Windows 의 'COM3' 은 파일이 아니라서 `[ -e ]` 가 항상 거짓이다.
+port_exists() {
+  case "${1:-}" in
+    "") return 1 ;;
+    [Cc][Oo][Mm][0-9]*) return 0 ;;
+    *) [ -e "$1" ] ;;
+  esac
+}
+
 # 한 시리얼 포트를 열어 WHOAMI 를 보내고 펌웨어가 응답하는 역할(antenna/solar)을 echo 한다.
 # motor.sh 와 동일한 방식(펌웨어에 심은 ID 로 보드 식별). 응답 없으면 빈 문자열.
 probe_serial_role() {
-  local p="$1" line role=""
-  [ -e "$p" ] || return 0
-  stty -f "$p" 9600 raw -echo -hupcl clocal 2>/dev/null || return 0
-  exec 3<>"$p" 2>/dev/null || return 0
-  sleep 2.2                                   # Uno 부트로더/USB 리셋 대기
-  printf 'WHOAMI\n' >&3
-  while IFS= read -r -t 2 line <&3; do
-    line="${line%$'\r'}"
-    case "$line" in
-      *"id=ANTENNA"*|*"ID=ANTENNA"*)          role="antenna"; break;;
-      *"ID=SOLAR_PANEL"*|*"SOLAR PANEL"*)      role="solar";   break;;
-    esac
-  done
-  exec 3>&- 2>/dev/null
-  printf '%s' "$role"
+  local p="$1"
+  port_exists "$p" || return 0
+  have node || return 0
+  node "$SERIAL_JS" whoami "$p" 9600 2>/dev/null | tr -d '\r' | head -1
 }
 
 # 연결된 시리얼 보드를 1회 탐지해 역할별 포트를 전역에 저장한다(flash·selftest·bridge 공유).
 # ANT_PORT/SOLAR_PORT 로 강제 지정 가능. 미지정 포트는 WHOAMI 로 antenna/solar 분류.
+# 포트 열거는 serial.js 가 OS 별로 처리한다(macOS cu.* · Linux ttyACM/USB · Windows COMx).
 ANT_DEV=""; SOLAR_DEV=""
 detect_boards() {
   ANT_DEV="${ANT_PORT:-}"; SOLAR_DEV="${SOLAR_PORT:-}"
   { [ -n "$ANT_DEV" ] && [ -n "$SOLAR_DEV" ]; } && return 0   # 둘 다 지정 → 탐색 불필요
-  local p role
-  for p in /dev/cu.usbmodem* /dev/cu.usbserial-*; do
-    [ -e "$p" ] || continue
+  have node || return 0
+  local p fq role scan; scan="$(node "$SERIAL_JS" boards 2>/dev/null | tr -d '\r')"
+  while IFS=$'\t' read -r p fq; do
+    port_exists "$p" || continue
     { [ "$p" = "$ANT_DEV" ] || [ "$p" = "$SOLAR_DEV" ]; } && continue
     role="$(probe_serial_role "$p")"
     [ -z "$ANT_DEV" ]   && [ "$role" = "antenna" ] && ANT_DEV="$p"
     [ -z "$SOLAR_DEV" ] && [ "$role" = "solar" ]   && SOLAR_DEV="$p"
-  done
+  done <<EOF
+$scan
+EOF
 }
 
 # 스케치 자동 업로드(arduino-cli). 안테나=antenna_gimbal, 솔라=solar_panel_uno(또는 PANEL_SPIN
 # 시 solar_panel_spin). 실패해도 기존 펌웨어로 계속. NO_FLASH=1 로 생략, FQBN 으로 보드 변경.
 flash_boards() {
   [ "${NO_FLASH:-0}" = "1" ] && { c_warn "NO_FLASH=1 → 스케치 업로드 생략(기존 펌웨어 사용)"; return 0; }
-  have arduino-cli || { c_warn "arduino-cli 없음 → 스케치 업로드 생략(기존 펌웨어 사용). 설치: brew install arduino-cli"; return 0; }
+  have arduino-cli || { c_warn "arduino-cli 없음 → 스케치 업로드 생략(기존 펌웨어 사용). 설치: macOS brew install arduino-cli · Windows winget install ArduinoSA.CLI"; return 0; }
   local fqbn="${FQBN:-arduino:avr:uno}"
   local solar_sketch; solar_sketch="$([ -n "${PANEL_SPIN:-}" ] && echo solar_panel_spin || echo solar_panel_uno)"
   if [ -z "$ANT_DEV" ] && [ -z "$SOLAR_DEV" ]; then
@@ -215,20 +224,24 @@ flash_boards() {
 motor_selftest() {
   [ "${NO_SELFTEST:-0}" = "1" ] && return 0
   local p="$ANT_DEV"
-  [ -n "$p" ] && [ -e "$p" ] || { c_warn "안테나 보드 없음 → 모터 자가진단 생략"; return 0; }
+  port_exists "$p" || { c_warn "안테나 보드 없음 → 모터 자가진단 생략"; return 0; }
+  have node || { c_warn "node 없음 → 모터 자가진단 생략"; return 0; }
   local raz="${READY_AZ:-0}" rel="${READY_EL:-0}"
-  stty -f "$p" 9600 raw -echo -hupcl clocal 2>/dev/null || { c_warn "자가진단: $p stty 실패 → 생략"; return 0; }
-  exec 3<>"$p" 2>/dev/null || { c_warn "자가진단: $p 열기 실패 → 생략"; return 0; }
-  sleep 2.2                                   # 스케치 부팅 대기(포트 열림 = Uno 리셋)
   say "안테나 모터 자가진단 — az·el 각각 왕복 후 준비 자세 ${raz}°/${rel}°"
-  printf 'TRACK\n'          >&3; sleep 0.4    # 스윕/스핀 해제 → 위치추종 모드
-  printf 'AZ 300\n'         >&3; sleep 2.5    # ① az 모터 이동
-  printf 'AZ 60\n'          >&3; sleep 2.5    # ② az 모터 반대로
-  printf 'EL 80\n'          >&3; sleep 2.5    # ③ el 모터 이동
-  printf 'EL 10\n'          >&3; sleep 2.5    # ④ el 모터 반대로
-  printf 'AZEL %d %d\n' "$raz" "$rel" >&3; sleep 3.0   # ⑤ 준비 자세로 정렬(두 모터 동시)
-  exec 3>&- 2>/dev/null
-  c_ok "모터 자가진단 완료 → 준비 자세 az=${raz}° el=${rel}° (ENGAGE 시 여기서 목표각으로 움직이는 게 보임)"
+  # 각 인자는 "대기ms:보낼줄" — serial.js 가 한 번 연 포트로 순서대로 흘려보낸다.
+  if node "$SERIAL_JS" send "$p" 9600 \
+       "2200:"                        `# 스케치 부팅 대기(포트 열림 = Uno 리셋)` \
+       "400:TRACK"                    `# 스윕/스핀 해제 → 위치추종 모드` \
+       "2500:AZ 300"                  `# ① az 모터 이동` \
+       "2500:AZ 60"                   `# ② az 모터 반대로` \
+       "2500:EL 80"                   `# ③ el 모터 이동` \
+       "2500:EL 10"                   `# ④ el 모터 반대로` \
+       "3000:AZEL $raz $rel"          `# ⑤ 준비 자세로 정렬(두 모터 동시)` \
+       2>/dev/null; then
+    c_ok "모터 자가진단 완료 → 준비 자세 az=${raz}° el=${rel}° (ENGAGE 시 여기서 목표각으로 움직이는 게 보임)"
+  else
+    c_warn "자가진단: $p 열기/전송 실패 → 생략(브리지는 그대로 시도)"
+  fi
 }
 
 # Arduino 브리지 기동(best-effort). 피해 GS(:4543) 상태를 폴링해 물리 안테나(AZEL/SWEEP)와
