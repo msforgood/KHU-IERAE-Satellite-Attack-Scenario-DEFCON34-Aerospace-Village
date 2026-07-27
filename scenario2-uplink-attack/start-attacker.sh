@@ -64,6 +64,11 @@ UPLINK_OUT_DIR="${UPLINK_OUT_DIR:-$HOME/uplink}"
 # the finale's restart reload waits for the hardware (not just the web builder). app.py
 # serves it at /api/ready; run-booth.sh clears it on restart.
 export READY_FLAG="${READY_FLAG:-/tmp/demosat-attacker-ready.flag}"
+# 하드웨어 프로비저닝 캐시 — 최초(mode=all) 1회에 감지한 보드 포트/FQBN 을 적어두고,
+# 재시작(mode=up)엔 이 파일이 있으면 포트감지·펌웨어 업로드·모터 자가진단을 건너뛴다
+# (다음 참가자 리셋을 빠르게). 부스 전체를 새로 켜면 mode=all 이라 캐시와 무관하게 다시
+# 프로비저닝한다. 보드를 바꿔 꽂았거나 강제 재감지하려면 이 파일을 지우면 된다.
+export HW_CACHE="${HW_CACHE:-/tmp/demosat-attacker-hw.env}"
 # 시나리오 델타: 이 폴더의 scenario.json(페이즈 구성) + extras/(④+ 전용 화면)를 Command
 # Builder에 전달. extras/ 가 없으면(scn2) EXTRA_DIR 미설정 → 순수 3-phase 공격.
 SCENARIO_CONFIG="${SCENARIO_CONFIG:-$SCN_DIR/scenario.json}"
@@ -465,6 +470,26 @@ motor_selftest() {
   fi
 }
 
+# 준비 자세로만 '빠르게' 이동(왕복 자가진단 생략) — 재시작(다음 참가자) 전용.
+# 최초 1회는 motor_selftest 로 az·el 왕복까지 확인하지만, 재시작마다 ~12초 왕복을 반복하면
+# 리셋이 느리다. 여기선 포트 열림(=Uno 리셋) 대기 후 준비 자세 한 번만 보낸다(~4초).
+motor_ready() {
+  local p="$ANT_DEV"
+  port_exists "$p" || { c_warn "안테나 보드 없음 → 준비자세 이동 생략"; return 0; }
+  have node || { c_warn "node 없음 → 준비자세 이동 생략"; return 0; }
+  local raz="${READY_AZ:-180}" rel="${READY_EL:-50}"
+  say "안테나 준비 자세로 이동 ${raz}°/${rel}° (자가진단 생략 · 빠른 리셋)"
+  if node "$SERIAL_JS" send "$p" 9600 \
+       "2200:"                 `# 포트 열림=Uno 리셋 → 부팅 대기` \
+       "400:TRACK"             `# 스윕/스핀 해제 → 위치추종` \
+       "1500:AZEL $raz $rel"   `# 준비 자세 1회 정렬` \
+       2>/dev/null; then
+    c_ok "준비 자세 정렬 완료 az=${raz}° el=${rel}°"
+  else
+    c_warn "$p 열기/전송 실패 → 생략(브리지는 그대로 시도)"
+  fi
+}
+
 # 연결신호 최종 확인 — 업로드가 끝난 뒤 두 보드가 실제로 WHOAMI 에 응답하는지 재프로브해 요약한다.
 # detect_boards 는 부팅 시 '어느 포트가 무엇인지' 1회 분류만 한다. 여기서는 flash 후 펌웨어가
 # 정상 응답하는지(=연결신호 확인) 최종 점검하고 ✓/! 로 사람이 한눈에 보게 출력한다.
@@ -677,13 +702,24 @@ up() {
   #   보드가 USB로 연결돼 있어야 실제로 돈다. 없으면 경고만 하고 건너뜀(화면은 정상).
   if grep -q '"arduinoBridge"[[:space:]]*:[[:space:]]*true' "$SCENARIO_CONFIG" 2>/dev/null; then
     free_serial_bridge # 이전 실행의 좀비 브리지 정리(포트 해제) → 업로드/자가진단/새 브리지 충돌 방지
-    ensure_arduino_cli # arduino-cli 자체가 없으면 자동 설치(없으면 스케치 미업로드 → 모터 미동작)
-    detect_boards      # 시리얼 포트 1회 탐지(WHOAMI 역할 분류) → ANT_DEV/SOLAR_DEV
-    ensure_arduino_deps # 코어(MKR SAMD·Uno AVR) + Stepper 라이브러리 자동 설치 → flash 첫 실행부터 성공
-    flash_boards       # antenna_gimbal / solar 스케치 자동 업로드(arduino-cli)
-    verify_boards      # WHOAMI 재프로브 → 안테나·솔라 '연결신호 확인' 요약(start_bridge 전에)
-    motor_selftest     # az·el 모터 왕복 테스트 후 준비 자세 정렬
-    start_bridge       # 브리지 기동(이후 피해 GS 지향각·acquire 스윕 반영)
+    # 최초 부팅(mode=all)에만 '무거운' 하드웨어 프로비저닝을 하고 감지한 보드 포트를 HW_CACHE 에
+    # 적어둔다. 다음 참가자 리셋(mode=up)엔 캐시가 있으면 포트감지·코어/라이브러리 설치·스케치
+    # 업로드·WHOAMI 확인·왕복 자가진단을 전부 건너뛰고, 안테나를 준비 각도로 옮기는 것만 한다.
+    if [ "$MODE" = up ] && [ -f "$HW_CACHE" ]; then
+      . "$HW_CACHE"    # 캐시된 ANT_DEV/SOLAR_DEV/ANT_FQBN 로드(감지 생략)
+      c_ok "재시작 빠른 경로 — 포트감지·펌웨어 업로드·모터 자가진단 생략(캐시 $HW_CACHE) · ant=${ANT_DEV:-—} solar=${SOLAR_DEV:-—}"
+      motor_ready      # 준비 각도로만 이동(왕복 자가진단 없이 빠르게)
+    else
+      ensure_arduino_cli # arduino-cli 자체가 없으면 자동 설치(없으면 스케치 미업로드 → 모터 미동작)
+      detect_boards      # 시리얼 포트 1회 탐지(WHOAMI 역할 분류) → ANT_DEV/SOLAR_DEV
+      ensure_arduino_deps # 코어(MKR SAMD·Uno AVR) + Stepper 라이브러리 자동 설치 → flash 첫 실행부터 성공
+      flash_boards       # antenna_gimbal / solar 스케치 자동 업로드(arduino-cli)
+      verify_boards      # WHOAMI 재프로브 → 안테나·솔라 '연결신호 확인' 요약(start_bridge 전에)
+      motor_selftest     # az·el 모터 왕복 테스트 후 준비 자세 정렬(최초 1회)
+      # 감지된 포트를 캐시에 저장 → 다음 참가자부턴 위 빠른 경로로 진입
+      printf 'ANT_DEV=%q\nSOLAR_DEV=%q\nANT_FQBN=%q\n' "${ANT_DEV:-}" "${SOLAR_DEV:-}" "${ANT_FQBN:-}" > "$HW_CACHE" 2>/dev/null || true
+    fi
+    start_bridge       # 브리지 기동(이후 피해 GS 지향각·acquire 스윕 반영) — 매번
   fi
 
   # 단일 진입점 = :8002 하나. ① 명령 조립 → ② IQ 생성 → ③ 위성 조준 이 한 앱 안에서 전부.
