@@ -11,16 +11,18 @@
 // Antenna: on the `acquiring` flag (POST /api/acquire during gpredict pointing) the
 // antenna SWEEPs left↔right; under attack (tumbling) it jitters; else it tracks az/el.
 //
-// Serial is done without the `serialport` npm package: on macOS/Linux a tty is
-// just a file, so we configure it with stty(1) then fs.createWriteStream(). This
-// is host→board write only — all we need to drive the motors.
+// Serial is done without the `serialport` npm package — see ./serial.js, the shared
+// zero-dependency layer that hides the per-OS differences (stty vs mode.com, /dev/cu.*
+// vs COM3, and the flags:"w" / OPEN_EXISTING trap on Windows). This side is host→board
+// write only — all we need to drive the motors.
 //
 // ── Usage ───────────────────────────────────────────────────────────────────
 //   SOLAR_PORT=/dev/cu.usbmodemXXXX ANT_PORT=/dev/cu.usbmodemYYYY \
 //     node bridge.js
+//   Windows:  SOLAR_PORT=COM4 ANT_PORT=COM3 node bridge.js
 //
 //   Either port may be omitted — the bridge drives whatever is present.
-//   With neither set it lists candidate /dev/cu.usbmodem* ports and exits.
+//   With neither set it lists candidate serial ports and exits.
 //
 //   GS_URL         (default http://localhost:4540)
 //   POLL_MS        (default 150)
@@ -28,8 +30,7 @@
 //   PANEL_SPIN     (default off) 1 = solar panel is a continuous-rotation servo → SPIN
 
 const http = require("http");
-const fs = require("fs");
-const { execFileSync } = require("child_process");
+const S = require("./serial");   // 크로스플랫폼 시리얼 레이어(포트 목록·설정·열기)
 
 const GS_URL   = process.env.GS_URL || "http://localhost:4540";
 const POLL_MS  = +(process.env.POLL_MS || 150);
@@ -40,31 +41,26 @@ const PANEL_SPIN = /^(1|true|yes)$/i.test(process.env.PANEL_SPIN || "");
 const RESET_WAIT_MS = 2000;   // Uno auto-resets when the port opens; wait it out
 
 // ── serial port helper ──────────────────────────────────────────────────────
-function listCandidates() {
-  try {
-    return fs.readdirSync("/dev")
-      .filter((f) => f.startsWith("cu.usbmodem") || f.startsWith("cu.usbserial"))
-      .map((f) => "/dev/" + f);
-  } catch { return []; }
-}
+const listCandidates = () => S.listPorts();
 
 function openPort(path, label) {
   if (!path) return null;
-  if (!fs.existsSync(path)) {
+  // Windows 의 COM 이름은 파일시스템에 없어 existsSync 가 늘 false 다 → portExists 로 판단.
+  if (!S.portExists(path)) {
     console.error(`[bridge] ${label}: port not found: ${path}`);
     return null;
   }
-  // Configure the tty: raw, chosen baud, 8N1, no flow control. macOS uses -f,
-  // Linux uses -F; try both so the bridge is portable.
-  const sttyArgs = [BAUD, "cs8", "-cstopb", "-parenb", "-echo", "raw"].map(String);
-  let configured = false;
-  for (const flag of ["-f", "-F"]) {
-    try { execFileSync("stty", [flag, path, ...sttyArgs], { stdio: "ignore" }); configured = true; break; }
-    catch { /* try the other flag */ }
-  }
-  if (!configured) console.warn(`[bridge] ${label}: stty config failed (continuing anyway)`);
+  // Configure the line: raw, chosen baud, 8N1, no flow control.
+  // (macOS `stty -f` / Linux `stty -F` / Windows `mode COMx:` — serial.js 가 고른다.)
+  if (!S.configure(path, BAUD)) console.warn(`[bridge] ${label}: 포트 설정 실패 (그대로 진행)`);
 
-  const stream = fs.createWriteStream(path, { flags: "w" });
+  let stream;
+  try {
+    stream = S.openWriter(path);        // Windows 는 flags:"r+" (COM 은 OPEN_EXISTING 만 허용)
+  } catch (e) {
+    console.error(`[bridge] ${label}: 포트 열기 실패 ${path}: ${e.message}`);
+    return null;
+  }
   stream.on("error", (e) => console.error(`[bridge] ${label} write error:`, e.message));
   console.log(`[bridge] ${label} → ${path} @ ${BAUD} (waiting ${RESET_WAIT_MS}ms for board reset)`);
   return { path, label, stream, ready: false };
@@ -83,8 +79,10 @@ if (!solarPath && !antPath) {
   const c = listCandidates();
   console.log("No SOLAR_PORT / ANT_PORT set.");
   console.log(c.length ? "Candidate ports:\n  " + c.join("\n  ")
-                       : "No /dev/cu.usbmodem* ports detected — check the cable (must be data-capable) and connect directly, not through a hub.");
-  console.log("\nExample:\n  SOLAR_PORT=/dev/cu.usbmodemXXXX ANT_PORT=/dev/cu.usbmodemYYYY node bridge.js");
+                       : "No serial ports detected — check the cable (must be data-capable) and connect directly, not through a hub.");
+  console.log(S.IS_WIN
+    ? "\nExample:\n  SOLAR_PORT=COM4 ANT_PORT=COM3 node bridge.js"
+    : "\nExample:\n  SOLAR_PORT=/dev/cu.usbmodemXXXX ANT_PORT=/dev/cu.usbmodemYYYY node bridge.js");
   process.exit(0);
 }
 

@@ -8,6 +8,10 @@
 # 모터 모델(MG90S/28BYJ-48 등)은 소프트웨어로 알 수 없으므로, "역할"은 이렇게
 # 펌웨어에 심은 ID로 정합니다. 정체불명/빈 보드는 응답이 없어 안전하게 걸러집니다.
 #
+# 실제 시리얼 열기·보율 설정·읽기는 bridge/serial.js 가 OS 별로 처리합니다
+# (macOS·Linux = stty + tty 스트림, Windows = mode.com + .NET SerialPort).
+# 예전엔 이 파일이 직접 `stty -f` 와 /dev/cu.* 를 썼는데 macOS 전용이라 Windows 에선 못 썼습니다.
+#
 # 사용법:
 #   ./motor.sh solar spin           # 솔라 패널 회전 시작
 #   ./motor.sh solar stop
@@ -17,42 +21,36 @@
 #   ./motor.sh antenna stop
 #   ./motor.sh antenna ping
 #
-# 포트 강제 지정(자동탐지 생략): PORT=/dev/cu.xxx ./motor.sh antenna spin
+# 포트 강제 지정(자동탐지 생략):
+#   PORT=/dev/cu.xxx ./motor.sh antenna spin     # macOS·Linux
+#   PORT=COM3 ./motor.sh antenna spin            # Windows
 set -uo pipefail
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+SERIAL_JS="$DIR/bridge/serial.js"
+BAUD="${BAUD:-9600}"
+
+command -v node >/dev/null 2>&1 || { echo "node 가 필요합니다 → https://nodejs.org (LTS) 설치 후 다시 실행"; exit 1; }
+[ -f "$SERIAL_JS" ] || { echo "serial.js 를 찾을 수 없습니다: $SERIAL_JS"; exit 1; }
 
 ROLE="$(echo "${1:-}" | tr '[:upper:]' '[:lower:]')"; shift 2>/dev/null || true
 CMD="$(echo "${1:-ping} ${2:-}" | tr '[:lower:]' '[:upper:]' | xargs)"
 
 case "$ROLE" in
-  solar|solar_panel) ID="SOLAR_PANEL"; ALT="SOLAR PANEL";;
-  antenna|ant)       ID="ANTENNA";     ALT="id=ANTENNA";;
+  solar|solar_panel) ROLE="solar" ;;
+  antenna|ant)       ROLE="antenna" ;;
   *) echo "사용법: ./motor.sh <solar|antenna> <spin|stop|speed N|sweep|ping ...>"; exit 1;;
 esac
 
-# 한 포트를 열어(Uno는 1회 리셋, MKR는 리셋 없음) WHOAMI로 역할 확인.
-# 맞으면 같은 연결에서 CMD 전송 후 응답을 잠깐 출력하고 0 반환.
+# 한 포트에 대해: 열기(Uno는 1회 리셋, MKR는 리셋 없음) → WHOAMI 로 역할 확인 →
+# 역할이 맞을 때만 CMD 전송 후 응답 출력. 종료코드 3 = 그 역할의 보드가 아님(다음 포트로).
 try_port() {
-  local p="$1" line found=""
-  [ -e "$p" ] || return 1
-  stty -f "$p" 9600 raw -echo -hupcl clocal 2>/dev/null || return 1
-  exec 3<>"$p" 2>/dev/null || return 1
-  sleep 2.2                                   # 부트로더/USB 준비 대기
-  printf 'WHOAMI\n' >&3
-  while IFS= read -r -t 2 line <&3; do
-    line="${line%$'\r'}"
-    case "$line" in *"ID=$ID"*|*"$ALT"*) found=1; break;; esac
-  done
-  [ -z "$found" ] && { exec 3>&- 2>/dev/null; return 1; }
-
-  printf '%s\n' "$CMD" >&3
+  local p="$1" out rc
+  out="$(node "$SERIAL_JS" cmd "$p" "$BAUD" "$ROLE" "$CMD" 2>/dev/null)"; rc=$?
+  [ "$rc" -eq 0 ] || return 1
   echo "✓ $ROLE 보드 발견: $p"
   echo ">> 전송: $CMD"
-  local n=0
-  while IFS= read -r -t 2 line <&3; do
-    line="${line%$'\r'}"; [ -n "$line" ] && echo "   $line"
-    n=$((n+1)); [ $n -ge 6 ] && break
-  done
-  exec 3>&- 2>/dev/null
+  [ -n "$out" ] && printf '%s\n' "$out" | sed -e 's/^/   /' | head -8
   return 0
 }
 
@@ -61,13 +59,17 @@ if [ -n "${PORT:-}" ]; then
   echo "지정한 포트($PORT)에서 '$ROLE' 응답이 없습니다."; exit 1
 fi
 
+# 포트 열거도 serial.js 에 맡긴다(macOS cu.* · Linux ttyACM/ttyUSB · Windows COMx).
 any=""
-for p in /dev/cu.usbserial-* /dev/cu.usbmodem*; do
-  [ -e "$p" ] || continue
+while IFS= read -r p; do
+  [ -n "$p" ] || continue
   any=1
   echo "탐색 중: $p ..." >&2
   try_port "$p" && exit 0
-done
+done <<EOF
+$(node "$SERIAL_JS" list 2>/dev/null | tr -d '\r')
+EOF
+
 [ -z "$any" ] && { echo "시리얼 포트가 하나도 없습니다. USB 연결을 확인하세요."; exit 1; }
 echo "'$ROLE' 역할 펌웨어가 응답하는 포트를 못 찾았습니다. 전원/업로드 상태를 확인하세요."
 exit 1
