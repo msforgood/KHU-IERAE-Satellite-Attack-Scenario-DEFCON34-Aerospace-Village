@@ -701,6 +701,21 @@
   let leadSec = 30,
     reached = false;
 
+  // Keep the targeting box out of sight for the first stretch of the 30s wait, then
+  // reveal it at the 20-seconds-remaining mark (i.e. 10s in). The console frames stay
+  // up the whole time; only the "SATELLITE TARGETING" box is gated.
+  const HIDE_LEAD_SEC = 10;
+  let ctrlUp = false;
+  function boxShouldShow() {
+    // once the pass is reached/engaged the box always stays; otherwise reveal only
+    // after the initial hidden window has elapsed.
+    return reached || engaged || (Date.now() - T0) / 1000 >= HIDE_LEAD_SEC;
+  }
+  function applyVisibility() {
+    // needs the control server up (frames real) AND past the hidden window.
+    guide.classList.toggle("show", ctrlUp && boxShouldShow());
+  }
+
   function setStateHTML(html, cls) {
     gState.innerHTML = html;
     gState.className = "state " + cls;
@@ -724,17 +739,21 @@
     try {
       s = await (await fetch(CTRL + "/status")).json();
     } catch (e) {
-      guide.classList.remove("show");
+      ctrlUp = false;
+      applyVisibility(); // gpredict/Docker down → hide
       return;
-    } // gpredict/Docker down → hide
-    guide.classList.add("show");
-    if (engaged) return; // don't overwrite the "engaged" state
-    render(s);
+    }
+    ctrlUp = true;
+    if (!engaged) render(s); // updates `reached`
+    applyVisibility(); // reveal decision uses the fresh countdown / `reached`
   }
   setInterval(pollStatus, 1000); // refresh in-range signal
   // tick the countdown every second even between polls, so the number never stalls
+  // (and so the box reveals on time at the 20s-remaining mark between polls).
   setInterval(() => {
-    if (guide.classList.contains("show") && !engaged) render(null);
+    if (engaged) return;
+    if (ctrlUp) render(null);
+    applyVisibility();
   }, 1000);
   pollStatus();
 
