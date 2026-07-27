@@ -15,7 +15,7 @@ export function createControls({ container, store, antennaTypes }) {
     .join("");
 
   container.innerHTML = `
-    <div class="controls-header">VSA</div>
+    <div class="controls-header">Virtual Antenna</div>
 
     <div class="tab-toggle">
       <button id="tab-downlink" class="tab-btn tab-active">DOWNLINK</button>
@@ -215,7 +215,7 @@ export function createControls({ container, store, antennaTypes }) {
     <div id="panel-satellite" style="display:none"></div>
 
     <p class="credit">
-      VSA — DEF CON Las Vegas 2026 Edition<br />
+      Virtual Antenna — DEF CON Las Vegas 2026 Edition<br />
       Designed &amp; developed by SunHyuk Hwang<br />
       © 2026 SunHyuk Hwang. All rights reserved.
     </p>

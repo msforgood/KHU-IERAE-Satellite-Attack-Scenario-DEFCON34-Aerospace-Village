@@ -10,8 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libfaketime python3 python3-ephem procps xdotool wmctrl scrot \
     && rm -rf /var/lib/apt/lists/*
 
-# Portrait display: fits the GPredict window plus the Antenna + Radio control windows stacked.
-ENV GEOM=1280x1440x24 VNC_PORT=5900 WEB_PORT=6080 CTRL_PORT=6079 \
+# Portrait display: fits the (taller, less-wide) GPredict window plus the Antenna + Radio control windows below.
+ENV GEOM=1280x1750x24 VNC_PORT=5900 WEB_PORT=6080 CTRL_PORT=6079 \
     ROTCTLD_HOST=host.docker.internal FAKETIME_FILE=/tmp/faketime.rc PASS_LEAD=20 MIN_PASS_ALT=25
 COPY start.sh /start.sh
 COPY control.py /control.py

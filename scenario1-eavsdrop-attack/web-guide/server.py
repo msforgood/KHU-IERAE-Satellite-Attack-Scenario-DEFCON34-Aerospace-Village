@@ -49,7 +49,7 @@ STATIC_DIR = os.path.join(HERE, "static")
 TEMPLATE = os.path.join(HERE, "templates", "index.html")
 VSA_DIR = os.path.join(SCEN1, "vsa")
 GRC_FILE = os.path.join(SCEN1, "decoder", "enigma1_decoder.grc")
-RESULT_IMG = os.path.join(SCEN1, "decoder", "enigma1_image_org.png")
+RESULT_IMG = os.path.join(SCEN1, "decoder", "military-airbase.png")   # high-res source image that the downlink carries
 GRC_OUT_DIR = os.path.join(SCEN1, "gnuradio-out")   # where the gnuradio-web Run result png lands
 # The recording uploaded in PHASE 4 -> the File Source of the real GNU Radio in PHASE 6 (mounted by gnuradio-web/run.sh).
 UPLOAD_DIR = os.path.join(SCEN1, "gnuradio-web", "upload")
@@ -138,7 +138,7 @@ SATELLITE = {
     "notes": [
         "Continuous, unencrypted AX.25 UI beacon: a passive-intercept target. No uplink, no command interface.",
         "Broadcasts a packetized image across ~29 AX.25 frames on a 7.22 s loop; one capture spanning a full burst is enough to decode.",
-        "Decode with gr-satellites: FSK demodulator (9600 baud) -> AX.25 deframer (G3RUH scrambler on) -> reassemble the Info fields by sequence number.",
+        "Decode the ENIGMA-1 downlink: FSK demodulator (9600 baud) -> AX.25 deframer (G3RUH scrambler on) -> reassemble the Info fields by sequence number.",
         "Sun-synchronous 98.5° inclination -> visible from any latitude; only the pass times differ.",
         "Its TLE is installed into GPredict so GPredict can track it and drive the rotator over rotctld/rigctld.",
     ],
@@ -228,13 +228,17 @@ VSA_IQ_SHIM = """
         for (i = 0; i < __recBuf.length; i++) { all.set(__recBuf[i], off); off += __recBuf[i].length; }
         __recBuf = [];
         var name = filename || ('vsa_recording_' + Date.now() + '.cf32');
-        function dl(blob, fn) { var u = URL.createObjectURL(blob); var a = document.createElement('a');
-          a.href = u; a.download = fn; document.body.appendChild(a); a.click(); a.remove();
-          setTimeout(function(){ URL.revokeObjectURL(u); }, 6000); }
-        dl(new Blob([all], {type:'application/octet-stream'}), name);                          // IQ (cf32)
-        try { if (meta) dl(new Blob([JSON.stringify(meta, null, 2)], {type:'application/json'}),
-                          name.replace(/\\.cf32$/, '') + '.sigmf-meta.json'); } catch(e){}      // metadata
-        return '\\u2b07 Downloaded: ' + name + ' (' + all.length + ' B, cf32) - browser Downloads folder';
+        // Save straight to the fixed server path (gnuradio-web/upload/uploaded.cf32) so Phase 4
+        // can pick it up with a single button (no manual download / re-upload).
+        var sr = (meta && meta.sampleRate) ? meta.sampleRate : 50000;
+        try {
+          var r = await fetch('/api/upload?name=' + encodeURIComponent(name) + '&sampleRate=' + sr,
+                              { method: 'POST', headers: {'Content-Type':'application/octet-stream'}, body: all });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return '\\u2705 Saved to server (' + all.length + ' B, cf32) - ready for Phase 4';
+        } catch (e) {
+          return '\\u2717 Save failed: ' + e.message;
+        }
       },
       onQTHUpdated: () => {}, decodeUplink: async () => ({}),
       chooseUplinkFile: async () => null, getUplinkFlag: async () => null,
@@ -368,6 +372,23 @@ def latest_progress():
         return {"exists": False}
 
 
+def clear_decode_output():
+    """Wipe the previous run's recovered image + progressive-decode state from gnuradio-out/.
+    The reassembler (reassembler_progressive.py) PRELOADS persist.raw at startup and always outputs
+    the full persisted buffer, so without clearing it a fresh GNU Radio run on a NEW recording keeps
+    showing the PREVIOUS file's accumulated image. Called when a new recording is uploaded."""
+    try:
+        for f in os.listdir(GRC_OUT_DIR):
+            fl = f.lower()
+            if fl.endswith(".png") or fl.endswith("_progress.txt") or f in ("persist.raw", "offset.txt"):
+                try:
+                    os.remove(os.path.join(GRC_OUT_DIR, f))
+                except OSError:
+                    pass
+    except OSError:
+        pass
+
+
 def uploaded_status():
     """Status of the recording uploaded in PHASE 4 (the PHASE 6 File Source, if present)."""
     try:
@@ -465,12 +486,45 @@ class Handler(BaseHTTPRequestHandler):
             return self._json([{"lat": q["lat"], "lon": q["lon"], "alt": q["alt"],
                                 "name": q["name"], "tle": read_enigma_tle()}])
 
+        # Full reset for the next participant: run run/reset.sh (recreate gpredict + gnuradio and
+        # clear the recorded signal / recovered image) so everyone starts from an identical state.
+        # Container recreates take a while, so it is launched in the background; the page reloads.
+        if path == "/api/reset-all":
+            import subprocess
+            try:
+                script = os.path.join(SCEN1, "run", "reset.sh")
+                logf = open(os.path.join(SCEN1, "run", "logs", "reset.log"), "w")
+                subprocess.Popen(["bash", script], cwd=SCEN1, stdout=logf, stderr=subprocess.STDOUT)
+                return self._json({"ok": True, "message": "reset started"})
+            except Exception as e:
+                return self._json({"ok": False, "error": str(e)}, 500)
+
         # proxy to gpredict-web time-control server (reset to next pass / faked offset)
         if path in ("/api/reset-pass", "/api/realtime", "/api/offset", "/api/remaining"):
             import urllib.request
             target = GPREDICT_CONTROL_URL.rstrip("/") + path.replace("/api", "")
             try:
                 with urllib.request.urlopen(target, timeout=8) as r:
+                    return self._send(r.status, "application/json; charset=utf-8", r.read())
+            except Exception as e:
+                return self._json({"ok": False, "error": f"gpredict control unreachable: {e}"}, 502)
+
+        # proxy to gpredict-web GUI automation (Phase-3 track / engage / doppler / set downlink freq).
+        # The query string is forwarded (radio-set-downlink needs ?hz=), and the timeout is longer
+        # because setting the frequency clicks the digit knob several times.
+        if path in ("/api/rotor-track-engage", "/api/radio-engage", "/api/radio-track",
+                    "/api/radio-apply", "/api/radio-set-downlink", "/api/gpredict-status"):
+            import urllib.request
+            from urllib.parse import urlparse
+            target = GPREDICT_CONTROL_URL.rstrip("/") + path.replace("/api", "")
+            q = urlparse(self.path).query
+            if q:
+                target += "?" + q
+            # radio-apply drives the downlink knob (turn Doppler off, disengage, click digits,
+            # re-engage, verify) which can take a while; the others are quick toggles/status.
+            tmo = 90 if path == "/api/radio-apply" else 20
+            try:
+                with urllib.request.urlopen(target, timeout=tmo) as r:
                     return self._send(r.status, "application/json; charset=utf-8", r.read())
             except Exception as e:
                 return self._json({"ok": False, "error": f"gpredict control unreachable: {e}"}, 502)
@@ -578,6 +632,23 @@ class Handler(BaseHTTPRequestHandler):
                 f.write(str(rate))
         except OSError as e:
             return self._json({"ok": False, "error": f"save failed: {e}"}, 500)
+        # A new recording replaces the decode target: wipe the previous run's recovered image +
+        # progressive state so the next GNU Radio ▶Run builds THIS file from scratch (the reassembler
+        # preloads persist.raw, otherwise it keeps showing the previous participant's image).
+        clear_decode_output()
+        # Rebind GNU Radio to THIS recording. The container's File Source is bound at container start
+        # (run/gnuradio.sh mounts the file), so a running container keeps decoding whatever it was
+        # launched with (the default enigma34_downlink.cf32) no matter how many times you Run it.
+        # Recreate it in the background with the new uploaded.cf32 + its samp_rate so it decodes the
+        # participant's own capture.
+        try:
+            import subprocess
+            os.makedirs(os.path.join(SCEN1, "run", "logs"), exist_ok=True)
+            gnlog = open(os.path.join(SCEN1, "run", "logs", "gnuradio.log"), "w")
+            subprocess.Popen(["bash", os.path.join(SCEN1, "run", "gnuradio.sh")],
+                             cwd=SCEN1, stdout=gnlog, stderr=subprocess.STDOUT)
+        except Exception:
+            pass
         st = uploaded_status()
         st["ok"] = True
         return self._json(st)

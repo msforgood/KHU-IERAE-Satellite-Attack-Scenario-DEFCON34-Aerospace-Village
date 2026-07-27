@@ -12,10 +12,13 @@ body {
 
 /* ── Layout ─────────────────────────────────────────────────────────────────── */
 .app-layout {
-  display: grid;
-  grid-template-columns: 300px 1fr;
+  /* scenario1 embed: show only the antenna + waterfall scene (full width); the input panel
+     is hidden but kept in the DOM so the web-guide Phase-3 controls can still drive it. */
+  display: block;
   height: 100dvh;
 }
+.panel.panel--controls { display: none !important; }
+.panel--scene { width: 100%; height: 100dvh; }
 
 /* ── Panels ─────────────────────────────────────────────────────────────────── */
 .panel {

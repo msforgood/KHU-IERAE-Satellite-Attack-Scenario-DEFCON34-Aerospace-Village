@@ -72,14 +72,21 @@ code{background:#0a121c;border:1px solid var(--line);border-radius:5px;padding:1
 .ghostbtn.sm{padding:9px 15px;font-size:15px}
 .ghostbtn.danger-ghost{border-color:#5a2230;color:#ff9aa5}
 .ghostbtn.danger-ghost:hover{border-color:var(--danger);color:#ff9aa5}
+/* Hint buttons: bright amber so they stand out; click toggles the hint on/off */
+.hintbtn{border-color:var(--amber);background:var(--amber);color:#141414;font-weight:700}
+.hintbtn:hover{border-color:#ffd27a;background:#ffd27a;color:#141414}
+/* prominent "record at least 1 minute" note on the Phase 1 record block */
+.rec-req{margin:9px 0 11px;padding:10px 14px;border:1px solid var(--amber);border-left:5px solid var(--amber);border-radius:8px;background:rgba(255,176,32,.13);color:#ffe0a6;font-size:15.5px;font-weight:600}
+.rec-req b{color:var(--amber)}
 
 /* ── MISSION briefing ── */
-.briefgrid{display:grid;grid-template-columns:460px 1fr;gap:32px;align-items:start}
-.scene{background:linear-gradient(180deg,#0b1220,#070c14);border:1px solid var(--line);border-radius:14px;padding:16px}
+.briefgrid{display:grid;grid-template-columns:1.6fr 1fr;gap:32px;align-items:stretch}
+.scene{background:linear-gradient(180deg,#0b1220,#070c14);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;align-items:center;justify-content:center}
 .rxscene{width:100%;height:auto;display:block;border-radius:8px}
 .rxsat{transform-box:fill-box;transform-origin:center;animation:orbit 9s ease-in-out infinite}
 @keyframes orbit{0%{transform:translateX(-38px)}50%{transform:translateX(38px)}100%{transform:translateX(-38px)}}
-.beam{animation:beamfade 3s ease-in-out infinite}@keyframes beamfade{50%{opacity:.5}}
+/* the coverage triangle rides with the satellite (same orbit motion) instead of staying fixed */
+.beam{transform-box:fill-box;animation:orbit 9s ease-in-out infinite,beamfade 3s ease-in-out infinite}@keyframes beamfade{50%{opacity:.5}}
 .chainrow{display:flex;gap:8px;margin-top:14px}
 .cstep{flex:1;text-align:center;padding:10px 6px;border:1px solid var(--line);border-radius:8px;
   font-size:15px;letter-spacing:.06em;color:var(--dim);background:#0a121c}
@@ -87,6 +94,23 @@ code{background:#0a121c;border:1px solid var(--line);border-radius:5px;padding:1
 .brieftext{display:flex;flex-direction:column;gap:20px}
 .bsec h3{margin:0 0 7px;font-size:19px;color:var(--accent);letter-spacing:.03em}
 .bsec p{margin:0;font-size:18px;line-height:1.62;color:#dbe6f2} .bsec b{color:#fff}
+/* mission page: minimal right-side brief (goal + step names + emoji) */
+.missionbrief{display:flex;flex-direction:column;justify-content:center;gap:20px}
+.mb-title{margin:0;font-size:37px;line-height:1.1;font-weight:800;color:#eaf2fb;letter-spacing:.01em}
+.mb-title span{color:var(--accent)}
+.mb-desc{margin:0;font-size:18px;line-height:1.55;color:var(--dim)} .mb-desc b{color:#eaf2fb}
+.mb-steps{display:flex;flex-direction:column;gap:12px}
+.mb-step{display:flex;align-items:center;gap:16px;padding:14px 18px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.mb-emoji{font-size:30px;line-height:1;width:34px;text-align:center;flex-shrink:0}
+.mb-txt{display:flex;flex-direction:column;min-width:0;gap:2px}
+.mb-step b{font-size:21px;color:#eaf2fb;letter-spacing:.04em}
+.mb-sub{font-size:14px;color:var(--dim)}
+.mb-num{margin-left:auto;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:15px;font-weight:700;color:var(--dim);letter-spacing:.06em}
+/* toggle holding the detailed explanation */
+.mb-details{margin:22px 0 4px;border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:4px 20px}
+.mb-details summary{cursor:pointer;font-size:16px;color:var(--accent);padding:12px 0;font-weight:700}
+.mb-details[open] summary{border-bottom:1px solid var(--line);margin-bottom:16px}
+.mb-details .brieftext{padding-bottom:16px}
 .hl{color:#ff6a78;font-weight:700}
 .understand{display:flex;gap:12px;align-items:flex-start;margin:30px 0 4px;padding:16px 20px;
   background:var(--panel2);border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:17px;color:#dbe6f2}
@@ -139,13 +163,71 @@ code{background:#0a121c;border:1px solid var(--line);border-radius:5px;padding:1
 .remain-val.los{color:var(--dim)} .remain-val.warn{color:var(--amber)}
 .remain-state{font-size:13px;color:var(--dim);min-width:84px}
 
-.twopane{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.18fr);gap:14px}
+.autoctl-grid{display:grid;grid-template-columns:minmax(240px,1fr) minmax(0,1.7fr);gap:14px;margin-bottom:14px;align-items:stretch}
+.autoctl-grid .autoctl{margin-bottom:0;height:100%}
+@media(max-width:1000px){.autoctl-grid{grid-template-columns:1fr}}
+.autoctl{display:flex;flex-direction:column;gap:12px;margin-bottom:14px;padding:15px 18px;
+  border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.autoctl-title{font-size:17px;font-weight:700;letter-spacing:.04em;color:#eaf2fb}
+.autoctl-sub{font-weight:400;color:var(--dim);font-size:13px}
+.autoctl-row{display:flex;align-items:center;gap:13px;flex-wrap:wrap}
+.autoctl-label{font-size:15px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+/* compact controls (scoped to this panel so other buttons keep their size) */
+.autoctl .passbtn{padding:12px 22px;font-size:17px;border-radius:9px}
+.autoctl .passbtn .bsub{font-weight:400;font-size:12px;opacity:.75;margin-left:7px}
+.autoctl .passstat{font-size:14px}
+.freqwrap{display:flex;align-items:center;gap:9px}
+.freqinput{width:190px;padding:11px 14px;border:1px solid var(--line);border-radius:9px;background:#070c12;
+  color:#eaf2fb;font-family:var(--mono);font-size:24px;font-weight:700;text-align:right}
+.freqinput:focus{outline:none;border-color:var(--accent)}
+.frequnit{font-family:var(--mono);color:var(--dim);font-size:17px}
+.antsel{padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#070c12;color:#eaf2fb;
+  font-family:var(--mono);font-size:15px;font-weight:700;min-width:180px;cursor:pointer}
+.antsel:focus{outline:none;border-color:var(--accent)}
+/* Force the dropdown option list to a plain, readable dark-on-light-text pair (no correct/wrong
+   tint bleeding into the options); the green/red cue lives only in the #antStat message beside it. */
+.antsel option{background:#0f1620;color:#eaf2fb}
+.ug-usebtn{margin:10px auto 8px;display:block;font-size:20px;padding:18px 40px}
+.ug-or-row{font-size:12px;color:var(--dim);margin:12px 0 2px;opacity:.85}
+/* manual upload de-emphasized to a small secondary control (main path is the recorded signal) */
+.ug-drop.ug-mini{padding:9px 14px;gap:4px;max-width:max-content;margin:6px auto 0}
+.ug-drop.ug-mini .ug-drop-ico{display:none}
+.ug-drop.ug-mini .ug-drop-main{font-size:13px;font-weight:400;color:var(--dim)}
+.ug-drop.ug-mini .ug-drop-sub{display:none}
+.bsub{font-weight:400;font-size:15px;opacity:.75;margin-left:7px}
+/* Phase 3 record button (red, pulses while recording) */
+.recbtn{background:rgba(255,90,90,.12);border-color:#ff5a5a;color:#ff8a8a}
+.recbtn:hover{background:rgba(255,90,90,.22)}
+.recbtn.recording{background:#e23b3b;border-color:#e23b3b;color:#fff;animation:recpulse 1.2s ease-in-out infinite}
+@keyframes recpulse{0%,100%{opacity:1}50%{opacity:.6}}
+/* live applied-state reflection: green when actually applied in gpredict, amber when engaged-not-tracking */
+.autoctl .passbtn.applied{background:rgba(76,175,80,.18);border-color:#4caf50;color:#8ff0a4}
+.autoctl .passbtn.partial{background:rgba(255,152,0,.14);border-color:#ff9800;color:#ffc27a}
+.passstat.dim{color:var(--dim)} .passstat.warn{color:var(--amber)}
+
+.twopane{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .embedcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
 .embedhead{display:flex;justify-content:space-between;align-items:center;padding:12px 15px;border-bottom:1px solid var(--line);background:var(--panel2)}
 .etitle{font-weight:700;letter-spacing:.04em;color:#eaf2fb;font-size:17px}
 .ehint{font-size:14px;color:var(--dim)}
-.embedbody{position:relative;height:900px;background:#000}
+/* Gpredict and the VSA are 1:1 width and share one (taller) fixed card height so they line up. */
+.embedbody{position:relative;height:560px;background:#000}
 .embedframe{width:100%;height:100%;border:0;background:#000;display:block}
+/* Gpredict embed shows only the main window: the Antenna/Radio Control windows stay open
+   (needed for the button automation) but are clipped out of the noVNC view. The iframe keeps
+   the full framebuffer aspect (1280x1440); .gpclip clips to the top main-window band. The main
+   window is wide/short (marker on the left, data panel on the right) so it can't fill a tall
+   narrow card without cropping content - it is centered (letterboxed) in the taller card. */
+/* Show ONLY the gpredict main window. start.sh sizes that window to 870x580 (a taller, less-wide
+   aspect) at the top-left of the framebuffer; this box matches 870/580 and shows exactly that
+   region with no crop of the map and no black bars. Needs a gpredict container rebuild to apply. */
+#gpredictSlot{aspect-ratio:870 / 580;overflow:hidden;position:relative;background:#000}
+/* Scale the full framebuffer so its top-left 870x580 region (the gpredict window) fills this box:
+   width 1280/870 of the box, anchored top-left; the box (overflow hidden) crops the empty area to
+   the right and the control windows below. noVNC resize=scale fills the iframe at 1280/1440. */
+.gpclip{position:absolute;top:0;left:0;width:calc(100% * 1280 / 870);aspect-ratio:1280 / 1440;overflow:hidden}
+.gpclip .embedframe{width:100%;height:100%;display:block}
+.twopane{align-items:start}
 
 /* GPredict polar-preview fallback (no Docker) */
 .gpvwrap{padding:0}
@@ -230,6 +312,7 @@ select.aninput option{background:#0f1620;color:#eaf2fb}
   border-radius:9px;background:rgba(57,197,255,.07);color:#dbe6f2;font-size:14.5px;line-height:1.55}
 
 .puzzlewrap{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+.canvascol{display:flex;flex-direction:column;gap:16px;min-width:0}
 .canvaswrap{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
 .canvashead{display:flex;justify-content:space-between;font-size:14px;letter-spacing:.12em;color:var(--dim);margin-bottom:10px}
 .pprog{color:var(--accent);font-weight:700}
@@ -238,13 +321,13 @@ select.aninput option{background:#0f1620;color:#eaf2fb}
 .slotlayer{position:absolute;inset:0}
 .slot{position:absolute;border:1.5px dashed #2a3a4d;border-radius:8px;display:flex;align-items:center;justify-content:center;
   cursor:pointer;background:rgba(10,18,28,.6);overflow:hidden}
-.slot .ghostname{font-size:13px;letter-spacing:.1em;color:#3a4a5d}
+.slot .ghostname{font-size:15px;letter-spacing:.14em;color:#8aa0b5;font-weight:700}
 .slot.selectable{border-color:var(--accent);box-shadow:0 0 0 1px rgba(57,197,255,.4) inset}
 .slot.filled{border-style:solid}
 .slot.filled.correct{border-color:var(--ok)} .slot.filled.wrong{border-color:var(--danger)}
 .blockcard{width:100%;height:100%;padding:6px 8px;display:flex;flex-direction:column;justify-content:center;
   background:var(--panel2);border-radius:6px}
-.blockcard .bp{font-size:11px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+.blockcard .bp{font-size:13px;letter-spacing:.09em;color:#a9bccd;text-transform:uppercase;font-weight:700}
 .blockcard .bt{font-size:14px;color:#eaf2fb;font-weight:700;line-height:1.15;margin:2px 0}
 .blockcard .bs{font-size:12px;color:var(--dim)}
 .blockcard.disabled{opacity:.7}
@@ -257,7 +340,7 @@ select.aninput option{background:#0f1620;color:#eaf2fb}
 .traychip{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);cursor:pointer}
 .traychip:hover{border-color:var(--accent)}
 .traychip.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
-.traychip .bp{font-size:11px;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+.traychip .bp{font-size:13px;letter-spacing:.09em;color:#a9bccd;text-transform:uppercase;font-weight:700}
 .traychip .bt{font-size:15px;color:#eaf2fb;font-weight:700;margin:1px 0}
 .traychip .bs{font-size:12px;color:var(--dim)}
 .traybtns{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
@@ -266,7 +349,7 @@ select.aninput option{background:#0f1620;color:#eaf2fb}
 .traynote{margin-top:12px;font-size:13.5px;color:var(--dim);line-height:1.5}
 
 /* signal-flow preview: per-stage signal transform visual */
-.sigflow{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
+.sigflow{margin-top:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px}
 .sigflow-head{font-size:14px;letter-spacing:.05em;color:var(--dim);margin-bottom:10px}
 .sigflow-head b{color:var(--accent)}
 .sigflow-row{display:flex;align-items:stretch;gap:6px;flex-wrap:nowrap}
@@ -283,6 +366,17 @@ select.aninput option{background:#0f1620;color:#eaf2fb}
 .sig-arrow.lit{color:var(--ok)}
 @media(max-width:1000px){.sigflow-row{flex-wrap:wrap}.sigstage{min-width:44%}.sig-arrow{display:none}}
 
+/* Phase 5 block role description (updates on block click) */
+.blockinfo{margin-top:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 18px;min-height:92px}
+.blockinfo-title{font-size:13px;letter-spacing:.06em;color:var(--dim);text-transform:uppercase;margin-bottom:10px}
+.blockinfo-body{font-size:15px;color:var(--dim);line-height:1.55}
+.bi-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:9px}
+.bi-phase{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.07em;color:#eaf2fb;
+  padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.05);border-left-width:3px;border-left-style:solid}
+.bi-title{font-size:19px;font-weight:700;color:#eaf2fb}
+.bi-sub{font-family:var(--mono);font-size:13px;color:var(--dim)}
+.bi-desc{font-size:16px;line-height:1.6;color:#cdd8e6}
+
 /* ═══════════ PHASE 6 / FLOWGRAPH═══════════ */
 .varsrow{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
 .varchip{padding:8px 13px;border:1px solid var(--line);border-radius:7px;background:var(--panel2);font-size:15px;color:var(--dim)}
@@ -293,9 +387,14 @@ select.aninput option{background:#0f1620;color:#eaf2fb}
 .gnucol{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
 .gnucol-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--panel2)}
 .gnucol > #gnuradioSlot{flex:1;display:flex;min-height:560px}
-.gnucol > #gnuradioSlot .fgcard{flex:1;display:flex;flex-direction:column;border:0;border-radius:0;margin:0;padding:10px}
+.gnucol > #gnuradioSlot .fgcard{position:relative;flex:1;display:flex;flex-direction:column;border:0;border-radius:0;margin:0;padding:10px}
 .gnucol > #gnuradioSlot .gnuframe{flex:1;height:auto;min-height:520px}
 .gnucol > #gnuradioSlot .fgcanvas{margin-top:auto;margin-bottom:auto}
+/* "GNU Radio waterfall is starting" overlay (removed once the container's QT window comes up) */
+.gnu-wait{position:absolute;inset:10px;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;gap:8px;background:rgba(4,8,12,.9);border:1px solid var(--line);border-radius:8px;padding:24px}
+.gnu-wait-title{font-size:17px;font-weight:700;color:#eaf2fb}
+.gnu-wait-sub{font-size:14px;color:var(--dim);line-height:1.5;max-width:420px}
 .reassemble{position:relative;flex:1;min-height:560px;background:#050a10;display:flex;align-items:center;justify-content:center}
 .reas-canvas{width:100%;height:100%;display:block}
 .reas-status{position:absolute;left:12px;right:12px;bottom:12px;text-align:center;font-size:13.5px;color:var(--dim);
@@ -341,5 +440,18 @@ select.aninput option{background:#0f1620;color:#eaf2fb}
 /* keep GPredict(left)/VSA(right) side-by-side per the layout down to ~1000px */
 @media(max-width:1000px){
   .twopane{grid-template-columns:1fr}
-  .embedbody{height:720px}
+  .embedbody{height:560px}
 }
+
+/* Reset-for-next-participant: header button + full-screen "resetting" overlay */
+.resetall{margin-left:16px;padding:8px 16px;border:1px solid #ff6b6b;border-radius:8px;background:rgba(255,90,90,.12);
+  color:#ff9a9a;font-family:var(--mono);font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
+.resetall:hover{background:rgba(255,90,90,.25);color:#fff}
+.reset-overlay{position:fixed;inset:0;z-index:9999;background:rgba(4,8,12,.93);display:flex;align-items:center;justify-content:center}
+.reset-overlay.hidden{display:none}
+.reset-box{text-align:center;max-width:540px;padding:36px 40px}
+.reset-spinner{width:56px;height:56px;margin:0 auto 24px;border:5px solid rgba(57,197,255,.2);border-top-color:var(--accent);
+  border-radius:50%;animation:reset-spin 1s linear infinite}
+@keyframes reset-spin{to{transform:rotate(360deg)}}
+.reset-title{font-size:22px;font-weight:700;color:#eaf2fb;margin-bottom:10px}
+.reset-sub{font-size:15px;color:var(--dim);line-height:1.5}

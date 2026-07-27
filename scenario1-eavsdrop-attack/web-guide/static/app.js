@@ -20,7 +20,7 @@ const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls)
 
 const state = {
   phase: 'mission', reached: { mission: true }, puzzleSolved: false,
-  recUploaded: false, recFile: null, recFileObj: null,
+  recUploaded: false, recorded: false, recFile: null, recFileObj: null,
   cfg: {}, sat: null,
   qth: null, satrec: null, obs: null, offsetMs: 0,
   remain: { valid: false, boundaryMs: null, inPass: false, lastCalcMs: 0, lastOffset: 0 },
@@ -35,9 +35,16 @@ setInterval(() => {
 }, 1000);
 
 // ── stepper ──
+// The stepper shows 4 phases (mission/target are intro, result is the outro; all screens stay).
+const STEPPER = [
+  { id: 'track',     label: 'Track' },
+  { id: 'analyze',   label: 'Analyze' },
+  { id: 'puzzle',    label: 'Puzzle' },
+  { id: 'flowgraph', label: 'Execute' },
+];
 function buildStepper() {
   const nav = $('#stepper'); nav.innerHTML = '';
-  PHASES.forEach((p, i) => {
+  STEPPER.forEach((p, i) => {
     const item = el('div', 'stepitem'); item.dataset.id = p.id;
     item.append(el('span', 'sn', String(i + 1)), el('span', 'sl', p.label));
     item.addEventListener('click', () => { if (canGo(p.id)) show(p.id); });
@@ -45,12 +52,11 @@ function buildStepper() {
   });
   renderPhaseTags();
 }
-// Render phase-tag labels ("PHASE n / NAME") from the PHASES order, so inserting a
-// phase (e.g. a signal-analysis step after PHASE 4) auto-renumbers every tag.
+// Renumber the phase-tag labels ("PHASE n / NAME") for the 4 stepper phases.
 function renderPhaseTags() {
-  PHASES.forEach((p, i) => {
+  STEPPER.forEach((p, i) => {
     const t = $(`#p-${p.id} .phasetag[data-tag]`);
-    if (t) t.textContent = `PHASE ${i + 1} / ${t.dataset.tag}`;
+    if (t) t.textContent = `PHASE ${i + 1} / ${p.label.toUpperCase()}`;
   });
 }
 function canGo(id) {
@@ -60,11 +66,12 @@ function canGo(id) {
   return false;
 }
 function refreshStepper() {
-  const curIdx = PHASES.findIndex((p) => p.id === state.phase);
-  PHASES.forEach((p, i) => {
+  const order = STEPPER.map((p) => p.id);
+  const curIdx = order.indexOf(state.phase);
+  STEPPER.forEach((p, i) => {
     const item = $(`.stepitem[data-id="${p.id}"]`); if (!item) return;
     item.classList.toggle('active', p.id === state.phase);
-    item.classList.toggle('done', i < curIdx && state.reached[p.id]);
+    item.classList.toggle('done', curIdx > -1 && i < curIdx && state.reached[p.id]);
     item.classList.toggle('locked', !canGo(p.id));
   });
 }
@@ -79,12 +86,14 @@ const BANNER = {
   result:    { cls: 'nominal', text: 'DECODE COMPLETE: image recovered' },
 };
 function refreshBanner() {
-  const idx = PHASES.findIndex((p) => p.id === state.phase);
+  const bn = $('#pipeBanner'); if (!bn) return;   // pipeline banner removed
   let b = BANNER[state.phase] || BANNER.mission;
   if (state.phase === 'puzzle' && state.puzzleSolved) b = { cls: 'nominal', text: 'DEMOD PIPELINE: flowgraph complete' };
-  const bn = $('#pipeBanner'); bn.className = `banner ${b.cls}`;
+  bn.className = `banner ${b.cls}`;
   $('#pipeText').textContent = b.text;
-  $('#pipeStage').textContent = `STAGE ${idx + 1} / ${PHASES.length}`;
+  const sidx = STEPPER.findIndex((p) => p.id === state.phase);
+  $('#pipeStage').textContent = sidx >= 0 ? `STAGE ${sidx + 1} / ${STEPPER.length}`
+    : state.phase === 'result' ? 'COMPLETE' : state.phase === 'target' ? 'INTEL' : 'BRIEFING';
 }
 
 function show(id) {
@@ -93,9 +102,10 @@ function show(id) {
   PHASES.forEach((p) => $(`#p-${p.id}`).classList.toggle('hidden', p.id !== id));
   refreshStepper(); refreshBanner();
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  if (id === 'track') mountEmbeds();
+  if (id === 'track') { mountEmbeds(); syncTrackGate(); }
   if (id === 'analyze') mountAnalyze();
   if (id === 'flowgraph') { mountFlowgraph(); startDecode(); }   // start live reassembly automatically on entry (no manual button needed)
+  if (id === 'result') { const ri = $('#resultImg'); if (ri) ri.src = '/decoded.png?t=' + Date.now(); }   // show the actual recovered image (fresh)
   if (id === 'puzzle') {   // upload + analysis already happened in PHASE 4; refresh labels and start the preview
     requestAnimationFrame(() => { renderSlots(); renderTray(); drawWires(); updatePuzzleState(); startSignalFlow(); });
   }
@@ -105,7 +115,7 @@ function wireNav() {
   $('#ackChk').addEventListener('change', (e) => { $('#toTarget').disabled = !e.target.checked; });
   $('#toTarget').addEventListener('click', () => show('target'));
   $('#toTrack').addEventListener('click', () => show('track'));
-  $('#toAnalyze').addEventListener('click', () => show('analyze'));
+  $('#toAnalyze').addEventListener('click', () => { if (state.recorded) show('analyze'); });
   $('#toPuzzle').addEventListener('click', () => { if (state.recUploaded) show('puzzle'); });
   $('#toFlowgraph').addEventListener('click', () => { if (state.puzzleSolved) show('flowgraph'); });
   $('#toResult').addEventListener('click', () => show('result'));
@@ -117,17 +127,9 @@ function wireNav() {
     document.querySelectorAll('.si-cell[data-si]').forEach((cell) => cell.classList.toggle('hl', show));
     if (show && box) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
-  $('#restart').addEventListener('click', () => {
-    $('#ackChk').checked = false; $('#toTarget').disabled = true;
-    state.recUploaded = false; state.recFile = null; state.recFileObj = null;
-    AN.ran = false; AN.highlight = false; AN.psd = null; AN.spec = null; AN.m = null;
-    ['pFc', 'pMod', 'pBw'].forEach((id) => { const e = $('#' + id); if (e) { e.value = ''; e.classList.remove('ok', 'err'); } });
-    const hb = $('#anHintBox'); if (hb) { hb.classList.add('hidden'); hb.innerHTML = ''; }
-    const ui = $('#ugInfo'); if (ui) { ui.classList.add('hidden'); ui.classList.remove('ug-ok', 'ug-err'); ui.innerHTML = ''; }
-    const uf = $('#ugFile'); if (uf) uf.value = '';
-    syncAnalyzeGate();
-    show('mission');
-  });
+  // Result-page "Restart ↺" = next participant, so it runs the SAME full reset (recreate gpredict +
+  // GNU Radio, clear the recorded signal / recovered image, reload) rather than a client-only redo.
+  $('#restart').addEventListener('click', () => { doFullReset(); });
   document.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => show(b.dataset.goto)));
 }
 
@@ -156,7 +158,6 @@ function renderSatInfoStrip(sat) {
     ['Center freq', sat.rf?.['Downlink freq']],
     ['Modulation', sat.rf?.['Modulation']],
     ['Symbol rate', sat.rf?.['Symbol rate']],
-    ['Sample rate', sat.sdr?.['Sample rate']],
     ['Polarization', sat.rf?.['Polarization']],
     ['Doppler', sat.passes?.['Doppler shift @433.5 MHz']],
     ['Framing', sat.rf?.['Framing']],
@@ -181,6 +182,19 @@ function novncEmbedUrl(url) {
   return url;
 }
 let embedsMounted = false;
+// Make the VSA card exactly as tall as the Gpredict card. Gpredict's height comes from its
+// main-window aspect (natural, no black bars); the VSA follows so the two panes line up.
+let _syncBound = false;
+function syncEmbedHeights() {
+  const apply = () => {
+    const gp = $('#gpredictSlot');
+    const vsaBody = $('#vsaFrame') && $('#vsaFrame').parentElement;
+    if (gp && vsaBody && gp.offsetHeight) vsaBody.style.height = gp.offsetHeight + 'px';
+  };
+  requestAnimationFrame(apply);
+  setTimeout(apply, 250);
+  if (!_syncBound) { window.addEventListener('resize', apply); _syncBound = true; }
+}
 function mountEmbeds() {
   if (embedsMounted) return;
   embedsMounted = true;
@@ -189,15 +203,223 @@ function mountEmbeds() {
   // GPredict - real noVNC embed if configured, else a polar-tracking preview.
   const slot = $('#gpredictSlot');
   if (state.cfg.gpredictUrl) {
+    // Wrap the iframe in a clip box so only the main window band shows; the slot then takes
+    // that band's natural height and the VSA card is synced to match it (syncEmbedHeights).
+    const clip = el('div', 'gpclip');
     const f = el('iframe', 'embedframe'); f.title = 'GPredict';
     f.allow = 'clipboard-read; clipboard-write';
-    f.src = novncEmbedUrl(state.cfg.gpredictUrl); slot.append(f);
+    f.src = novncEmbedUrl(state.cfg.gpredictUrl); clip.append(f); slot.append(clip);
   } else {
     makeGpredictView(slot);
   }
+  syncEmbedHeights();
   wireResetPass();
+  wireAutoControls();
+  wireRecord();
+  wireVsaControls();
+  startGpredictStatusPoll();
   startOffsetPoll();
   startRemainingCountdown();
+}
+
+// Phase-3 record button: triggers the VSA's own IQ recorder inside the embedded VSA
+// iframe (same origin), so it saves exactly what the VSA REC button would.
+let recTimer = null;
+function wireRecord() {
+  const btn = $('#btnRecord'), stat = $('#btnRecordStat');
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = '1';
+  btn.addEventListener('click', () => {
+    const frame = $('#vsaFrame');
+    let vbtn = null;
+    try { vbtn = frame && frame.contentDocument && frame.contentDocument.getElementById('btn-record-iq'); } catch (e) {}
+    if (!vbtn) { stat.className = 'passstat err'; stat.textContent = '✗ Virtual Antenna not ready yet'; return; }
+    vbtn.click();   // toggle the VSA recorder
+    const recording = vbtn.classList.contains('recording');
+    btn.classList.toggle('recording', recording);
+    btn.textContent = recording ? '■ Stop & save' : '⏺ Record';
+    stat.className = 'passstat ok';
+    if (recording) {
+      const t0 = performance.now();
+      const fmt = () => { const s = Math.floor((performance.now() - t0) / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+      if (recTimer) clearInterval(recTimer);
+      stat.textContent = `● Recording ${fmt()}`;
+      recTimer = setInterval(() => { stat.textContent = `● Recording ${fmt()}`; }, 250);   // live elapsed record time
+    } else {
+      if (recTimer) { clearInterval(recTimer); recTimer = null; }
+      // The VSA saves asynchronously (POST /api/upload). VERIFY the server actually stored it rather
+      // than assuming success, so a failed save shows a real error instead of a misleading "saved".
+      stat.className = 'passstat'; stat.textContent = '⏳ saving to the server…';
+      const startedAt = Date.now();
+      let tries = 0;
+      const verify = async () => {
+        let u = null;
+        try { u = await (await fetch('/api/upload', { cache: 'no-store' })).json(); } catch (e) {}
+        if (u && u.exists && u.size && (!u.uploadedAt || u.uploadedAt * 1000 > startedAt - 4000)) {
+          stat.className = 'passstat ok';
+          stat.textContent = `✓ saved (${(u.size / 1048576).toFixed(1)} MB) - ready for Phase 2`;
+          state.recorded = true; syncTrackGate();   // a recording exists -> unlock "Capture & analyze"
+          return;
+        }
+        if (++tries < 12) { setTimeout(verify, 700); return; }
+        stat.className = 'passstat err';
+        stat.textContent = '✗ save failed - record again (hold Record a few seconds before Stop)';
+      };
+      setTimeout(verify, 700);
+    }
+  });
+}
+
+// Gate the "Capture & analyze" button: unlock only after a recording exists on the server.
+// Any recording counts - the duration and the exact RF values do NOT have to be correct.
+function syncTrackGate() {
+  const b = $('#toAnalyze'); if (!b) return;
+  b.disabled = !state.recorded;
+  b.textContent = (state.recorded ? '' : '🔒 ') + 'Capture & analyze the signal →';
+}
+
+// Phase-3 antenna + sample-rate controls: drive the VSA's own inputs inside the iframe
+// (same origin), since the VSA's left panel is hidden.
+function vsaEl(id) {
+  const f = $('#vsaFrame');
+  try { return f && f.contentDocument ? f.contentDocument.getElementById(id) : null; } catch (e) { return null; }
+}
+// Only the correct antenna (Helix, RHCP) receives ENIGMA-1: green when Helix is chosen, red otherwise.
+const CORRECT_ANTENNA = 'helix';
+function markAntenna(val) {
+  const st = $('#antStat');
+  const correct = String(val || '').toLowerCase() === CORRECT_ANTENNA;
+  // Keep the dropdown in its plain, readable style (no green/red tint bleeding into the <option>
+  // list); only the status message beside it turns green (correct) / red (wrong).
+  if (st) {
+    st.className = 'passstat ' + (correct ? 'ok' : 'err');
+    st.textContent = correct ? '✓ correct antenna (RHCP) - signal received' : '✗ wrong antenna - no signal (try another)';
+  }
+}
+function wireVsaControls() {
+  const antSel = $('#antSelect'), antStat = $('#antStat');
+  const srInput = $('#srInput'), srBtn = $('#btnSampleRate'), srStat = $('#srStat');
+  // copy the VSA's antenna options into our dropdown once the iframe is ready
+  const fill = setInterval(() => {
+    const vsel = vsaEl('ctrl-type');
+    if (vsel && !antSel.dataset.filled) {
+      antSel.innerHTML = vsel.innerHTML;
+      antSel.value = vsel.value;
+      antSel.dataset.filled = '1';
+      markAntenna(antSel.value);
+      if (srBtn) srBtn.click();   // apply the guided default (0.1) to the VSA on load so input and VSA match
+      clearInterval(fill);
+    }
+  }, 500);
+  setTimeout(() => clearInterval(fill), 10000);
+
+  if (antSel && !antSel.dataset.wired) {
+    antSel.dataset.wired = '1';
+    antSel.addEventListener('change', () => {
+      const vsel = vsaEl('ctrl-type');
+      if (!vsel) { antStat.className = 'passstat err'; antStat.textContent = '✗ Virtual Antenna not ready'; return; }
+      vsel.value = antSel.value;
+      vsel.dispatchEvent(new Event('change', { bubbles: true }));
+      markAntenna(antSel.value);
+    });
+  }
+  if (srBtn && !srBtn.dataset.wired) {
+    srBtn.dataset.wired = '1';
+    // Bandwidth = VSA sample rate (MSps). REC band = wide enough to capture the ~14 kHz signal cleanly.
+    const REC_MIN = 0.05, REC_MAX = 0.20;
+    const applySampleRate = () => {
+      const vin = vsaEl('ctrl-samplerate');
+      if (!vin) { srStat.className = 'passstat err'; srStat.textContent = '✗ Virtual Antenna not ready'; return; }
+      const v = parseFloat(srInput.value);
+      if (!isFinite(v) || v <= 0) { srStat.className = 'passstat err'; srStat.textContent = '✗ invalid'; return; }
+      vin.value = String(v);
+      vin.dispatchEvent(new Event('change', { bubbles: true }));
+      const okRec = v >= REC_MIN && v <= REC_MAX;   // green only when it is a recordable bandwidth, else red
+      srStat.className = 'passstat ' + (okRec ? 'ok' : 'err');
+      srStat.textContent = okRec ? `✓ ${v} MSps - good to record` : `✗ ${v} MSps - not a recordable bandwidth`;
+    };
+    srBtn.addEventListener('click', applySampleRate);
+    srInput.addEventListener('change', applySampleRate);   // spinner up/down (or Enter) applies immediately
+  }
+}
+
+// Phase-3 one-click GPredict controls. Each button drives the Antenna/Radio Control via
+// the /api proxy -> control.py (xdotool), and the REAL applied state (engaged / tracking,
+// read from the bridge at :4535) is polled and shown, so the buttons are not blind toggles.
+let gpStatusTimer = null;
+
+function applyBtnState(btnId, statId, active, partial, text) {
+  const stat = $('#' + statId);
+  if (stat && stat.dataset.busy) return;   // an action is running on this button; don't fight it
+  const btn = $('#' + btnId);
+  if (btn) { btn.classList.toggle('applied', !!active); btn.classList.toggle('partial', !active && !!partial); }
+  if (stat) {
+    stat.className = 'passstat ' + (active ? 'ok' : (partial ? 'warn' : 'dim'));
+    stat.textContent = text;
+  }
+}
+
+function reflectGpredictStatus(st) {
+  if (!st || !st.ok) return;
+  // The Track button engages + tracks; rotorEngaged is the rock-solid applied signal (the rotor
+  // position command is throttled by the deg-threshold, so rotorTracking alone would flicker).
+  applyBtnState('btnTrack', 'btnTrackStat', st.rotorEngaged, false,
+    st.rotorEngaged ? '● tracking (engaged)' : 'not engaged');
+  const mhz = st.downlinkHz ? (st.downlinkHz / 1e6).toFixed(3) : '—';
+  applyBtnState('btnFreq', 'btnFreqStat', st.radioEngaged, false,
+    st.radioEngaged ? `● engaged, downlink ${mhz} MHz` : `not engaged (set: ${mhz} MHz)`);
+  applyBtnState('btnDoppler', 'btnDopplerStat', st.radioTracking, false,
+    st.radioTracking ? '● Doppler correction on' : 'Doppler correction off');
+}
+
+async function pollGpredictStatus() {
+  if (state.phase !== 'track') return;
+  try {
+    const r = await fetch('/api/gpredict-status');
+    reflectGpredictStatus(await r.json());
+  } catch { /* bridge/control unreachable -> keep last shown state */ }
+}
+
+function startGpredictStatusPoll() {
+  if (gpStatusTimer) return;
+  pollGpredictStatus();
+  gpStatusTimer = setInterval(pollGpredictStatus, 2500);
+}
+
+function wireAutoControls() {
+  async function post(url) {
+    const r = await fetch(url);
+    const j = await r.json().catch(() => ({ ok: false, error: 'bad response' }));
+    if (!j.ok) throw new Error(j.error || 'failed');
+    return j;
+  }
+  function wire(id, statId, handler) {
+    const btn = $('#' + id);
+    if (!btn || btn.dataset.wired) return;
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', async () => {
+      const stat = $('#' + statId);
+      btn.disabled = true;
+      if (stat) { stat.dataset.busy = '1'; stat.className = 'passstat'; stat.textContent = 'working…'; }
+      let err = null;
+      try { await handler(); } catch (e) { err = e; }
+      if (err && stat) { stat.className = 'passstat err'; stat.textContent = `✗ ${err.message}`; }
+      // let gpredict settle, then reflect the real resulting state (unless the call errored)
+      setTimeout(() => {
+        btn.disabled = false;
+        if (stat) delete stat.dataset.busy;
+        if (!err) pollGpredictStatus();
+      }, 1200);
+    });
+  }
+
+  wire('btnTrack', 'btnTrackStat', () => post('/api/rotor-track-engage'));
+  wire('btnDoppler', 'btnDopplerStat', () => post('/api/radio-track'));
+  wire('btnFreq', 'btnFreqStat', async () => {
+    const mhz = parseFloat($('#freqInput').value);
+    if (!isFinite(mhz) || mhz <= 0) throw new Error('invalid frequency value');
+    await post(`/api/radio-apply?hz=${Math.round(mhz * 1e6)}`);   // toggle: sets freq + engages, or disengages
+  });
 }
 
 function wireResetPass() {
@@ -389,14 +611,22 @@ function makeGpredictView(container) {
 // PHASE 5 - flowgraph puzzle (blocks/slots/wires match enigma1_decoder.grc)
 // ─────────────────────────────────────────────────────────────────────────────
 const BLOCKS = {
-  file_source: { cat: 'src',  phase: 'SOURCE',   title: 'File Source',                sub: 'enigma34_downlink.cf32' },
-  throttle:    { cat: 'flow', phase: 'FLOW',     title: 'Throttle',                   sub: 'Sample Rate: 96k' },
-  fir:         { cat: 'dsp',  phase: 'FILTER',   title: 'Freq Xlating FIR Filter',    sub: 'Decim 1 / low_pass' },
-  fsk:         { cat: 'dsp',  phase: 'DEMOD',    title: 'FSK Demodulator',            sub: '9.6k baud' },
-  waterfall:   { cat: 'sink', phase: 'SINK',     title: 'QT GUI Waterfall Sink',      sub: '433.5 MHz', disabled: true },
-  deframer:    { cat: 'dsp',  phase: 'DEFRAME',  title: 'AX.25 Deframer',             sub: 'G3RUH: True' },
-  reassembler: { cat: 'sink', phase: 'SINK',     title: 'ENIGMA-1 Image Reassembler', sub: '→ png' },
-  msgdebug:    { cat: 'sink', phase: 'SINK',     title: 'Message Debug',              sub: 'Print PDU: On' },
+  file_source: { cat: 'src',  phase: 'SOURCE',   title: 'File Source',                sub: 'enigma34_downlink.cf32',
+    desc: 'Reads the recorded IQ samples (your captured .cf32 file) from disk and streams them into the flowgraph as the raw signal to process. This is where the whole demod chain starts.' },
+  throttle:    { cat: 'flow', phase: 'FLOW',     title: 'Throttle',                   sub: 'Sample Rate: 96k',
+    desc: 'Paces the sample stream to the set sample rate so a recorded file plays back at realistic speed instead of as fast as the CPU can run. Only needed for file sources, not live radios.' },
+  fir:         { cat: 'dsp',  phase: 'FILTER',   title: 'Freq Xlating FIR Filter',    sub: 'Decim 1 / low_pass',
+    desc: 'Shifts ENIGMA-1\'s channel down to baseband (frequency translation) and low-pass filters it, isolating the signal of interest and rejecting everything outside its bandwidth.' },
+  fsk:         { cat: 'dsp',  phase: 'DEMOD',    title: 'FSK Demodulator',            sub: '9.6k baud',
+    desc: 'Recovers the digital bits from the frequency-shift-keyed carrier by tracking the shift between the two tones (mark and space) at the 9.6k baud symbol rate.' },
+  waterfall:   { cat: 'sink', phase: 'SINK',     title: 'QT GUI Waterfall Sink',      sub: '433.5 MHz', disabled: true,
+    desc: 'A display-only sink that shows the live spectrum and waterfall so you can see the signal in frequency and time. It does not change the decoded data (disabled in this chain).' },
+  deframer:    { cat: 'dsp',  phase: 'DEFRAME',  title: 'AX.25 Deframer',             sub: 'G3RUH: True',
+    desc: 'Turns the demodulated bitstream into AX.25 frames. It undoes the G3RUH scrambling, finds frame boundaries, and checks each packet for errors before passing it on.' },
+  reassembler: { cat: 'sink', phase: 'SINK',     title: 'ENIGMA-1 Image Reassembler', sub: '→ png',
+    desc: 'Collects the decoded packets in order and rebuilds the downlinked image, writing the finished picture out as a PNG. This is the payload you are trying to recover.' },
+  msgdebug:    { cat: 'sink', phase: 'SINK',     title: 'Message Debug',              sub: 'Print PDU: On',
+    desc: 'Prints each decoded packet (PDU) to the console so you can read the raw message contents. A debugging sink that helps confirm the frames are being decoded correctly.' },
 };
 const SLOTS = [
   { id: 'file_source', x: 24,   y: 172, w: 168, h: 78 },
@@ -422,12 +652,31 @@ function blockCardHTML(id) {
     <div class="bp">${b.phase}${b.disabled ? ' / disabled' : ''}</div>
     <div class="bt">${b.title}</div><div class="bs">${b.sub}</div></div>`;
 }
+// Show a block's role description in the panel below the puzzle (all blocks clickable).
+function showBlockInfo(id) {
+  const b = BLOCKS[id]; if (!b) return;
+  const box = $('#blockInfo'), body = $('#blockInfoBody');
+  if (!box || !body) return;
+  box.classList.add('active');
+  body.innerHTML = `<div class="bi-head">
+      <span class="bi-phase cat-${b.cat}">${b.phase}${b.disabled ? ' / disabled' : ''}</span>
+      <span class="bi-title">${b.title}</span>
+      <span class="bi-sub">${b.sub}</span>
+    </div>
+    <div class="bi-desc">${b.desc || ''}</div>`;
+}
+function resetBlockInfo() {
+  const box = $('#blockInfo'), body = $('#blockInfoBody');
+  if (box) box.classList.remove('active');
+  if (body) body.textContent = 'Click any block (in the tray or on the canvas) to see what it does in the demod chain.';
+}
 function initPuzzle() {
-  puzzle.placement = { file_source: 'file_source' };   // the first block (File Source) starts fixed in place
+  puzzle.placement = { file_source: 'file_source', waterfall: 'waterfall', msgdebug: 'msgdebug' };   // File Source + the two display/debug sinks start fixed (not important to the decode)
   puzzle.selected = null;
-  puzzle.tray = shuffle(Object.keys(BLOCKS).filter((id) => id !== 'file_source'));
+  puzzle.tray = shuffle(Object.keys(BLOCKS).filter((id) => !['file_source', 'waterfall', 'msgdebug'].includes(id)));
   state.puzzleSolved = false;
   const hb = $('#hintBox'); if (hb) { hb.classList.add('hidden'); hb.innerHTML = ''; }
+  resetBlockInfo();
   renderSlots(); renderTray(); drawWires(); updatePuzzleState();
 }
 function renderSlots() {
@@ -440,10 +689,10 @@ function renderSlots() {
     const placed = puzzle.placement[s.id];
     if (placed) {
       d.classList.add('filled', placed === s.id ? 'correct' : 'wrong'); d.innerHTML = blockCardHTML(placed);
-      if (s.id === 'file_source') { d.classList.add('fixed'); d.insertAdjacentHTML('beforeend', '<div class="slotlock">🔒 fixed</div>'); }
+      if (['file_source', 'waterfall', 'msgdebug'].includes(s.id)) { d.classList.add('fixed'); d.insertAdjacentHTML('beforeend', '<div class="slotlock">🔒 fixed</div>'); }
     }
     else { d.innerHTML = `<div class="ghostname">${BLOCKS[s.id].phase}</div>`; if (puzzle.selected) d.classList.add('selectable'); }
-    d.addEventListener('click', () => onSlotClick(s.id));
+    d.addEventListener('click', () => { const p = puzzle.placement[s.id]; if (p) showBlockInfo(p); onSlotClick(s.id); });
     layer.append(d);
   });
 }
@@ -454,12 +703,12 @@ function renderTray() {
     const b = BLOCKS[id];
     const chip = el('div', `traychip cat-${b.cat}${puzzle.selected === id ? ' selected' : ''}`);
     chip.innerHTML = `<div class="bp">${b.phase}${b.disabled ? ' / disabled' : ''}</div><div class="bt">${b.title}</div><div class="bs">${b.sub}</div>`;
-    chip.addEventListener('click', () => { puzzle.selected = puzzle.selected === id ? null : id; renderTray(); renderSlots(); });
+    chip.addEventListener('click', () => { showBlockInfo(id); puzzle.selected = puzzle.selected === id ? null : id; renderTray(); renderSlots(); });
     tray.append(chip);
   });
 }
 function onSlotClick(slotId) {
-  if (slotId === 'file_source') return;   // fixed block: cannot be removed or moved
+  if (['file_source', 'waterfall', 'msgdebug'].includes(slotId)) return;   // fixed blocks: cannot be removed or moved
   const occupant = puzzle.placement[slotId];
   if (occupant) { delete puzzle.placement[slotId]; puzzle.tray.push(occupant); puzzle.selected = null; }
   else if (puzzle.selected) { puzzle.placement[slotId] = puzzle.selected; puzzle.tray = puzzle.tray.filter((b) => b !== puzzle.selected); puzzle.selected = null; }
@@ -506,11 +755,12 @@ function wirePuzzle() {
   // Hint: show the correct signal-chain order and briefly highlight the correct slot for the selected block.
   $('#hintPuzzle').addEventListener('click', () => {
     const hb = $('#hintBox');
+    if (!hb.classList.contains('hidden')) { hb.classList.add('hidden'); return; }   // toggle off
     const order = ['file_source', 'throttle', 'fir', 'fsk', 'deframer', 'reassembler'];
     const chain = order.map((id) => BLOCKS[id].title).join(' → ');
     hb.innerHTML = `<b>Signal chain order</b><br>${chain}<br>
-      <span style="color:var(--dim)">/ File Source is bottom-left, Reassembler/Message Debug are top/bottom-right.
-      / Waterfall Sink branches off FIR (optional). Select a block in the tray to briefly highlight its correct slot.</span>`;
+      <span style="color:var(--dim)">/ File Source, Waterfall Sink, and Message Debug are already fixed for you.
+      / You place Throttle, Freq Xlating FIR, FSK Demodulator, AX.25 Deframer, then the Image Reassembler (top-right). Select a block in the tray to briefly highlight its correct slot.</span>`;
     hb.classList.remove('hidden');
     if (puzzle.selected) {
       const s = $(`.slot[data-slot="${puzzle.selected}"]`);
@@ -548,7 +798,7 @@ async function handleRecFile(file) {
   const name = file.name, size = file.size;
   const okExt = /\.(cf32|iq|raw|c64|dat)$/i.test(name);
   if (size < 4096 || size % 8 !== 0) {
-    return ugError(`not complex float32 (IQ) format - size ${fmtBytes(size)} (not a multiple of 8 bytes, or too small). Upload the .cf32 recorded in the VSA.`);
+    return ugError(`not complex float32 (IQ) format - size ${fmtBytes(size)} (not a multiple of 8 bytes, or too small). Upload the .cf32 recorded in the Virtual Antenna.`);
   }
   let ok = true, peak = 0;                              // read the beginning as float32 to check it is real IQ
   try {
@@ -557,7 +807,7 @@ async function handleRecFile(file) {
     for (let i = 0; i < f.length; i++) { const v = f[i]; if (!Number.isFinite(v)) { ok = false; break; } const a = Math.abs(v); if (a > peak) peak = a; }
     if (peak === 0 || peak > 1e6) ok = false;   // NaN/Inf already blocked by isFinite above; un-normalized captures are also allowed
   } catch (e) { ok = false; }
-  if (!ok) return ugError('Cannot be read as IQ data. Check that it is a .cf32 (complex float32) file recorded in the VSA.');
+  if (!ok) return ugError('Cannot be read as IQ data. Check that it is a .cf32 (complex float32) file recorded in the Virtual Antenna.');
   const samples = size / 8, durAt50k = samples / 50000;
   state.recUploaded = true; state.recFile = { name, size, samples }; state.recFileObj = file;   // keep the File for in-browser analysis
   BLOCKS.file_source.sub = name.length > 26 ? name.slice(0, 25) + '…' : name;   // puzzle's first block + PHASE 6 File Source label
@@ -567,12 +817,12 @@ async function handleRecFile(file) {
     `<br>size ${fmtBytes(size)} / ${samples.toLocaleString()} IQ samples (complex float32)` +
     (okExt ? '' : ' / <span class="ug-warn">non-standard extension</span>') +
     `<br><span class="ug-sub">≈ ${durAt50k.toFixed(1)}s @ 50 kSps / opening the spectrum + waterfall analysis…</span>` +
-    `<br><span id="ugServerLine" class="ug-sub">⏳ uploading to the server for PHASE 6 GNU Radio…</span>`;
+    `<br><span id="ugServerLine" class="ug-sub">⏳ uploading to the server for Phase 4 GNU Radio…</span>`;
   uploadToServer(file, name, 50000).then((r) => {          // stage the File Source for PHASE 6's real GNU Radio
     const el = $('#ugServerLine'); if (!el) return;
     el.textContent = (r && r.ok)
-      ? '⬆ registered on the server: used as the File Source in PHASE 6 real GNU Radio'
-      : '⚠ server upload failed: analysis continues but the PHASE 6 file source is not updated';
+      ? '⬆ registered on the server: used as the File Source in Phase 4 real GNU Radio'
+      : '⚠ server upload failed: analysis continues but the Phase 4 file source is not updated';
   });
   setTimeout(revealAnalyzeBody, 900);                  // show the summary briefly, then open the analysis
 }
@@ -598,6 +848,31 @@ function syncAnalyzeGate() {
   const btn = $('#toPuzzle');
   if (btn) { btn.disabled = !state.recUploaded; btn.textContent = (state.recUploaded ? '' : '🔒 ') + 'Build the demod flowgraph →'; }
 }
+// PHASE 4 one-button: use the capture the VSA saved to the server in PHASE 3 (no file picker).
+function wireUseRecording() {
+  const btn = $('#useRecordingBtn'), info = $('#ugInfo');
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = '1';
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      const u = await (await fetch('/api/upload', { cache: 'no-store' })).json();
+      if (!u || !u.exists || !u.size) throw new Error('no Phase 1 recording found - record the signal in Phase 1 first');
+      state.recUploaded = true; state.recFileObj = null;   // analysis reads the file from the server
+      state.recFile = { name: u.name || 'uploaded.cf32', size: u.size, samples: u.samples || Math.floor(u.size / 8) };
+      BLOCKS.file_source.sub = u.name || 'uploaded.cf32';
+      if (u.sampleRate) AN.fs = u.sampleRate;
+      if (info) {
+        info.classList.remove('hidden', 'ug-err'); info.classList.add('ug-ok');
+        info.innerHTML = `✅ Using the Phase 1 recording (${fmtBytes(u.size)}) / opening the spectrum + waterfall…`;
+      }
+      setTimeout(revealAnalyzeBody, 700);
+    } catch (e) {
+      if (info) { info.classList.remove('hidden', 'ug-ok'); info.classList.add('ug-err'); info.textContent = `✗ ${e.message}`; }
+      btn.disabled = false;
+    }
+  });
+}
 // ─────────────────────────────────────────────────────────────────────────────
 // PHASE 4 - signal analysis: spectrum (PSD) + waterfall (spectrogram) on the uploaded IQ.
 // Pure client-side: read a leading slice of the .cf32 (complex float32 interleaved I,Q),
@@ -608,7 +883,7 @@ const AN = { fs: 50000, ran: false, highlight: false, psd: null, spec: null, m: 
 const CORRECT = {
   pFc: { type: 'num', v: 433.5, tol: 0.05 },   // carrier peak on the absolute MHz axis
   pMod: { type: 'text', re: /^g?fsk$/i },       // two separate tones -> FSK / GFSK
-  pBw: { type: 'num', v: null, tol: 3 },        // v is set from the measured bandwidth at analysis time
+  pBw: { type: 'num', v: null, tol: 0.003 },        // v is set from the measured bandwidth at analysis time
 };
 
 // In-place iterative radix-2 FFT (Cooley-Tukey). re/im length must be a power of two.
@@ -765,7 +1040,7 @@ function drawSpectrum(cv, psd, fs, m) {
     ctx.beginPath(); ctx.moveTo(bx0, byL); ctx.lineTo(bx1, byL); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(bx0 + 6, byL - 4); ctx.lineTo(bx0, byL); ctx.lineTo(bx0 + 6, byL + 4); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(bx1 - 6, byL - 4); ctx.lineTo(bx1, byL); ctx.lineTo(bx1 - 6, byL + 4); ctx.stroke();
-    anTextBg(ctx, 'bandwidth ~' + bwK.toFixed(0) + ' kHz', (bx0 + bx1) / 2, 20, '#8affc0', 'bold 15px ui-monospace,monospace');
+    anTextBg(ctx, 'bandwidth ~' + (m.bwHz / 1e6).toFixed(3) + ' MHz', (bx0 + bx1) / 2, 20, '#8affc0', 'bold 15px ui-monospace,monospace');
     ctx.fillStyle = '#33d17a'; ctx.beginPath(); ctx.arc(px, py, 5.5, 0, 6.3); ctx.fill();
     ctx.strokeStyle = '#33d17a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(px, py, 10, 0, 6.3); ctx.stroke();
     anTextBg(ctx, 'carrier ~' + fcMHz.toFixed(3) + ' MHz', px, Math.max(py - 12, padTop + 16), '#eaf2fb', 'bold 14px ui-monospace,monospace');
@@ -837,7 +1112,7 @@ function drawWaterfall(cv, spec, m, fs) {
     ctx.beginPath(); ctx.moveTo(bx0, 40); ctx.lineTo(bx1, 40); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(bx0 + 6, 36); ctx.lineTo(bx0, 40); ctx.lineTo(bx0 + 6, 44); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(bx1 - 6, 36); ctx.lineTo(bx1, 40); ctx.lineTo(bx1 - 6, 44); ctx.stroke();
-    anTextBg(ctx, 'bandwidth ~' + (m.bwHz / 1000).toFixed(0) + ' kHz', (bx0 + bx1) / 2, 32, '#8affc0', 'bold 14px ui-monospace,monospace');
+    anTextBg(ctx, 'bandwidth ~' + (m.bwHz / 1e6).toFixed(3) + ' MHz', (bx0 + bx1) / 2, 32, '#8affc0', 'bold 14px ui-monospace,monospace');
     if (devK > 0) anTextBg(ctx, 'two frequencies = FSK', cxp, axisY - 8, '#c9c2ff', 'bold 14px ui-monospace,monospace');
     anTextBg(ctx, 'carrier ~' + fcMHz.toFixed(3) + ' MHz', cxp, imgH * 0.5, '#eaf2fb', 'bold 13px ui-monospace,monospace');
   }
@@ -858,7 +1133,7 @@ async function runAnalysis() {
   AN.m = measurePSD(AN.psd, AN.fs);
   const ex = getExpected();
   AN.fcMHz = ex.fcMHz; AN.devK = ex.devK;          // absolute center frequency + tone spacing for the plot labels
-  CORRECT.pBw.v = Math.round(AN.m.bwHz / 1000);     // bandwidth answer = the width the plot actually shows
+  CORRECT.pBw.v = +(AN.m.bwHz / 1e6).toFixed(3);     // bandwidth answer (MHz) = the width the plot actually shows
   redrawAnalysis();
   if (meas) meas.textContent = 'read off the MHz scale + reference lines: peak, band edges, two tones (Hint labels them)';
   AN.ran = true;
@@ -894,6 +1169,7 @@ function validateAllParams() { ['pFc', 'pMod', 'pBw'].forEach(validateOne); }
 // Hint: highlight the plots and explain HOW to read each value. It does NOT fill the answer boxes.
 function showAnalyzeHint() {
   const hb = $('#anHintBox');
+  if (hb && !hb.classList.contains('hidden')) { hb.classList.add('hidden'); AN.highlight = false; redrawAnalysis(); return; }   // toggle off
   if (hb) {
     hb.classList.remove('hidden');
     hb.innerHTML = `<b>How to read each value off the plots</b>` +
@@ -1094,7 +1370,7 @@ function applyUploadedToFlowgraph() {
     const note = $('#gnuUploadNote');
     if (note) {
       note.classList.remove('hidden');
-      note.innerHTML = `⬆ PHASE 4 upload <code>${escHtml(u.name)}</code> set as the File Source ` +
+      note.innerHTML = `⬆ Phase 2 upload <code>${escHtml(u.name)}</code> set as the File Source ` +
         `(samp_rate ${rateK}k). If GNU Radio is already running, <b>(re)start</b> it with <code>gnuradio-web/run.sh</code> ` +
         `to read this file.`;
     }
@@ -1111,6 +1387,17 @@ function mountFlowgraph() {
     const card = el('div', 'fgcard');
     const f = el('iframe', 'gnuframe'); f.title = 'GNU Radio'; f.src = novncEmbedUrl(state.cfg.gnuradioUrl);
     card.append(el('h3', null, 'GNU RADIO COMPANION / ▶ Run to recover the image'), f);
+    // GNU Radio (inside the container) takes ~10-15s to bring up the QT waterfall window. Show a
+    // "starting…" overlay so the participant does not think it is stuck. noVNC's iframe 'load' fires
+    // early (when vnc.html loads, before the session is visible), so keep a hard backstop timer too.
+    const wait = el('div', 'gnu-wait');
+    wait.innerHTML = '<div class="reset-spinner"></div>' +
+      '<div class="gnu-wait-title">GNU Radio waterfall is starting…</div>' +
+      '<div class="gnu-wait-sub">The live spectrum window takes about <b>10-15s</b> to appear. This is normal, please wait.</div>';
+    card.append(wait);
+    const clearWait = () => { if (wait && wait.parentElement) wait.remove(); };
+    f.addEventListener('load', () => setTimeout(clearWait, 6000));
+    setTimeout(clearWait, 15000);
     slot.append(card);
   } else {
     const card = el('div', 'fgcard'); card.innerHTML = '<h3>ENIGMA-1 DECODER / SOLVED FLOWGRAPH</h3>';
@@ -1147,8 +1434,9 @@ function renderStaticFlowgraph(cv) {
 // ─────────────────────────────────────────────────────────────────────────────
 const reasImg = new Image();
 reasImg.src = '/assets/result.png';
-const reas = { running: false, done: false, frac: 0, rows: 128, reps: 0, everDone: false, maxFrac: 0, liveStart: 0, poll: null, real: false };
+const reas = { running: false, done: false, frac: 0, rows: 128, reps: 0, everDone: false, maxFrac: 0, liveStart: 0, poll: null, real: false, baselineMtime: 0 };
 let reasWired = false;
+let reasBlank = true;   // true = show the "waiting" panel instead of a stale image, until a fresh decode loads
 
 function initReassemble() {
   if (!reasWired) {
@@ -1174,26 +1462,45 @@ async function startDecode() {
   const b = $('#reasBadge'); if (b) b.classList.add('hidden');
   stopDecode();
   reas.running = true; reas.done = false; reas.frac = 0; reas.real = false; reas.everDone = false; reas.maxFrac = 0; reas.liveStart = 0;
+  // Start from a clean slate: blank the panel + progress so the previous run's image is not shown
+  // while the new input decodes (avoids the "already recovered on entry" feeling).
+  reasBlank = true;
+  const fill0 = $('#reasFill'); if (fill0) fill0.style.width = '0%';
+  const fr0 = $('#reasFrame'); if (fr0) fr0.textContent = 'waiting for the new decode…';
+  drawReassemble();
+  // Snapshot the newest decode output present RIGHT NOW, then ignore anything at or before it: only a
+  // decode whose progress file is (re)written AFTER this moment counts as live. This is what stops a
+  // previous participant's leftover gnuradio-out image from popping up the instant we enter the phase.
+  reas.baselineMtime = 0;
+  try {
+    const p0 = await (await fetch('/api/decode-progress', { cache: 'no-store' })).json();
+    if (p0 && p0.exists) reas.baselineMtime = p0.mtime || 0;
+  } catch (e) {}
   const t0 = performance.now(); let sawLive = false;
   reas.poll = setInterval(async () => {
     if (state.phase !== 'flowgraph') { stopDecode(); return; }
     let live = false, done = false, frac = 0;
     try {
       const p = await (await fetch('/api/decode-progress', { cache: 'no-store' })).json();
-      if (p && p.exists) { live = true; sawLive = true; frac = Math.min(1, p.fraction || 0); done = !!p.done; reas.rows = 128; reas.reps = p.reps || 0; if (!reas.liveStart) reas.liveStart = performance.now(); }
+      // Only a decode whose progress file was (re)written AFTER we entered (mtime past the entry
+      // baseline) counts as live. A stale leftover from a previous run has mtime == baseline -> ignored.
+      if (p && p.exists && (p.mtime || 0) > reas.baselineMtime) {
+        live = true; sawLive = true; frac = Math.min(1, p.fraction || 0); done = !!p.done; reas.rows = 128; reas.reps = p.reps || 0; if (!reas.liveStart) reas.liveStart = performance.now();
+      }
     } catch (e) {}
     if (live) {                                   // follow the real progressive image
       reas.real = true;
       await loadReasImage('/decoded.png?t=' + Date.now());
+      reasBlank = false;                           // a fresh decode has arrived -> show it
       reas.frac = frac; reas.done = done && frac >= 0.99;
       if (reas.done) reas.everDone = true;
       if (frac > reas.maxFrac) reas.maxFrac = frac;
-    } else if (!sawLive) {                         // before ▶Run: 6-second demo with the reference image
-      if (!reas.real) { await loadReasImage('/assets/result.png'); reas.frac = Math.min(1, (performance.now() - t0) / 6000); reas.done = reas.frac >= 1; }
+    } else if (!sawLive && !state.cfg.gnuradioUrl) {   // no real GNU Radio configured: brief reference-image demo (with real GNU Radio we stay blank until it actually decodes)
+      if (!reas.real) { await loadReasImage('/assets/result.png'); reasBlank = false; reas.frac = Math.min(1, (performance.now() - t0) / 6000); reas.done = reas.frac >= 1; }
     }
     drawReassemble();
     const fill = $('#reasFill'); if (fill) fill.style.width = Math.round(reas.frac * 100) + '%';
-    const fr = $('#reasFrame'); if (fr) fr.textContent = reas.real ? `recovered ${Math.round(reas.frac * 100)}% / pass ${(reas.reps || 0) + 1}` : `recovered ${Math.round(reas.frac * 100)}%`;
+    const fr = $('#reasFrame'); if (fr) fr.textContent = reas.real ? `recovered ${Math.round(reas.frac * 100)}% / pass ${(reas.reps || 0) + 1}` : (reasBlank ? 'waiting for the decode (▶ Run in GNU Radio)…' : `recovered ${Math.round(reas.frac * 100)}%`);
     const badge = $('#reasBadge');
     const failing = reas.real && !reas.everDone && reas.liveStart && (performance.now() - reas.liveStart > 30000);   // demodulating for over 30s without ever completing = recovery failure (center-frequency offset, etc.)
     if (badge) {
@@ -1219,7 +1526,7 @@ function drawReassemble() {
   if (cv.width !== w * dpr || cv.height !== h * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = '#050a10'; ctx.fillRect(0, 0, w, h);
-  if (!reasImg.complete || !reasImg.naturalWidth) { reasNoise(ctx, 8, 8, w - 16, h - 16, 0.5); return; }
+  if (reasBlank || !reasImg.complete || !reasImg.naturalWidth) { reasNoise(ctx, 8, 8, w - 16, h - 16, 0.5); return; }
   const iw = reasImg.naturalWidth, ih = reasImg.naturalHeight;
   const sc = Math.min((w - 16) / iw, (h - 16) / ih), dw = iw * sc, dh = ih * sc, dx = (w - dw) / 2, dy = (h - dh) / 2;
   ctx.imageSmoothingEnabled = false;
@@ -1228,9 +1535,49 @@ function drawReassemble() {
   ctx.drawImage(reasImg, dx, dy, dw, dh);   // draw the full image as-is on one screen (no row split or partial reveal; the real decode fills top to bottom)
 }
 
+// Full reset for the next participant: recreate gpredict + GNU Radio, clear the recorded signal
+// and recovered image on the server, then reload the page (resets the browser / VSA state too).
+// Full booth reset for the next participant: recreate gpredict + GNU Radio, clear the recorded
+// signal and recovered image on the server, then reload the page. Shared by the topbar "Reset for
+// next participant" button and the result-page "Restart ↺" button so both give a clean slate.
+async function doFullReset() {
+  if (!confirm('Reset the whole demo (gpredict, Virtual Antenna, GNU Radio, and this page) to the initial state for the next participant?')) return;
+  const ov = $('#resetOverlay'); if (ov) ov.classList.remove('hidden');
+  // Clear the client-side upload / Analyze / Puzzle state immediately so the recording and its
+  // file-source labels disappear at once, instead of only after the deferred reload (which can lag
+  // 28-80s while gpredict recreates). This is what made Reset feel like it "did nothing".
+  state.recUploaded = false; state.recorded = false; state.recFile = null; state.recFileObj = null;
+  AN.ran = false; AN.highlight = false; AN.psd = null; AN.spec = null; AN.m = null;
+  if (BLOCKS && BLOCKS.file_source) BLOCKS.file_source.sub = 'enigma34_downlink.cf32';
+  { const ui = $('#ugInfo'); if (ui) { ui.classList.add('hidden'); ui.classList.remove('ug-ok', 'ug-err'); ui.innerHTML = ''; } }
+  { const uf = $('#ugFile'); if (uf) uf.value = ''; }
+  if (typeof syncAnalyzeGate === 'function') syncAnalyzeGate();
+  try { await fetch('/api/reset-all'); } catch (e) { /* fire-and-forget: the poll below waits for the fresh state */ }
+  // Reload ONLY once the recreated gpredict is back AND fully clean - engaged AND tracking both off -
+  // otherwise the reloaded page re-colours the Track/Apply/Doppler buttons from stale gpredict state.
+  const cd = $('#resetCountdown');
+  const minReload = Date.now() + 28000;   // give the container recreates time to finish
+  const deadline  = Date.now() + 80000;   // hard cap
+  const tick = async () => {
+    if (cd) cd.textContent = String(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+    let clean = false;
+    try {
+      const st = await (await fetch('/api/gpredict-status', { cache: 'no-store' })).json();
+      clean = st && st.ok && st.bridgeUp && !st.radioEngaged && !st.rotorEngaged
+              && !st.radioTracking && !st.rotorTracking;
+    } catch (e) { /* control server still coming up */ }
+    if ((clean && Date.now() > minReload) || Date.now() > deadline) { location.reload(); return; }
+    setTimeout(tick, 2000);
+  };
+  setTimeout(tick, 6000);
+}
+function wireResetAll() {
+  const btn = $('#resetAllBtn'); if (btn) btn.addEventListener('click', doFullReset);
+}
+
 // ── boot ──
 async function boot() {
-  buildStepper(); wireNav(); wirePuzzle(); initPuzzle(); wireUploadGate(); wireAnalyzeControls();
+  buildStepper(); wireNav(); wirePuzzle(); initPuzzle(); wireUploadGate(); wireUseRecording(); wireAnalyzeControls(); wireResetAll();
   try {
     const [cfg, sat, qth] = await Promise.all([
       fetch('/api/config').then((r) => r.json()),
@@ -1241,6 +1588,18 @@ async function boot() {
     if (qth && qth[0]) { state.qth = qth[0]; buildSatrec(); }
     renderDossierFull(sat); renderSatInfoStrip(sat);
   } catch (e) { console.error('boot load failed', e); }
+  // Re-derive the upload state from the server so any reload (Reset-triggered or manual) starts
+  // consistent: never leave a stale recUploaded=true, and reflect a still-present server file as true.
+  try {
+    const u = await fetch('/api/upload', { cache: 'no-store' }).then((r) => r.json());
+    state.recUploaded = !!(u && u.exists);
+    state.recorded = state.recUploaded;   // a server-side recording means Phase 1 was already done
+    if (u && u.exists) {
+      state.recFile = { name: u.name || 'uploaded.cf32', size: u.size, samples: u.samples || Math.floor((u.size || 0) / 8) };
+      if (BLOCKS && BLOCKS.file_source) BLOCKS.file_source.sub = u.name || 'uploaded.cf32';
+    }
+  } catch (e) { state.recUploaded = false; state.recorded = false; }
+  syncTrackGate();
   show('mission');
 }
 boot();
