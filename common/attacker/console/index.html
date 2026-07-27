@@ -505,7 +505,7 @@
 </main>
 <div id="lockTip">⏳ Waiting for the satellite to enter range…</div>
 
-<!-- scenario finale — full-screen skull moment, shown 5s after TRANSMIT -->
+<!-- scenario finale — full-screen skull moment, shown 18s after TRANSMIT -->
 <div id="winModal" class="win-modal" hidden>
   <div class="win-card">
     <div class="win-skull" aria-hidden="true">💀</div>
@@ -610,9 +610,9 @@
       } catch (e) {
         /* no parent */
       }
-      // finale: 5s after the hit lands (satellite visibly tumbling + GS alarm), pop
+      // finale: 18s after the hit lands (satellite visibly tumbling + GS alarm), pop
       // the full-screen "you owned it" skull moment.
-      setTimeout(showWin, 5000);
+      setTimeout(showWin, 18000);
     } catch (e) {
       setStatus("GS connection failed (" + e.message + ")", "var(--crit)");
     }
