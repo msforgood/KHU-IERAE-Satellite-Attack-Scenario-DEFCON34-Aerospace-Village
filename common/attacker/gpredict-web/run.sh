@@ -18,6 +18,20 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 docker build -t "$IMG" .
+
+# gpredict-config 볼륨 마운트(Windows Git-Bash 대응):
+#   Git Bash(MSYS)는 '-v ...:/config:ro' 의 '/config' 를 자동으로 'C:\Program Files\Git\config'
+#   로 바꿔버린다(POSIX→Win 경로 변환). 그러면 컨테이너에 /config 가 안 붙고 start.sh 의
+#   '[ -d /config ]' 블록이 통째로 스킵돼 DEMOSAT .sat/.mod 가 안 만들어짐 → gpredict 창이
+#   위성 없이 빈 화면으로 뜬다. 그래서 ① 변환을 끄고(MSYS_NO_PATHCONV=1) ② 호스트 소스는
+#   Docker Desktop 이 이해하는 Windows 경로(C:/...)로 cygpath 변환한다.
+CFG_SRC="$(cd .. && pwd)/gpredict-config"
+case "$(uname -s 2>/dev/null)" in
+  MINGW*|MSYS*|*NT*)
+    export MSYS_NO_PATHCONV=1
+    CFG_SRC="$(cygpath -m "$CFG_SRC" 2>/dev/null || echo "$CFG_SRC")" ;;
+esac
+
 URL="http://localhost:$PORT/vnc.html?autoconnect=1&resize=remote"
 echo "───────────────────────────────────────────────"
 echo " gpredict (web) → $URL"
@@ -26,5 +40,5 @@ echo "────────────────────────�
 exec docker run --rm -p "$PORT:6080" -p "${CTRL_PORT:-6079}:6079" \
   --add-host=host.docker.internal:host-gateway \
   -e ROTCTLD_HOST="${ROTCTLD_HOST:-host.docker.internal}" \
-  -v "$(cd .. && pwd)/gpredict-config:/config:ro" \
+  -v "$CFG_SRC:/config:ro" \
   "$IMG"

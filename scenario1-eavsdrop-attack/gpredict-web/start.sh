@@ -24,8 +24,10 @@ if [ -d /config ]; then
   # local TLE → gpredict .sat DB entry (registers ENIGMA-1, catalog 90001)
   if [ -f /config/enigma1.tle ]; then
     CAT=$(sed -n '2p' /config/enigma1.tle | cut -c3-7 | tr -d ' ')
-    L1=$(sed -n '2p' /config/enigma1.tle)
-    L2=$(sed -n '3p' /config/enigma1.tle)
+    # tr -d '\r': read-only /config 마운트라 컨테이너가 못 고침. Windows(CRLF) .tle 이면
+    # TLE1/TLE2 끝 \r 때문에 gpredict 궤도요소 파싱이 깨져 위성이 안 뜬다 → 빈 창.
+    L1=$(sed -n '2p' /config/enigma1.tle | tr -d '\r')
+    L2=$(sed -n '3p' /config/enigma1.tle | tr -d '\r')
     NAME=$(sed -n '1p' /config/enigma1.tle | tr -d '\r')
     : "${CAT:=90001}"
     cat > "$CFG/satdata/${CAT}.sat" <<EOF
