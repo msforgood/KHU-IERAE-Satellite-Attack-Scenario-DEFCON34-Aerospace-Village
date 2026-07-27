@@ -620,10 +620,11 @@
   window.addEventListener("message", (e) => {
     if (!e.data) return;
     if (e.data.type === "vsa-transmit") fireAttack();
-    // "Align Antenna" in the VSA → move the physical antenna. AZ 는 실제 조준 방위각으로
-    // 돌리고(눈에 띄게), EL 은 '조준하는 듯한 자세'로 10° 고정(준비자세 50°에서 크게 틸트).
+    // "Align Antenna" in the VSA → move the physical antenna. 조준 자세는 고정값
+    // AZ 120°/EL 30° 로 이동(준비자세 az180/el50 에서 크게 틀어 '조준하는 듯' 보이게).
+    // VSA 가 보낸 실제 방위각(e.data.az/el)은 의도적으로 무시한다.
     if (e.data.type === "vsa-align") {
-      post("/api/antenna", { az: e.data.az, el: 10 }).catch(() => {});
+      post("/api/antenna", { az: 120, el: 30 }).catch(() => {});
     }
   });
 
