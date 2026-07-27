@@ -1,0 +1,13 @@
+diff --git a/server.js b/server.js
+index c147987..d1f551a 100644
+--- a/server.js
++++ b/server.js
+@@ -199,6 +199,8 @@ function forwardUplinkCommand(msg) {
+     satellite: msg.satellite,
+     frequency: msg.frequency,
+     command:   msg.command,
++    opcode:    msg.opcode,     // patch: forward decoded opcode …
++    payload:   msg.payload,    // … and payload so the GS can show the torque value
+     purpose:   msg.purpose,
+     timestamp: new Date().toISOString(),
+   });

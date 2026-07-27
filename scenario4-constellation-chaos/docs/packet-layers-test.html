@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CCSDS Packet Layers (test)</title>
+<style>
+  :root{
+    --bg:#080d14; --panel:#0e1724; --panel2:#0a121c; --line:#1e2b3a; --ink:#c7d3e0; --dim:#7f92a6;
+    --mono:'SFMono-Regular',ui-monospace,'Cascadia Code','Consolas',monospace;
+    --tf:#b98cff; --pri:#39c5ff; --sec:#33d17a; --data:#ffd23f; --crc:#ff5a5a; --fecf:#8f77c9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:15px;line-height:1.5}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 22px 60px}
+  h1{font-size:24px;margin:0 0 6px}
+  h1 span{color:var(--data)}
+  .sub{color:var(--dim);margin:0 0 20px}
+  h2{font-size:15px;letter-spacing:.06em;color:var(--pri);margin:26px 0 10px}
+  .hint{color:var(--dim);font-weight:400;font-size:12px;letter-spacing:0}
+  .note{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--data);border-radius:10px;padding:13px 16px;margin-bottom:8px}
+  .note b{color:#fff}
+  .note.warn{border-left-color:var(--crc)}
+
+  /* two columns: builder on the left, transmit side on the right */
+  .cols{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:24px;align-items:start;margin-top:10px}
+  @media (max-width:920px){.cols{grid-template-columns:1fr}}
+  .colL h2:first-child{margin-top:4px}
+
+  /* nested layer stack (clickable) */
+  .stack{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .lbox{border:1px solid;border-radius:9px;padding:10px 12px 12px}
+  .lbox.tf{border-color:var(--tf);background:rgba(185,140,255,.06)}
+  .lhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:9px;font-size:13px}
+  .lhead .lname{font-weight:800;letter-spacing:.04em}
+  .lhead .lspec{color:var(--dim);font-size:12px}
+  .lhead .lsize{font-weight:800}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .seg{border:1px solid var(--line);border-radius:8px;padding:9px 11px;flex:1 1 auto;min-width:0;cursor:pointer;transition:opacity .15s,filter .15s,box-shadow .15s}
+  .seg .sname{font-size:12.5px;color:#eaf2fb;display:block}
+  .seg .sbytes{font-size:11px;color:var(--dim)}
+  .spp-inner{border:1px solid var(--pri);border-radius:9px;padding:10px 12px;flex:3 1 300px;background:rgba(57,197,255,.05)}
+  /* solid-ish layer fills so each block reads at a glance */
+  .seg.L-tf{background:rgba(185,140,255,.20);border-color:var(--tf)}
+  .seg.L-pri{background:rgba(57,197,255,.20);border-color:var(--pri)}
+  .seg.L-sec{background:rgba(51,209,122,.20);border-color:var(--sec)}
+  .seg.L-data{background:rgba(255,210,63,.19);border-color:var(--data)}
+  .seg.L-crc{background:rgba(255,90,90,.20);border-color:var(--crc)}
+  .seg.L-fecf{background:rgba(143,119,201,.26);border-color:var(--fecf)}
+  .seg:hover{filter:brightness(1.18)}
+  .seg.sel{outline:2px solid #fff;outline-offset:2px;box-shadow:0 0 16px rgba(255,255,255,.20);filter:brightness(1.25)}
+  .stack.filtering .seg:not(.sel){opacity:.35}
+
+  /* filter bar above the field table */
+  .filterinfo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 6px;font-size:13px;min-height:26px}
+  .fitag{display:inline-block;padding:3px 10px;border-radius:6px;font-weight:800;color:#0a0f16}
+  .fitag.L-tf{background:var(--tf)} .fitag.L-pri{background:var(--pri)} .fitag.L-sec{background:var(--sec)}
+  .fitag.L-data{background:var(--data)} .fitag.L-crc{background:var(--crc)} .fitag.L-fecf{background:var(--fecf)}
+  .fidim{color:var(--dim)}
+  .showall{background:transparent;border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:3px 10px;font-family:var(--mono);font-size:12px;cursor:pointer}
+  .showall:hover{border-color:var(--ink)}
+
+  /* field table */
+  table{width:100%;border-collapse:collapse;margin-top:2px;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--dim);font-weight:700;font-size:12px;letter-spacing:.05em}
+  td.sz{color:#eaf2fb;white-space:nowrap;font-weight:700}
+  td.bits{color:var(--dim);font-size:12px;white-space:nowrap}
+  td.val{color:#eaf2fb}
+  tr.lz td{background:#0b1420;font-weight:800;letter-spacing:.04em;border-bottom:1px solid var(--line)}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;vertical-align:middle}
+  .dot.tf{background:var(--tf)} .dot.pri{background:var(--pri)} .dot.sec{background:var(--sec)}
+  .dot.data{background:var(--data)} .dot.crc{background:var(--crc)} .dot.fecf{background:var(--fecf)}
+  .badge{display:inline-block;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:700;border:1px solid}
+  .b-fic{color:#ff9aa5;border-color:rgba(255,90,90,.5);background:rgba(255,90,90,.08)}
+  .b-cmp{color:#8fd0ff;border-color:rgba(57,197,255,.5);background:rgba(57,197,255,.08)}
+  .b-p2{color:#ffd98a;border-color:rgba(255,210,63,.5);background:rgba(255,210,63,.08)}
+  .b-p3{color:#9ff0c4;border-color:rgba(51,209,122,.5);background:rgba(51,209,122,.08)}
+  .b-lnk{color:#cbb6ff;border-color:rgba(185,140,255,.5);background:rgba(185,140,255,.08)}
+  .b-fix{color:var(--dim);border-color:var(--line)}
+
+  /* right column = the transmit panel */
+  .colR{position:sticky;top:16px}
+  .txpanel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .txtitle{font-size:14px;font-weight:800;letter-spacing:.05em;color:#eaf2fb;display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .txwire{font-size:11px;font-weight:700;color:#0a0f16;background:var(--dim);border-radius:5px;padding:2px 7px;letter-spacing:.04em}
+  .txsub{font-size:12px;letter-spacing:.06em;color:var(--pri);margin:16px 0 8px;font-weight:700}
+
+  /* size summary (stacked in the narrow column) */
+  .sizes{display:grid;grid-template-columns:1fr;gap:10px}
+  .scard{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .scard.tf{border-left:3px solid var(--tf)} .scard.spp{border-left:3px solid var(--pri)}
+  .scard .st{font-size:11.5px;color:var(--dim);letter-spacing:.05em}
+  .scard .sv{font-size:26px;font-weight:800;margin:2px 0} .scard.tf .sv{color:var(--tf)} .scard.spp .sv{color:var(--pri)}
+  .scard .sb{font-size:12px;color:var(--dim)}
+
+  /* hex map */
+  .hex{display:flex;flex-wrap:wrap;gap:5px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .hb{width:31px;height:27px;display:flex;align-items:center;justify-content:center;border-radius:5px;font-size:12px;font-weight:700;color:#0a0f16;transition:opacity .15s}
+  .hb.tf{background:var(--tf)} .hb.pri{background:var(--pri)} .hb.sec{background:var(--sec)}
+  .hb.data{background:var(--data)} .hb.crc{background:var(--crc)} .hb.fecf{background:var(--fecf)}
+  /* when a layer is picked on the left, its bytes stay lit and the rest fade */
+  .hex.sel-tf .hb:not(.tf),.hex.sel-pri .hb:not(.pri),.hex.sel-sec .hb:not(.sec),
+  .hex.sel-data .hb:not(.data),.hex.sel-crc .hb:not(.crc),.hex.sel-fecf .hb:not(.fecf){opacity:.16}
+  .legend{display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:11px;font-size:12px;color:var(--dim)}
+  .legend span{display:flex;align-items:center}
+
+  .txbtn{width:100%;margin-top:18px;padding:13px;border:1px solid rgba(255,90,90,.55);background:rgba(255,90,90,.12);color:#ffb3ba;font-family:var(--mono);font-size:14px;font-weight:800;letter-spacing:.02em;border-radius:9px;cursor:pointer}
+  .txbtn:hover{background:rgba(255,90,90,.2)}
+  .txnote{margin-top:10px;font-size:11.5px;color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CCSDS command packet, <span>layer by layer</span></h1>
+  <p class="sub">Prototype for Phase 4. How the ground-station uplink is built, one layer at a time, with each field's size and where its value comes from.</p>
+
+  <div class="note">
+    <b>Two layers.</b> The command you solve is a <b>Space Packet (SPP, CCSDS 133.0-B)</b>, the 38-byte block on the left below.
+    To actually send it, the ground station wraps it in a <b>TC Transfer Frame (TF, CCSDS 232.0-B)</b>: a 5-byte link header in front and a 2-byte error check at the end. So the full uplink is <b>TF { header + Space Packet + FECF }</b> = 45 bytes.
+  </div>
+  <div class="note warn">
+    <b>Fictional IDs.</b> CCSDS defines the packet <b>structure</b>, not the <b>values</b> for an orbit-maneuver command. The Spacecraft ID (SCID), APID, Virtual Channel and cFS function code are all assigned per mission (SANA or the mission ICD), never per command type. This demo uses <b>made-up values</b> for the fictional ENIGMA-1 (SCID 200, APID 0x1F0, function code 0x03).
+  </div>
+
+  <div class="cols">
+    <!-- LEFT: build + inspect the packet by layer -->
+    <div class="colL">
+      <h2>LAYER STACK <span class="hint">(click a block to filter the table below)</span></h2>
+      <div class="stack" id="stack"></div>
+
+      <h2>EVERY FIELD <span class="hint">(size and source)</span></h2>
+      <div id="filterInfo" class="filterinfo"></div>
+      <table id="tbl">
+        <thead><tr><th>Field</th><th>Size</th><th>Bit layout</th><th>Value (sample)</th><th>Source</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- RIGHT: the ground-station transmit panel -->
+    <aside class="colR">
+      <div class="txpanel">
+        <div class="txtitle">GROUND STATION UPLINK <span class="txwire">transmit</span></div>
+
+        <div class="txsub">TOTAL SIZE</div>
+        <div class="sizes">
+          <div class="scard spp"><div class="st">SPACE PACKET (SPP)</div><div class="sv" id="sppSize">0 B</div><div class="sb">6 primary + 2 cFS secondary + 28 payload + 2 CRC</div></div>
+          <div class="scard tf"><div class="st">TC TRANSFER FRAME (on the wire)</div><div class="sv" id="tfSize">0 B</div><div class="sb">5 frame header + <span id="sppInTf">38</span> Space Packet + 2 FECF</div></div>
+        </div>
+
+        <div class="txsub">BYTE MAP <span class="hint">(the 45 bytes on the wire)</span></div>
+        <div class="hex" id="hex"></div>
+        <div class="legend">
+          <span><i class="dot tf"></i>TF header</span>
+          <span><i class="dot pri"></i>SPP primary</span>
+          <span><i class="dot sec"></i>cFS secondary</span>
+          <span><i class="dot data"></i>payload</span>
+          <span><i class="dot crc"></i>packet CRC</span>
+          <span><i class="dot fecf"></i>FECF</span>
+        </div>
+
+        <button class="txbtn" type="button">⚡ TRANSMIT BURN COMMAND → ENIGMA-1</button>
+        <div class="txnote">Pick a layer on the left and its bytes light up here.</div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+// sample solved values (in the real Phase 4 these come live from Phases 2 and 3)
+var V = { execSec:3882, dvIn:154.0, dvCross:30.0, thrustN:22, yaw:11.2, pitch:7.7, burn:45.3, prop:3.2,
+          apid:0x1F0, fc:0x03, scid:200, vcid:1, frameSeq:0 };
+
+// field model, in on-the-wire order.  [ layer, name, bytes, bit-layout, sample value, source ]
+// src: fic=fictional id, cmp=computed, p2=Phase 2, p3=Phase 3, lnk=link counter, fix=fixed constant
+var F = [
+  ['tf','TF header: version, flags, spare, SCID', 2, '2+1+1+2+10', 'SCID 200', 'fic'],
+  ['tf','Virtual Channel ID + frame length',      2, '6+10',        'VC 1, len 44 (total-1)', 'cmp'],
+  ['tf','Frame sequence number',                  1, '8',           '0', 'lnk'],
+
+  ['pri','Packet ID: version, TC type, sec-hdr flag, APID', 2, '3+1+1+11', 'TC, APID 0x1F0', 'fic'],
+  ['pri','Packet sequence control: flags + count',         2, '2+14',      'unsegmented, count 0', 'lnk'],
+  ['pri','Packet data length (= data octets - 1)',         2, '16',        '31', 'cmp'],
+
+  ['sec','Function code (command = START BURN)', 1, '8', '0x03', 'fic'],
+  ['sec','cFS command checksum (XOR of packet)', 1, '8', 'computed', 'cmp'],
+
+  ['data','Execution time T (CUC: 4 B sec + 2 B subsec)', 6, '', 't = 3882 s', 'p2'],
+  ['data','Maneuver mode (RTN delta-v burn)',            1, '', '0x02', 'fix'],
+  ['data','Thruster select mask (from pointing)',        1, '', '0x01', 'p3'],
+  ['data','Delta-v prograde (float32, m/s)',             4, '', '154.0', 'p3'],
+  ['data','Delta-v cross-track (float32, m/s)',          4, '', '30.0', 'p3'],
+  ['data','Thrust magnitude F (float32, N)',             4, '', '22', 'p3'],
+  ['data','Burn attitude yaw (int16, 0.1 deg)',          2, '', '11.2', 'p3'],
+  ['data','Burn attitude pitch (int16, 0.1 deg)',        2, '', '7.7', 'p3'],
+  ['data','Burn duration (uint16, 0.1 s)',               2, '', '45.3 s', 'p3'],
+  ['data','Propellant used (uint16, 0.1 kg)',            2, '', '3.2 kg', 'p3'],
+
+  ['crc','Packet CRC-16-CCITT (over the payload)', 2, '', 'computed', 'cmp'],
+  ['fecf','Frame Error Control Field (CRC-16)',    2, '', 'computed', 'cmp']
+];
+
+// every layer has its own labelled group in the table
+var LAYER = {
+  tf:  ['TC TRANSFER FRAME, frame header','link layer, CCSDS 232.0-B'],
+  pri: ['SPACE PACKET, primary header','CCSDS 133.0-B'],
+  sec: ['SPACE PACKET, cFS secondary header','NASA cFS'],
+  data:['SPACE PACKET, user data (maneuver payload)','mission-defined'],
+  crc: ['SPACE PACKET, packet CRC','CRC-16-CCITT over the payload'],
+  fecf:['TC TRANSFER FRAME, FECF','link layer, CCSDS 232.0-B']
+};
+var SRC = { fic:['Fictional','b-fic'], cmp:['Computed','b-cmp'], p2:['Phase 2','b-p2'],
+            p3:['Phase 3','b-p3'], lnk:['Link','b-lnk'], fix:['Fixed','b-fix'] };
+
+function crc16(u8,a,b){var c=0xFFFF;for(var i=a;i<b;i++){c^=u8[i]<<8;for(var k=0;k<8;k++)c=(c&0x8000)?((c<<1)^0x1021)&0xFFFF:(c<<1)&0xFFFF;}return c;}
+
+// build the real 45-byte frame so the byte map is genuine
+function buildFrame(){
+  var spp=new Uint8Array(38), w=new DataView(spp.buffer);
+  w.setUint16(0,(0<<13)|(1<<12)|(1<<11)|(V.apid&0x7FF),false);
+  w.setUint16(2,(3<<14)|0,false);
+  w.setUint16(4,38-7,false);
+  spp[6]=V.fc&0x7F; spp[7]=0;
+  w.setUint32(8,V.execSec>>>0,false); w.setUint16(12,0,false);
+  spp[14]=0x02; spp[15]=0x01;
+  w.setFloat32(16,V.dvIn,false); w.setFloat32(20,V.dvCross,false); w.setFloat32(24,V.thrustN,false);
+  w.setInt16(28,Math.round(V.yaw*10),false); w.setInt16(30,Math.round(V.pitch*10),false);
+  w.setUint16(32,Math.round(V.burn*10),false); w.setUint16(34,Math.round(V.prop*10),false);
+  w.setUint16(36,crc16(spp,8,36),false);
+  var x=0xFF; for(var i=0;i<38;i++)x^=spp[i]; spp[7]=x;
+  var frameLen=5+38+2-1;
+  var frame=new Uint8Array(45), tw=new DataView(frame.buffer);
+  tw.setUint16(0,(0<<14)|(1<<13)|(0<<12)|(0<<10)|(V.scid&0x3FF),false);
+  tw.setUint16(2,((V.vcid&0x3F)<<10)|(frameLen&0x3FF),false);
+  frame[4]=V.frameSeq&0xFF;
+  frame.set(spp,5);
+  var fecf=crc16(frame,0,43); frame[43]=(fecf>>8)&0xFF; frame[44]=fecf&0xFF;
+  return frame;
+}
+
+// ── sizes ───────────────────────────────────────────────────────────────
+var sppBytes=0, tfBytes=0;
+F.forEach(function(f){ tfBytes+=f[2]; if(f[0]!=='tf'&&f[0]!=='fecf') sppBytes+=f[2]; });
+document.getElementById('sppSize').textContent=sppBytes+' B';
+document.getElementById('tfSize').textContent=tfBytes+' B';
+document.getElementById('sppInTf').textContent=sppBytes;
+
+// ── layer stack (each block is a filter button) ─────────────────────────
+(function(){
+  var seg=function(layer,name,bytes){return '<div class="seg L-'+layer+'" data-layer="'+layer+'"><span class="sname">'+name+'</span><span class="sbytes">'+bytes+' B</span></div>';};
+  var sppInner='<div class="spp-inner"><div class="lhead"><span class="lname" style="color:var(--pri)">SPACE PACKET</span><span class="lspec">CCSDS 133.0-B</span><span class="lsize" style="color:var(--pri)">'+sppBytes+' B</span></div><div class="row">'+
+      seg('pri','Primary header',6)+seg('sec','cFS secondary',2)+seg('data','Payload',28)+seg('crc','CRC',2)+'</div></div>';
+  document.getElementById('stack').innerHTML=
+    '<div class="lbox tf"><div class="lhead"><span class="lname" style="color:var(--tf)">TC TRANSFER FRAME</span><span class="lspec">CCSDS 232.0-B, on the wire</span><span class="lsize" style="color:var(--tf)">'+tfBytes+' B</span></div>'+
+    '<div class="row" style="align-items:stretch">'+seg('tf','Frame header',5)+sppInner+seg('fecf','FECF',2)+'</div></div>';
+})();
+
+// ── field table + layer filtering (also lights up the byte map on the right) ─
+var selLayer=null;
+var stackEl=document.getElementById('stack');
+var tbodyEl=document.querySelector('#tbl tbody');
+var infoEl=document.getElementById('filterInfo');
+var hexEl=document.getElementById('hex');
+function fieldsOf(l){ return F.filter(function(f){return f[0]===l;}); }
+function bytesOf(l){ return fieldsOf(l).reduce(function(s,f){return s+f[2];},0); }
+
+function renderTable(){
+  var html='', lastLayer='';
+  F.forEach(function(f){
+    var layer=f[0]; if(selLayer && layer!==selLayer) return;
+    if(layer!==lastLayer){
+      html+='<tr class="lz"><td colspan="5"><i class="dot '+layer+'"></i>'+LAYER[layer][0]+' <span style="color:var(--dim);font-weight:400;font-size:12px">('+LAYER[layer][1]+')</span></td></tr>';
+      lastLayer=layer;
+    }
+    var s=SRC[f[5]];
+    html+='<tr><td><i class="dot '+layer+'"></i>'+f[1]+'</td><td class="sz">'+f[2]+' B</td><td class="bits">'+(f[3]||'-')+'</td><td class="val">'+f[4]+'</td><td><span class="badge '+s[1]+'">'+s[0]+'</span></td></tr>';
+  });
+  tbodyEl.innerHTML=html;
+}
+function renderInfo(){
+  if(!selLayer){ infoEl.innerHTML='<span class="fidim">All layers shown. Click a colored block in the stack to see just that region.</span>'; return; }
+  var L=LAYER[selLayer], n=fieldsOf(selLayer).length, b=bytesOf(selLayer);
+  infoEl.innerHTML='<span class="fitag L-'+selLayer+'">'+L[0]+'</span><span class="fidim">'+L[1]+' &nbsp; '+b+' B &nbsp; '+n+' field'+(n>1?'s':'')+'</span><button id="showAll" class="showall">show all &times;</button>';
+  document.getElementById('showAll').onclick=function(){ setLayer(null); };
+}
+function setLayer(l){
+  selLayer=l;
+  var segs=stackEl.querySelectorAll('.seg');
+  for(var i=0;i<segs.length;i++){ segs[i].classList.toggle('sel', segs[i].getAttribute('data-layer')===l); }
+  stackEl.classList.toggle('filtering', !!l);
+  if(hexEl) hexEl.className='hex'+(l?(' sel-'+l):'');
+  renderTable(); renderInfo();
+}
+stackEl.addEventListener('click', function(e){
+  var seg=e.target.closest('.seg'); if(!seg) return;
+  var l=seg.getAttribute('data-layer');
+  setLayer(l===selLayer?null:l);
+});
+renderTable(); renderInfo();
+
+// ── hex byte map, coloured by field ─────────────────────────────────────
+(function(){
+  var frame=buildFrame(), map=[];
+  F.forEach(function(f){ for(var i=0;i<f[2];i++) map.push(f[0]); });
+  var h='';
+  for(var i=0;i<frame.length;i++){ h+='<div class="hb '+map[i]+'" title="byte '+i+'">'+('0'+frame[i].toString(16)).slice(-2).toUpperCase()+'</div>'; }
+  hexEl.innerHTML=h;
+})();
+</script>
+</body>
+</html>

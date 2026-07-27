@@ -1,0 +1,8 @@
+[Radio]
+Host=localhost
+Port=4542
+Cycle=1000
+LO=0
+LO_UP=0
+Type=0
+PTT=0

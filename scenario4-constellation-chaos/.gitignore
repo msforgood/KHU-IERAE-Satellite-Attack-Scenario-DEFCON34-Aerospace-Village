@@ -1,0 +1,10 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+*/.venv/
+# node
+node_modules/
+# runtime output
+uplink/
+*.cf32
