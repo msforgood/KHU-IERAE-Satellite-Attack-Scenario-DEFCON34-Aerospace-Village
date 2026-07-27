@@ -288,7 +288,7 @@ function bodyCompose(body) {
     const b = el(
       "div",
       "palblock sub-" + sub + (S.block && S.block.sub === sub ? " active" : ""),
-      `<span class="pbgrip">⣿</span>${sub} command`,
+      `${sub} command`,
     );
     b.dataset.sub = sub;
     b.onclick = () => placeBlock(sub);
@@ -595,17 +595,13 @@ function argRow(f) {
           ? '<span class="cbzone danger">⚠ RED — attack armed</span>'
           : '<span class="cbzone safe">✓ safe</span>'
         : "";
-    const goalHint =
-      f.safeAbsMax != null
-        ? `<span class="cbgoal">🎯 <b>ATTACK GOAL</b> — a <b>safe</b> ${label} stays within <b>±${f.safeAbsMax}${f.unit || ""}</b>. Abuse it: <b>drag the slider into the RED</b> (e.g. <b>${f.default}${f.unit || ""}</b>) to spin the satellite out of control.</span>`
-        : "";
     row.innerHTML = `<span class="cbflag">--${label}</span>
        <div class="cbslidewrap">
          <input class="cbslider${p.over ? " armed" : ""}" type="range" data-key="${f.key}" data-type="num"
                 min="${f.min}" max="${f.max}" step="1" value="${cur}"
                 style="background:${zoneGradient(f)}">
          <output class="cbreadout${p.over ? " over" : ""}">${cur}${f.unit || ""}</output>
-       </div>${zone}${goalHint}`;
+       </div>${zone}`;
     return row;
   }
   // plain numeric slot (e.g. bitmask) — typed, not dragged
