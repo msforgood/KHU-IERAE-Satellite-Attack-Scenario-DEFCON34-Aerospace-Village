@@ -1,0 +1,814 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>ATTACKER // Targeting Console — ③ Satellite Targeting</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<!--
+  Attacker 3rd screen. Two real tools embedded side by side. NO reimplementation
+  — gpredict is streamed via noVNC, OpenVSA is its own web/Electron UI. Configure
+  the sources with URL query params:
+
+    index.html?gp=<gpredict-noVNC-url>&vsa=<OpenVSA-url>&gs=http://localhost:4540
+
+  ⚡ TRANSMIT (in the OpenVSA caption bar) → POST <gs>/api/inject → spin_control 999.
+-->
+<style>
+  :root {
+    --bg: #0c1118;
+    --panel: #131a24;
+    --ink: #e6edf3;
+    --dim: #8497a8;
+    --line: rgba(255, 255, 255, 0.1);
+    --cyan: #35d0e0;
+    --good: #4ec98a;
+    --crit: #ff5c5c;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  html,
+  body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font:
+      14px/1.5 system-ui,
+      -apple-system,
+      "Segoe UI",
+      sans-serif;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+  button {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 6px 13px;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  button:hover {
+    border-color: var(--cyan);
+    color: var(--cyan);
+  }
+  button.fire {
+    border-color: var(--crit);
+    color: var(--crit);
+  }
+  button.fire:hover {
+    background: var(--crit);
+    color: #120606;
+  }
+  #status {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--dim);
+    text-align: right;
+  }
+  #status b {
+    color: var(--ink);
+  }
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 2fr 3fr;
+    gap: 1px;
+    background: var(--line);
+    min-height: 0;
+  }
+  section {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    min-height: 0;
+    position: relative;
+  }
+  section .cap {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--dim);
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  section .cap b {
+    color: var(--cyan);
+  }
+  section .cap--row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  section .cap--row .spacer {
+    flex: 1;
+  }
+  section .cap--row button {
+    letter-spacing: normal;
+    text-transform: none;
+  }
+  section .cap .stepno {
+    display: inline-block;
+    background: var(--cyan);
+    color: #04222a;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 5px;
+    margin-right: 8px;
+    letter-spacing: 0.08em;
+  }
+  /* STEP 2 gate: a transparent box over OpenVSA that swallows clicks until the
+     gpredict aiming (STEP 1) is engaged. Removed once STEP 1 reports "engaged". */
+  .lockbox {
+    position: absolute;
+    inset: 0;
+    z-index: 15;
+    cursor: not-allowed;
+    background: transparent;
+  }
+  .lockbox.hidden {
+    display: none;
+  }
+  #lockTip {
+    position: fixed;
+    z-index: 60;
+    pointer-events: none;
+    display: none;
+    white-space: nowrap;
+    background: rgba(20, 26, 34, 0.97);
+    border: 1px solid var(--crit);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+  #lockTip.show {
+    display: block;
+  }
+  iframe {
+    flex: 1;
+    width: 100%;
+    border: 0;
+    background: #000;
+  }
+  .empty {
+    flex: 1;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    color: var(--dim);
+    text-align: center;
+  }
+  .empty code {
+    font-family: var(--mono);
+    color: var(--ink);
+    background: var(--panel);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  @media (max-width: 820px) {
+    main {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr 1fr;
+    }
+  }
+  /* participant guide — anchored just under the gpredict panel caption */
+  #guide {
+    position: absolute;
+    right: 12px;
+    top: 42px;
+    width: min(440px, calc(100% - 24px));
+    max-height: calc(100% - 54px);
+    overflow-y: auto;
+    z-index: 20;
+    background: rgba(15, 21, 29, 0.95);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55);
+    display: none;
+  }
+  #guide.show {
+    display: block;
+  }
+  #guide h3 {
+    margin: 0 0 10px;
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    font-family: var(--mono);
+  }
+  #guide .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--dim);
+    margin: 3px 0;
+  }
+  #guide .row b {
+    color: var(--ink);
+  }
+  #guide .bar {
+    height: 6px;
+    border-radius: 4px;
+    background: var(--panel);
+    overflow: hidden;
+    margin: 8px 0;
+  }
+  #guide .bar > i {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: var(--cyan);
+    transition: width 0.5s;
+  }
+  #guide .state {
+    margin: 8px 0;
+    font-weight: 640;
+  }
+  #guide .state .cd {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 720;
+    color: var(--cyan);
+    vertical-align: -2px;
+  }
+  #guide .state.wait {
+    color: var(--dim);
+  }
+  #guide .state.ready {
+    color: var(--good);
+  }
+  #guide .state.busy {
+    color: var(--cyan);
+  }
+  #guide .state.done {
+    color: var(--cyan);
+  }
+  #guide .state.err {
+    color: var(--crit);
+  }
+  #guide .spin {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border: 2px solid var(--line);
+    border-top-color: var(--cyan);
+    border-radius: 50%;
+    animation: gspin 0.7s linear infinite;
+    vertical-align: -1px;
+    margin-right: 6px;
+  }
+  @keyframes gspin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  #guide button.go {
+    width: 100%;
+    border-color: var(--good);
+    color: var(--good);
+    font-size: 13px;
+    padding: 10px;
+    margin-top: 2px;
+  }
+  #guide button.go:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: var(--line);
+    color: var(--dim);
+  }
+  #guide ol {
+    margin: 10px 0 0;
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--dim);
+  }
+  #guide ol li.active {
+    color: var(--ink);
+  }
+  #guide ol li.ok {
+    color: var(--good);
+  }
+  #guide ol li.ok::marker {
+    content: "✓ ";
+  }
+  /* step-by-step aim: a compact progress checklist + a per-step lesson card so
+     participants learn WHAT each uplink parameter is and WHY it's needed. */
+  #guide .steps {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0;
+    font-family: var(--mono);
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--dim);
+  }
+  #guide .steps li::before {
+    content: "○ ";
+    color: var(--line);
+  }
+  #guide .steps li.active {
+    color: var(--ink);
+  }
+  #guide .steps li.active::before {
+    content: "▸ ";
+    color: var(--cyan);
+  }
+  #guide .steps li.ok {
+    color: var(--good);
+  }
+  #guide .steps li.ok::before {
+    content: "✓ ";
+    color: var(--good);
+  }
+  #guide .steps li b {
+    color: var(--ink);
+  }
+  #guide .lesson {
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--cyan);
+    border-radius: 9px;
+    padding: 10px 12px;
+    margin: 10px 0 8px;
+    background: rgba(53, 208, 224, 0.05);
+  }
+  #guide .lesson .ltitle {
+    font-family: var(--mono);
+    font-size: 15px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 5px;
+  }
+  #guide .lesson .lval {
+    font-family: var(--mono);
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  #guide .lesson .lrow {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--dim);
+    margin: 5px 0;
+    font-weight: 400;
+  }
+  #guide .lesson .lrow b {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  #guide .lesson .ltag {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--cyan);
+    font-weight: 700;
+    margin-right: 4px;
+  }
+  #guide button.next {
+    width: 100%;
+    border-color: var(--cyan);
+    color: var(--cyan);
+    font-size: 13px;
+    padding: 10px;
+    margin-top: 2px;
+  }
+  #guide button.next:hover {
+    background: rgba(53, 208, 224, 0.12);
+  }
+  #guide button.next:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: var(--line);
+    color: var(--dim);
+    background: none;
+  }
+
+  /* ── scenario finale: full-screen "you owned it" skull moment ─────────────── */
+  .win-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    font-family: var(--mono);
+    background: radial-gradient(ellipse at center, rgba(10, 14, 20, 0.94), rgba(2, 4, 8, 0.985));
+    backdrop-filter: blur(5px);
+  }
+  .win-modal[hidden] { display: none; }
+  .win-card {
+    text-align: center;
+    max-width: min(760px, 92vw);
+    padding: 44px 34px;
+    border: 1px solid rgba(255, 92, 92, 0.5);
+    border-radius: 18px;
+    background: rgba(12, 17, 24, 0.86);
+    box-shadow: 0 0 70px rgba(255, 92, 92, 0.25), inset 0 0 44px rgba(0, 0, 0, 0.6);
+    animation: winPop 0.35s ease-out;
+  }
+  @keyframes winPop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .win-skull {
+    font-size: clamp(88px, 16vw, 150px);
+    line-height: 1;
+    margin: 0 0 4px;
+    filter: drop-shadow(0 0 20px rgba(255, 92, 92, 0.85));
+    animation: winShake 2.6s infinite;
+  }
+  @keyframes winShake {
+    0%, 92%, 100% { transform: translate(0, 0) rotate(0); }
+    94% { transform: translate(-3px, 1px) rotate(-2deg); }
+    96% { transform: translate(3px, -1px) rotate(2deg); }
+    98% { transform: translate(-2px, 0) rotate(-1deg); }
+  }
+  .win-title {
+    font-size: clamp(30px, 6vw, 58px);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    margin: 6px 0 14px;
+    color: #fff;
+    text-shadow: 2px 0 var(--crit), -2px 0 var(--cyan);
+    animation: winGlitch 2.8s infinite;
+  }
+  @keyframes winGlitch {
+    0%, 90%, 100% { text-shadow: 2px 0 var(--crit), -2px 0 var(--cyan); }
+    92% { text-shadow: -3px 0 var(--crit), 3px 0 var(--cyan); }
+    94% { text-shadow: 3px 0 var(--crit), -3px 0 var(--cyan); }
+    96% { text-shadow: -2px 0 var(--crit), 2px 0 var(--cyan); }
+  }
+  .win-sub {
+    font-size: clamp(15px, 2.4vw, 20px);
+    line-height: 1.6;
+    color: var(--ink);
+    margin: 0 auto 28px;
+    max-width: 620px;
+  }
+  .win-crit { color: var(--crit); }
+  .win-go { color: var(--good); }
+  .win-btn {
+    font-family: var(--mono);
+    font-size: clamp(17px, 2.6vw, 24px);
+    font-weight: 800;
+    padding: 16px 42px;
+    border-radius: 12px;
+    cursor: pointer;
+    border: 2px solid var(--cyan);
+    background: transparent;
+    color: var(--cyan);
+    letter-spacing: 0.04em;
+    transition: 0.15s;
+  }
+  .win-btn:hover { background: var(--cyan); color: #04222a; box-shadow: 0 0 26px rgba(53, 208, 224, 0.6); }
+  .win-btn:disabled { opacity: 0.5; cursor: default; }
+  .win-btn--go { border-color: var(--crit); color: var(--crit); }
+  .win-btn--go:hover { background: var(--crit); color: #120606; box-shadow: 0 0 30px rgba(255, 92, 92, 0.7); }
+  .win-note { font-size: 13px; color: var(--dim); margin: 16px 0 0; }
+  .win-stage[hidden] { display: none; }
+</style>
+
+<main>
+  <section>
+    <div class="cap"><span class="stepno">STEP 1</span>🛰️ gpredict — <b>SATELLITE TRACKING</b> (virtual TLE)</div>
+    <!-- participant guide: wait for the pass, then one button auto-operates gpredict -->
+    <div id="guide">
+      <h3>SATELLITE TARGETING</h3>
+      <div class="state wait" id="gState">Waiting for the satellite to enter range…</div>
+      <button class="go" id="gGo" disabled>⚡ ENGAGE</button>
+    </div>
+    <div id="gpSlot" class="empty"></div>
+  </section>
+  <section>
+    <div class="cap cap--row">
+      <span><span class="stepno">STEP 2</span>📡 <b>VIRTUAL ANTENNA UPLINK</b></span>
+      <span class="spacer"></span>
+      <span id="status"></span>
+    </div>
+    <div id="vsaSlot" class="empty"></div>
+    <!-- swallows all clicks on OpenVSA (incl. its TRANSMIT) until STEP 1 is engaged -->
+    <div id="vsaLock" class="lockbox"></div>
+  </section>
+</main>
+<div id="lockTip">⏳ Waiting for the satellite to enter range…</div>
+
+<!-- scenario finale — full-screen skull moment, shown 18s after TRANSMIT -->
+<div id="winModal" class="win-modal" hidden>
+  <div class="win-card">
+    <div class="win-skull" aria-hidden="true">💀</div>
+    <section class="win-stage" id="winAsk">
+      <h1 class="win-title">SATELLITE DOWN</h1>
+      <p class="win-sub">
+        Look at the screens — is <b>DEMOSAT tumbling</b>, and is the ground station screaming
+        <b class="win-crit">⚠ ENERGY SUPPLY CRITICAL</b>?
+      </p>
+      <button id="winYes" class="win-btn win-btn--go">Yeees 😈</button>
+    </section>
+    <section class="win-stage" id="winDone" hidden>
+      <h1 class="win-title">YOU OWNED IT</h1>
+      <p class="win-sub">
+        One <b>legitimate</b> command — no exploit, no bypass — and a satellite is dead in orbit.<br />
+        <b class="win-go">Congratulations. You did it.</b>
+      </p>
+      <button id="winQuit" class="win-btn">OK, I will quit ⏻</button>
+      <p class="win-note">The scenario resets for the next participant.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+  const q = new URLSearchParams(location.search);
+  const GS = (q.get("gs") || "http://localhost:4540").replace(/\/$/, "");
+  const GP = q.get("gp") || ""; // gpredict noVNC url
+  const VSA = q.get("vsa") || ""; // OpenVSA UI url
+  const CTRL = (q.get("ctrl") || "http://localhost:6079").replace(/\/$/, ""); // gpredict time-control
+
+  function embed(slot, src, hint) {
+    const el = document.getElementById(slot);
+    if (src) {
+      el.outerHTML = `<iframe id="${slot}" src="${src}" allow="fullscreen"></iframe>`;
+    } else {
+      el.innerHTML = hint;
+    }
+  }
+  embed(
+    "gpSlot",
+    GP,
+    `To embed the real gpredict screen here, start noVNC with <code>run-gpredict-web.sh</code>, then open<br>
+     <code>?gp=http://localhost:6080/vnc.html?autoconnect=1&amp;resize=scale</code>.`,
+  );
+  embed(
+    "vsaSlot",
+    VSA,
+    `Set the OpenVSA UI address with <code>?vsa=…</code>.<br>By default it runs in a separate window (Electron).`,
+  );
+
+  const statusEl = document.getElementById("status");
+
+  // ── STEP 2 lock: transparent overlay blocks OpenVSA until STEP 1 (gpredict
+  //    aiming) is engaged. Hover/click surfaces the "finish Step 1 first" tip. ──
+  const vsaLock = document.getElementById("vsaLock");
+  const lockTip = document.getElementById("lockTip");
+  function showTip(e) {
+    if (vsaLock.classList.contains("hidden")) return;
+    lockTip.classList.add("show");
+    const x = Math.min(e.clientX + 14, innerWidth - lockTip.offsetWidth - 8);
+    lockTip.style.left = Math.max(8, x) + "px";
+    lockTip.style.top = e.clientY + 16 + "px";
+  }
+  function hideTip() {
+    lockTip.classList.remove("show");
+  }
+  vsaLock.addEventListener("mouseenter", showTip);
+  vsaLock.addEventListener("mousemove", showTip);
+  vsaLock.addEventListener("mouseleave", hideTip);
+  vsaLock.addEventListener("click", showTip);
+  function unlockStep2() {
+    vsaLock.classList.add("hidden");
+    hideTip();
+  }
+
+  async function post(path, body) {
+    const r = await fetch(GS + path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    if (!r.ok) throw new Error(r.status);
+  }
+  function setStatus(t, cls) {
+    statusEl.innerHTML = t;
+    statusEl.style.color = cls || "";
+  }
+
+  // ⚡ TRANSMIT — fired by the VSA's own uplink TRANSMIT button (it posts a
+  // "vsa-transmit" message to this parent). We POST the attack straight to the GS
+  // API (/api/inject) → spin_control 999 mNm → tumbling → sun-track loss + solar
+  // panel motor runaway + dashboard alarm.
+  const ATTACK = { command: "spin_control", payload: ["0x03", "0xe7"] };
+  async function fireAttack() {
+    try {
+      await post("/api/inject", ATTACK);
+      setStatus("⚡ UPLINK TRANSMITTED · spin_control 999 mNm", "var(--crit)");
+      // notify the outer Command Builder that the uplink was fired, so a scenario's
+      // next-phase entry (e.g. ④ drone spoof) can be revealed only AFTER transmit.
+      try {
+        window.parent.postMessage({ type: "attack-fired" }, "*");
+      } catch (e) {
+        /* no parent */
+      }
+      // finale: 18s after the hit lands (satellite visibly tumbling + GS alarm), pop
+      // the full-screen "you owned it" skull moment.
+      setTimeout(showWin, 18000);
+    } catch (e) {
+      setStatus("GS connection failed (" + e.message + ")", "var(--crit)");
+    }
+  }
+  window.addEventListener("message", (e) => {
+    if (!e.data) return;
+    if (e.data.type === "vsa-transmit") fireAttack();
+    // "Align Antenna" in the VSA → move the physical antenna. 조준 자세는 고정값
+    // AZ 120°/EL 30° 로 이동(준비자세 az180/el50 에서 크게 틀어 '조준하는 듯' 보이게).
+    // VSA 가 보낸 실제 방위각(e.data.az/el)은 의도적으로 무시한다.
+    if (e.data.type === "vsa-align") {
+      post("/api/antenna", { az: 120, el: 30 }).catch(() => {});
+    }
+  });
+
+  // ── scenario finale modal (skull → "Yeees" → congrats → quit/reset) ──────────
+  let winShown = false;
+  function showWin() {
+    if (winShown) return;
+    winShown = true;
+    const m = document.getElementById("winModal");
+    if (m) m.hidden = false;
+  }
+  (function wireWin() {
+    const yes = document.getElementById("winYes");
+    const quit = document.getElementById("winQuit");
+    if (yes)
+      yes.onclick = () => {
+        document.getElementById("winAsk").hidden = true;
+        document.getElementById("winDone").hidden = false;
+      };
+    if (quit)
+      quit.onclick = async () => {
+        quit.disabled = true;
+        quit.textContent = "Restarting…";
+        const note = document.querySelector(".win-note");
+        if (note) note.textContent = "Restarting both sides — the next session loads automatically…";
+        // /api/restart resets the GS to nominal AND (under run-booth.sh) drops the flag
+        // that tears down + relaunches both start scripts. Then wait for the fresh
+        // Command Builder to answer and reload it at phase 1. Works either way:
+        //   • supervisor running → builder is relaunched; we reload once it's back
+        //   • no supervisor      → GS is reset, builder never dies; we reload almost at once
+        try { await post("/api/restart", {}); } catch (e) {}
+        const top = window.top,
+          origin = top.location.origin,
+          search = top.location.search;
+        let tries = 0;
+        const iv = setInterval(async () => {
+          tries++;
+          if (tries < 4) return; // let the supervisor kill the old builder before we probe
+          try {
+            // Wait for /api/ready (true only AFTER the antenna/solar setup finishes) —
+            // not just for the builder answering — so the browser doesn't come back
+            // while the hardware is still being set up.
+            const r = await fetch(origin + "/api/ready", { cache: "no-store" });
+            if (r.ok) {
+              const j = await r.json();
+              if (j && j.ready) {
+                clearInterval(iv);
+                top.location.href = "/1" + search;
+                return;
+              }
+            }
+          } catch (e) {
+            /* builder/hardware still coming up — keep waiting */
+          }
+          if (tries > 160) {
+            clearInterval(iv);
+            top.location.href = "/1" + search;
+          } // ~4min fallback
+        }, 1500);
+      };
+  })();
+
+  // ── participant guide: poll gpredict's time-control server, gate the ENGAGE
+  //    button on "satellite in range", then auto-operate gpredict on click. ────
+  const guide = document.getElementById("guide");
+  const gState = document.getElementById("gState");
+  const gGo = document.getElementById("gGo");
+  let engaged = false;
+
+  // Countdown runs client-side from the moment phase 3 opens (this console loads),
+  // so "wait N seconds then in range" is deterministic regardless of the gpredict
+  // clock. We also flip early if the live elevation already reports in-range, and
+  // LATCH once reached so a later re-arm never sends it back to "waiting".
+  const T0 = Date.now();
+  let leadSec = 30,
+    reached = false;
+
+  // Keep the targeting box out of sight for the first stretch of the 30s wait, then
+  // reveal it at the 20-seconds-remaining mark (i.e. 10s in). The console frames stay
+  // up the whole time; only the "SATELLITE TARGETING" box is gated.
+  const HIDE_LEAD_SEC = 10;
+  let ctrlUp = false;
+  function boxShouldShow() {
+    // once the pass is reached/engaged the box always stays; otherwise reveal only
+    // after the initial hidden window has elapsed.
+    return reached || engaged || (Date.now() - T0) / 1000 >= HIDE_LEAD_SEC;
+  }
+  function applyVisibility() {
+    // needs the control server up (frames real) AND past the hidden window.
+    guide.classList.toggle("show", ctrlUp && boxShouldShow());
+  }
+
+  function setStateHTML(html, cls) {
+    gState.innerHTML = html;
+    gState.className = "state " + cls;
+  }
+  function render(s) {
+    if (s && s.leadSec) leadSec = s.leadSec;
+    const remaining = Math.max(0, leadSec - (Date.now() - T0) / 1000);
+    const inNow = reached || remaining <= 0 || (s && s.inRange === true);
+    if (inNow) {
+      reached = true;
+      setStateHTML("✅ In range — aim now", "ready");
+      gGo.disabled = false;
+    } else {
+      gGo.disabled = true;
+      setStateHTML('<b class="cd">' + Math.ceil(remaining) + "</b>s until the satellite enters range…", "wait");
+    }
+  }
+
+  async function pollStatus() {
+    let s = null;
+    try {
+      s = await (await fetch(CTRL + "/status")).json();
+    } catch (e) {
+      ctrlUp = false;
+      applyVisibility(); // gpredict/Docker down → hide
+      return;
+    }
+    ctrlUp = true;
+    if (!engaged) render(s); // updates `reached`
+    applyVisibility(); // reveal decision uses the fresh countdown / `reached`
+  }
+  setInterval(pollStatus, 1000); // refresh in-range signal
+  // tick the countdown every second even between polls, so the number never stalls
+  // (and so the box reveals on time at the 20s-remaining mark between polls).
+  setInterval(() => {
+    if (engaged) return;
+    if (ctrlUp) render(null);
+    applyVisibility();
+  }, 1000);
+  pollStatus();
+
+  // ENGAGE: open STEP 2 and preset the VSA to the aimed uplink state via a
+  // same-origin postMessage — target=DEMOSAT, uplink 433.5 MHz, and DEMOSAT's
+  // ACTUAL az/el at the moment of the click (from the control server's live
+  // look-angles). 206°/31° is only the VSA's initial pose; the ENGAGE aim uses
+  // the real satellite angle, falling back to 206°/31° if the server is down.
+  gGo.onclick = async () => {
+    if (engaged) return;
+    engaged = true;
+    gGo.style.display = "none"; // hide the button entirely once clicked
+    let az = 206,
+      el = 31; // fallback = the initial pose
+    try {
+      const s = await (await fetch(CTRL + "/status")).json();
+      if (Number.isFinite(s.azimDeg)) az = s.azimDeg;
+      if (Number.isFinite(s.elevDeg)) el = s.elevDeg;
+    } catch (e) {
+      /* keep fallback */
+    }
+    const azC = Math.max(0, Math.min(360, az));
+    const elC = Math.max(0, Math.min(90, el));
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const sendVSA = (obj) => {
+      const f = document.getElementById("vsaSlot");
+      try {
+        if (f && f.contentWindow) f.contentWindow.postMessage({ type: "vsa-preset", ...obj }, "*");
+      } catch (e) {
+        /* ignore */
+      }
+    };
+    // The Virtual Antenna (VSA) now owns the step-by-step flow: the participant enters
+    // freq → antenna type → az/el by hand, each gate unlocking the next. This console
+    // only LOCKS the target, hands the VSA the aim TARGETS, and shows them as a banner.
+    setStateHTML('🎯 Locking target…<br><span class="spin"></span>Setting target satellite…', "busy");
+    await sleep(900);
+    // Lock DEMOSAT and hand the Virtual Antenna its aim TARGETS (freq + az/el) as
+    // references only — nothing is auto-filled. The VSA's own gate makes the
+    // participant type/drag each one to match.
+    sendVSA({ targetSat: "DEMOSAT", targetFreq: 433.5, targetAzimuth: azC, targetElevation: elC });
+    setStateHTML(
+      '<div class="lesson"><div class="ltitle">✅ Locked on DEMOSAT — enter these in the Virtual Antenna →</div>' +
+        '<ol class="steps">' +
+        "<li>Uplink Freq — <b>433.5 MHz</b></li>" +
+        "<li>Antenna type — <b>Dish</b></li>" +
+        "<li>Azimuth — <b>" + azC.toFixed(1) + "°</b></li>" +
+        "<li>Elevation — <b>" + elC.toFixed(1) + "°</b></li>" +
+        "</ol>" +
+        '<div class="lrow">Enter them top-to-bottom — each unlocks the next. Then press ' +
+        '<b style="color:var(--ink)">Align Antenna</b>, load the IQ file, and ' +
+        '<b style="color:var(--ink)">TRANSMIT</b>.</div></div>',
+      "done",
+    );
+    unlockStep2(); // the Virtual Antenna is now interactive (its own gating drives the order)
+  };
+</script>

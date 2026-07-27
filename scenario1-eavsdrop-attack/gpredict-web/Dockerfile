@@ -15,6 +15,9 @@ ENV GEOM=1280x1750x24 VNC_PORT=5900 WEB_PORT=6080 CTRL_PORT=6079 \
     ROTCTLD_HOST=host.docker.internal FAKETIME_FILE=/tmp/faketime.rc PASS_LEAD=20 MIN_PASS_ALT=25
 COPY start.sh /start.sh
 COPY control.py /control.py
-RUN chmod +x /start.sh
+# Windows 체크아웃에서 넘어온 CRLF 를 제거(줄끝 \r 이 shebang 을 깨서
+# 컨테이너가 'exec /start.sh: no such file or directory' 로 즉사하는 것 방지).
+RUN sed -i 's/\r$//' /start.sh /control.py \
+    && chmod +x /start.sh
 EXPOSE 6080 6079
 CMD ["/start.sh"]

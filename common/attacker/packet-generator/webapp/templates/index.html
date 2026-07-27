@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DEMOSAT · Uplink Command Builder</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <img class="sat-ico" src="/static/favicon.svg" alt="skull" width="34" height="34" />
+        <div>
+          <div class="title">ATTACKER CONSOLE</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ═══════════ PHASE A · MISSION BRIEFING ═══════════ -->
+    <section id="briefing" class="phase">
+      <div class="briefwrap">
+        <div class="phasetag">PHASE 1 / 3 · MISSION BRIEFING</div>
+        <div class="hero" data-scn="scn2">
+          <!-- ▶ signature: the looping "kill sequence" — antenna → command → tumble → dead battery -->
+          <div class="hero-scene">
+            <svg viewBox="0 0 720 340" class="hs-svg" role="img"
+              aria-label="Attack sequence: the ground antenna uplinks a torque command, DEMOSAT tumbles off the sun, and its battery drains to zero.">
+              <defs>
+                <radialGradient id="hsSun" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#fff3b0" /><stop offset="55%" stop-color="#ffd23f" /><stop offset="100%" stop-color="#ff9d00" />
+                </radialGradient>
+                <radialGradient id="hsDish" cx="50%" cy="28%" r="85%">
+                  <stop offset="0%" stop-color="#22314a" /><stop offset="100%" stop-color="#0b131f" />
+                </radialGradient>
+                <linearGradient id="hsBeam" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stop-color="#39c5ff" stop-opacity="0" /><stop offset="100%" stop-color="#39c5ff" />
+                </linearGradient>
+                <filter id="hsGlow"><feGaussianBlur stdDeviation="5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+              </defs>
+
+              <g class="hs-stars" fill="#9cc4ff">
+                <circle class="hs-star" cx="250" cy="34" r="1.6" />
+                <circle class="hs-star" cx="540" cy="52" r="1.3" style="animation-delay:.5s" />
+                <circle class="hs-star" cx="622" cy="120" r="1.5" style="animation-delay:1.1s" />
+                <circle class="hs-star" cx="470" cy="28" r="1.1" style="animation-delay:1.7s" />
+                <circle class="hs-star" cx="350" cy="64" r="1.2" style="animation-delay:2.2s" />
+                <circle class="hs-star" cx="690" cy="38" r="1.4" style="animation-delay:.9s" />
+                <circle class="hs-star" cx="205" cy="150" r="1.1" style="animation-delay:1.4s" />
+              </g>
+
+              <!-- sun + rays (fade as the panel loses the sun) -->
+              <g filter="url(#hsGlow)"><circle cx="58" cy="54" r="30" fill="url(#hsSun)" /></g>
+              <g class="hs-rays" stroke="#ffd23f" stroke-width="3" stroke-linecap="round">
+                <line x1="94" y1="64" x2="320" y2="118" />
+                <line x1="96" y1="54" x2="326" y2="140" />
+                <line x1="94" y1="44" x2="320" y2="162" />
+              </g>
+
+              <!-- RF command beam antenna → satellite -->
+              <line class="hs-beam" x1="118" y1="232" x2="392" y2="150" stroke="url(#hsBeam)" stroke-width="4" filter="url(#hsGlow)" />
+              <line class="hs-beam hs-beam-dash" x1="118" y1="232" x2="392" y2="150" stroke="#cdeeff" stroke-width="2" stroke-dasharray="3 12" />
+
+              <!-- the command packet rides the beam up -->
+              <g class="hs-packet">
+                <rect x="-84" y="-14" width="168" height="28" rx="6" fill="#12060a" stroke="#ff6a78" stroke-width="1" />
+                <text x="0" y="5" text-anchor="middle" fill="#ff8a94" font-size="13" font-family="ui-monospace,monospace">⚡ VALID COMMAND</text>
+              </g>
+
+              <!-- satellite (tumbles once the wheels overspin) — real photo sat.png -->
+              <image class="hs-sat" href="/static/sat.png" x="300" y="78" width="196" height="132" preserveAspectRatio="xMidYMid meet" />
+
+              <!-- attacker ground antenna (real photo antenna.png), at the beam origin -->
+              <image class="hs-dish" href="/static/antenna.png" x="38" y="232" width="120" height="120" preserveAspectRatio="xMidYMid meet" />
+
+              <!-- battery — bleeds green → red to empty -->
+              <g transform="translate(468,264)">
+                <text x="0" y="-9" fill="#7f92a6" font-size="12" font-family="ui-monospace,monospace" letter-spacing="1.5">BATTERY</text>
+                <rect x="0" y="0" width="150" height="52" rx="9" fill="#0a121c" stroke="#33465c" stroke-width="2" />
+                <rect x="150" y="16" width="11" height="20" rx="2" fill="#33465c" />
+                <rect class="hs-battfill" x="6" y="6" width="138" height="40" rx="4" fill="#33d17a" />
+              </g>
+
+              <rect class="hs-flash" x="0" y="0" width="720" height="340" fill="#ff3b4e" opacity="0" />
+            </svg>
+
+            <div class="hs-caption" aria-hidden="true">
+              <span class="hs-cap hs-cap--ok">◉ SUN-LOCKED · WHEELS STABLE · POWER 100%</span>
+              <span class="hs-cap hs-cap--inject">⚡ VALID COMMAND ACCEPTED · WHEELS OVERSPUN</span>
+              <span class="hs-cap hs-cap--tumble">↻ WHEELS OVERSPUN · TUMBLING · SUN-TRACK LOST</span>
+              <span class="hs-cap hs-cap--dead">☠ OUT OF BATTERY · DEMOSAT DEAD · POWER 0%</span>
+            </div>
+          </div>
+
+          <div class="hero-copy">
+            <h1 class="brieftitle">Break a satellite<br />with a single<br /><span class="legit">legitimate command.</span></h1>
+            <p class="hero-lead">
+              No exploit, no bypass. It's a <b>real, legitimate command</b> — the kind operators send every day. You just
+              give it a value the satellite was never meant to accept.
+            </p>
+            <ol class="killchain">
+              <li><span class="kc-ico">📡</span><span><b>Seize</b> the ground antenna</span></li>
+              <li><span class="kc-ico">⚡</span><span><b>Uplink</b> one legitimate command</span></li>
+              <li><span class="kc-ico">🛰️</span><span>The wheels overspin — it <b>tumbles</b></span></li>
+              <li><span class="kc-ico">🔋</span><span>Off-sun — battery to <b>0%</b></span></li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- ═══ scn3 hero · shown only for the spoofing scenario (toggled by data-scn) ═══ -->
+        <div class="hero" data-scn="scn3" hidden>
+          <!-- ▶ signature: the real satellite keeps tumbling while the dashboard flips to a fake green NOMINAL -->
+          <div class="hero-scene s3-scene">
+            <svg viewBox="0 0 720 340" class="hs-svg" role="img"
+              aria-label="Attack topology: bottom-left, a hacker uplinks through an antenna to the satellite at the top, which tumbles. On the right sits the victim ground station; a drone flown between the satellite and the ground station replays a forged healthy beacon, so the dashboard flips from red alarm to a fake green NOMINAL.">
+              <defs>
+                <linearGradient id="s3Screen" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#070d16" /><stop offset="100%" stop-color="#04070c" />
+                </linearGradient>
+                <linearGradient id="s3Beam" x1="0" y1="1" x2="0" y2="0">
+                  <stop offset="0%" stop-color="#39c5ff" stop-opacity="0" /><stop offset="100%" stop-color="#39c5ff" />
+                </linearGradient>
+                <filter id="s3Glow"><feGaussianBlur stdDeviation="4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+              </defs>
+
+              <g fill="#9cc4ff">
+                <circle class="hs-star" cx="180" cy="26" r="1.5" />
+                <circle class="hs-star" cx="470" cy="40" r="1.2" style="animation-delay:.6s" />
+                <circle class="hs-star" cx="250" cy="150" r="1.1" style="animation-delay:1.3s" />
+                <circle class="hs-star" cx="540" cy="96" r="1.3" style="animation-delay:1.9s" />
+                <circle class="hs-star" cx="410" cy="20" r="1.2" style="animation-delay:.9s" />
+              </g>
+
+              <!-- ① satellite at top — tumbling after the uplink hit -->
+              <image class="s3-sat" href="/static/sat.png" x="250" y="10" width="160" height="108" preserveAspectRatio="xMidYMid meet" />
+              <g class="s3-realtag">
+                <rect x="252" y="122" width="156" height="22" rx="5" fill="#12060a" stroke="#ff3b4e" stroke-width="1" />
+                <text x="330" y="137" text-anchor="middle" fill="#ff8a94" font-size="12" font-family="ui-monospace,monospace">⚠ REAL · TUMBLING</text>
+              </g>
+
+              <!-- ② attacker uplink beam: hacker antenna → satellite -->
+              <line class="s3-beam" x1="150" y1="276" x2="300" y2="96" stroke="url(#s3Beam)" stroke-width="3.5" filter="url(#s3Glow)" />
+              <line class="s3-beam s3-beam-dash" x1="150" y1="276" x2="300" y2="96" stroke="#cdeeff" stroke-width="1.8" stroke-dasharray="3 11" />
+
+              <!-- ③ hacker + ground antenna, bottom-left -->
+              <g class="s3-hacker" transform="translate(46,258)">
+                <path d="M2,60 C2,28 48,28 48,60 Z" fill="#141d29" stroke="#33465c" stroke-width="1.5" />
+                <circle cx="25" cy="30" r="12" fill="#0c141f" stroke="#33465c" stroke-width="1.5" />
+                <rect x="7" y="54" width="36" height="5" rx="2" fill="#243244" />
+                <rect x="13" y="42" width="24" height="13" rx="2" fill="#05252f" stroke="#39c5ff" stroke-width="1" />
+                <rect class="s3-laptop" x="15" y="44" width="20" height="9" fill="#0d4250" />
+              </g>
+              <g transform="translate(129,286) scale(-1,1)">
+                <image href="/static/antenna.png" x="-44" y="-44" width="88" height="88" preserveAspectRatio="xMidYMid meet" />
+              </g>
+              <circle class="s3-feed" cx="150" cy="276" r="5" fill="#2a4a63" filter="url(#s3Glow)" />
+              <text class="s3-hackertag" x="120" y="334" text-anchor="middle" fill="#8fb8ff" font-size="11" font-family="ui-monospace,monospace">▲ ATTACKER UPLINK</text>
+
+              <!-- ④ victim ground station, far right: dashboard + receiving dish -->
+              <g transform="translate(538,150)">
+                <rect x="0" y="0" width="168" height="96" rx="9" fill="#0a121c" stroke="#33465c" stroke-width="2" />
+                <rect x="8" y="8" width="152" height="66" rx="5" fill="url(#s3Screen)" />
+                <text x="16" y="24" fill="#5a6b7d" font-size="10" font-family="ui-monospace,monospace" letter-spacing="1">GROUND STATION</text>
+                <g class="s3-dash-red">
+                  <text x="16" y="50" fill="#ff3b4e" font-size="18" font-weight="800" font-family="ui-monospace,monospace">⚠ CRITICAL</text>
+                  <text x="16" y="68" fill="#ff8a94" font-size="11" font-family="ui-monospace,monospace">TUMBLING · BATT 6%</text>
+                </g>
+                <g class="s3-dash-green">
+                  <text x="16" y="50" fill="#33d17a" font-size="18" font-weight="800" font-family="ui-monospace,monospace">◉ NOMINAL</text>
+                  <text x="16" y="68" fill="#7ee6a6" font-size="11" font-family="ui-monospace,monospace">BATT 98% · SUN-OK</text>
+                </g>
+                <circle class="s3-siren" cx="152" cy="21" r="5.5" fill="#ff3b4e" filter="url(#s3Glow)" />
+                <rect x="74" y="96" width="18" height="12" fill="#243244" />
+                <rect x="52" y="108" width="62" height="7" rx="3" fill="#16212f" />
+              </g>
+
+              <!-- ⑤ drone flown just left of the victim GS — replays a forged beacon to it -->
+              <g class="s3-waves" transform="translate(524,150)" stroke="#33d17a" fill="none" stroke-width="2">
+                <path class="s3-wave" d="M-2,-14 A 18 18 0 0 1 -2,16" />
+                <path class="s3-wave" d="M6,-22 A 28 28 0 0 1 6,24" style="animation-delay:.35s" />
+                <path class="s3-wave" d="M14,-30 A 40 40 0 0 1 14,32" style="animation-delay:.7s" />
+              </g>
+              <!-- flight path: drone launches from the attacker and flies to just left of the victim GS -->
+              <path class="s3-trail" d="M150,262 Q330,150 476,150" fill="none" stroke="#8fb8ff" stroke-width="1.5" stroke-dasharray="4 8" opacity="0" />
+              <g class="s3-drone">
+                <image href="/static/drone.png" x="-50" y="-32" width="100" height="64" preserveAspectRatio="xMidYMid meet" />
+              </g>
+              <text class="s3-dronetag" x="478" y="196" text-anchor="middle" fill="#8fb8ff" font-size="11" font-family="ui-monospace,monospace">▲ posing as DEMOSAT</text>
+              <g class="s3-packet">
+                <rect x="-70" y="-13" width="140" height="26" rx="6" fill="#06170f" stroke="#33d17a" stroke-width="1" />
+                <text x="0" y="4" text-anchor="middle" fill="#7ee6a6" font-size="12" font-family="ui-monospace,monospace">✔ NOMINAL · BATT 98%</text>
+              </g>
+
+              <rect class="s3-flash" x="0" y="0" width="720" height="340" fill="#33d17a" opacity="0" />
+            </svg>
+
+            <div class="hs-caption" aria-hidden="true">
+              <span class="hs-cap s3-cap--attack">⚡ HACKER UPLINK · SATELLITE HIT</span>
+              <span class="hs-cap s3-cap--alarm">⚠ SATELLITE TUMBLING · GS ALARM BLARING</span>
+              <span class="hs-cap s3-cap--spoof">🛸 DRONE SPOOFS DEMOSAT'S BEACON TO THE GS</span>
+              <span class="hs-cap s3-cap--hidden">✅ GS READS “NOMINAL” · ALARM SILENCED</span>
+            </div>
+          </div>
+
+          <div class="hero-copy">
+            <h1 class="brieftitle">Break the satellite,<br />then <span class="spoof">impersonate it.</span></h1>
+            <p class="hero-lead">
+              First you break it. Then you disguise a <b>drone as DEMOSAT</b> and replay a forged
+              <b>“all-healthy” beacon</b> — the ground-station alarm goes quiet while the real satellite keeps tumbling.
+            </p>
+            <ol class="killchain">
+              <li><span class="kc-ico">📡</span><span><b>Break it</b> — the satellite tumbles</span></li>
+              <li><span class="kc-ico">🚨</span><span>Ground station screams <b>ENERGY CRITICAL</b></span></li>
+              <li><span class="kc-ico">🛸</span><span>A rogue <b>drone poses as DEMOSAT</b></span></li>
+              <li><span class="kc-ico">✅</span><span>Forged <b>“NOMINAL”</b> beacon — alarm silenced</span></li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- dry mechanics tucked away — open only if you want the how-and-why -->
+        <details class="deepdive">
+          <summary>
+            <span class="dd-ico">▸</span> How the attack actually works
+            <span class="dd-hint">the full mechanics</span>
+          </summary>
+          <div class="brieftext">
+            <div class="bsec">
+              <h3>① The target — DEMOSAT</h3>
+              <p>
+                <b>DEMOSAT</b> is a small satellite that stays alive by keeping its
+                <b>solar panels pointed at the sun</b>. Its attitude is held steady by <b>reaction wheels</b> — spin
+                them wrong and it can no longer face the sun.
+              </p>
+            </div>
+            <div class="bsec">
+              <h3>② The uplink — you reach it only by radio (RF)</h3>
+              <p>
+                The satellite is in orbit — you can't plug in a cable. The <b>only</b> way to command it is
+                <b>over the air by radio (RF, radio-frequency)</b>: the ground station transmits on the <b>uplink</b>
+                and the satellite's receiver decodes it.
+                <span class="hl">No physical access — everything travels as radio waves.</span>
+              </p>
+            </div>
+            <div class="bsec">
+              <h3>③ The attack — a legitimate command, abused</h3>
+              <p>
+                You send a <b>real reaction-wheel command</b> — the kind flight controllers use every day — but with
+                an <b>abused value</b>. The wheels overspin, the satellite <b>tumbles</b>, the panels lose the sun, and
+                <b>power collapses</b>.
+                <span class="hl">A legitimate command becomes an attack when it is abused.</span>
+              </p>
+            </div>
+            <div class="bsec">
+              <h3>④ The command is a packet — CCSDS</h3>
+              <p>
+                The satellite doesn't read plain text. Your command must be wrapped in a
+                <b>standardized space packet (CCSDS)</b> — an address (<b>APID</b>) plus the command fields. Assemble it
+                correctly, or the satellite ignores it.
+              </p>
+            </div>
+            <div class="bsec">
+              <h3>⑤ Sending it — SDR &amp; the IQ file</h3>
+              <p>
+                A <b>software-defined radio (SDR)</b> doesn't take a command — it plays back a
+                <b>digitized waveform</b>. An <b>IQ file</b> is that radio signal stored as a stream of
+                <b>I/Q samples</b>. <b>GENERATE</b> turns your packet into the IQ file you uplink to the satellite
+                during its pass.
+              </p>
+            </div>
+          </div>
+        </details>
+
+        <label class="understand"
+          ><input type="checkbox" id="ackChk" />
+          <span
+            >I understand what command I'm sending, the damage it causes, and why I'm building an IQ file.</span
+          ></label
+        >
+        <button id="toBuild" class="bigbtn" disabled>BUILD THE UPLINK →</button>
+      </div>
+    </section>
+
+    <!-- ═══════════ PHASE B · BUILD THE UPLINK ═══════════ -->
+    <section id="builder" class="phase hidden">
+      <div class="objbar">
+        <span class="phasetag">PHASE 2 / 3 · BUILD</span>
+        <span
+          >Assemble a valid uplink: <b>pick the subsystem block and its command</b>, then type the parameter. The SDR
+          <b>auto-detects the RF</b> off the intercepted carrier. Watch the CCSDS packet fill in field by field — only a
+          complete frame can be generated into an IQ file.</span
+        >
+      </div>
+
+      <main class="grid">
+        <section class="panel steps">
+          <div class="progresswrap">
+            <div class="prow"><span>UPLINK ASSEMBLY</span><span id="progText">0 / 2</span></div>
+            <div class="prail"><i id="progFill"></i></div>
+            <div class="phint" id="progHint"></div>
+          </div>
+          <div id="stepList"></div>
+        </section>
+
+        <section class="panel wire">
+          <!-- persistent reminder: what this uplink does to DEMOSAT -->
+          <div class="scene minisc">
+            <div class="scenecap">▶ WHAT YOUR UPLINK DOES</div>
+            <svg viewBox="0 0 460 300" class="satscene" aria-label="DEMOSAT attack animation">
+              <defs>
+                <radialGradient id="sunG2" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#fff3b0" />
+                  <stop offset="55%" stop-color="#ffd23f" />
+                  <stop offset="100%" stop-color="#ff9d00" />
+                </radialGradient>
+                <filter id="glow2">
+                  <feGaussianBlur stdDeviation="6" result="b" />
+                  <feMerge>
+                    <feMergeNode in="b" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+              <g class="sun" filter="url(#glow2)">
+                <circle cx="74" cy="86" r="30" fill="url(#sunG2)" />
+              </g>
+              <g class="rays" stroke="#ffd23f" stroke-width="3" stroke-linecap="round" opacity="0.85">
+                <line x1="110" y1="96" x2="200" y2="130" />
+                <line x1="112" y1="86" x2="205" y2="150" />
+                <line x1="110" y1="76" x2="200" y2="170" />
+              </g>
+              <!-- satellite (tumbles) — real photo sat.png (shared /static asset) -->
+              <image
+                class="sat"
+                href="/static/sat.png"
+                x="157"
+                y="94"
+                width="146"
+                height="99"
+                preserveAspectRatio="xMidYMid meet"
+              />
+              <g class="cmdflash">
+                <rect x="150" y="238" width="230" height="30" rx="3" fill="#12060a" />
+                <text x="265" y="258" text-anchor="middle" fill="#ff6a78" font-size="15" font-family="monospace">
+                  ⚡ VALID COMMAND
+                </text>
+              </g>
+            </svg>
+            <div class="statebar">
+              <span class="stlabel ok">☀ SUN-TRACKING · POWER NOMINAL</span>
+              <span class="stlabel bad">↻ TUMBLING · SUN-TRACK LOST</span>
+            </div>
+            <div class="powerwrap">
+              <span>POWER</span>
+              <div class="powerbar"><i class="powerfill"></i></div>
+            </div>
+          </div>
+          <h2>CCSDS PACKET · <span id="frameProg">0 / 5 fields</span></h2>
+          <div id="breakdown" class="breakdown"></div>
+          <div class="metaline" id="frameMeta"></div>
+          <h2>OOK UPLINK SIGNAL</h2>
+          <canvas id="wave" width="600" height="100"></canvas>
+          <div id="waveHint" class="wavehint">RF auto-detects once the command is composed (Step 2).</div>
+          <button id="genBtn" class="genbtn locked" disabled>🔒 UPLINK LOCKED — 0/2 CONFIGURED</button>
+          <div id="result" class="result hidden"></div>
+        </section>
+      </main>
+    </section>
+
+    <!-- PHASE 3 / 3 · 위성 조준 — gpredict + OpenVSA 콘솔을 iframe으로 임베드(별도 창 없음) -->
+    <section id="phase3" class="phase hidden">
+      <iframe
+        id="phase3frame"
+        title="Satellite targeting console"
+        style="width: 100%; height: 100vh; border: 0; display: block; background: #0c1118"
+      ></iframe>
+    </section>
+
+    <div id="tooltip" class="tooltip hidden"></div>
+    <script src="/static/app.js"></script>
+    <!-- self-contained phase-3 navigation (does not touch app.js): once an IQ file is
+       generated, reveal a button that switches to the embedded targeting console. -->
+    <script>
+      (function () {
+        var p = new URLSearchParams(location.search);
+        // 단일 포트: ③ 조준 콘솔은 이 앱(:8000)이 /targeting 으로 서빙, OpenVSA는 /vsa,
+        // gpredict noVNC는 Docker(:6080)를 직접 iframe(프록시 없음). 전부 이 앱 안에서 뜬다.
+        var GS = p.get("gs") || "http://localhost:4540";
+        var GPORT = p.get("gpport") || "6080";
+        var CTRLPORT = p.get("ctrlport") || "6079"; // gpredict time-control server
+        // resize=scale: noVNC scales the fixed 1280x900 framebuffer down to fit the
+        // (narrower) gpredict column, so it never overflows the allotted width.
+        var gpUrl = "http://localhost:" + GPORT + "/vnc.html?autoconnect=1&resize=scale";
+        var CONSOLE_URL =
+          "/targeting?gs=" +
+          encodeURIComponent(GS) +
+          "&gp=" +
+          encodeURIComponent(gpUrl) +
+          "&vsa=" +
+          encodeURIComponent("/vsa/") +
+          "&ctrl=" +
+          encodeURIComponent("http://localhost:" + CTRLPORT);
+        var result = document.getElementById("result");
+        var builder = document.getElementById("builder");
+        var phase3 = document.getElementById("phase3");
+        var frame = document.getElementById("phase3frame");
+        if (!result || !phase3 || !frame) return;
+        var armed = false;
+        function armPass() {
+          // Tell gpredict's time-control server to place DEMOSAT ~20s before its
+          // pass, starting the "wait for the satellite" countdown from THIS moment.
+          // Best-effort: silently ignored if gpredict/Docker isn't running.
+          if (armed) return;
+          armed = true;
+          fetch("http://localhost:" + CTRLPORT + "/arm").catch(function () {
+            armed = false;
+          });
+        }
+        function goPhase3() {
+          showPhase(3, true);
+        }
+        // 생성된 cf32를 클릭하면 ③ 조준 콘솔로 진행(파일 다운로드 없음).
+        new MutationObserver(function () {
+          var link = result.querySelector(".cf32go");
+          if (link && !link._wired) {
+            link._wired = true;
+            link.addEventListener("click", function (e) {
+              e.preventDefault();
+              goPhase3();
+            });
+          }
+        }).observe(result, { attributes: true, childList: true, subtree: true });
+
+        // ── 범용 extra-phase 엔진(④+) — /api/scenario 로 구동 ────────────────────
+        // 시나리오는 common을 편집하지 않고 phase를 추가한다: scenario.json 의 extras
+        // {id,label,path,enterFrom} 각각이 hidden <section>+iframe 과 enterFrom phase 위
+        // 플로팅 버튼이 된다. extras 없으면(기본) 그냥 3-phase 공격(=scn2).
+        var extraBtns = [];
+        var extraSecs = []; // phase 4+ sections, in order, for the router
+
+        // ── client-side phase router (/1 /2 /3 /4 …) ─────────────────────────
+        // Each phase gets its own URL so refresh and deep-links stick to it (and
+        // you can jump straight to /3 while debugging). Phases in order:
+        // 1 briefing · 2 builder · 3 targeting console · 4+ scenario extras.
+        var PHASES = [];
+        function collectPhases() {
+          PHASES = [
+            { el: document.getElementById("briefing") },
+            { el: document.getElementById("builder") },
+            {
+              el: phase3,
+              onShow: function () {
+                if (!frame.getAttribute("src")) frame.setAttribute("src", CONSOLE_URL);
+                armPass();
+              },
+            },
+          ];
+          extraSecs.forEach(function (e) {
+            PHASES.push(e);
+          });
+        }
+        function showPhase(n, push) {
+          if (!PHASES.length) collectPhases();
+          n = Math.max(1, Math.min(n, PHASES.length));
+          PHASES.forEach(function (ph, i) {
+            if (ph.el) ph.el.classList.toggle("hidden", i !== n - 1);
+          });
+          if (PHASES[n - 1] && PHASES[n - 1].onShow) PHASES[n - 1].onShow();
+          // phases 3+ are full-screen iframes (console/drone) with their own header —
+          // hide the outer topbar there so the 100vh iframe == the viewport exactly and
+          // the page doesn't overflow (no dead scroll below). Show it for 1-2.
+          var tb = document.querySelector(".topbar");
+          if (tb) tb.style.display = n >= 3 ? "none" : "";
+          if (push) {
+            try {
+              history.pushState({ phase: n }, "", "/" + n + location.search);
+            } catch (e) {}
+          }
+          window.scrollTo(0, 0);
+        }
+        function showPhaseByEl(el, push) {
+          if (!PHASES.length) collectPhases();
+          for (var i = 0; i < PHASES.length; i++) if (PHASES[i].el === el) return showPhase(i + 1, push);
+        }
+        function routeFromUrl() {
+          var m = location.pathname.match(/^\/(\d+)$/);
+          showPhase(m ? parseInt(m[1], 10) : 1, false);
+        }
+        window.__gotoPhase = showPhase;
+        window.addEventListener("popstate", function () {
+          routeFromUrl();
+        });
+
+        function makeExtraPhase(ex) {
+          var host = document.getElementById(ex.enterFrom || "phase3");
+          if (!host || document.getElementById(ex.id)) return;
+          var sec = document.createElement("section");
+          sec.id = ex.id;
+          sec.className = "phase hidden";
+          var f = document.createElement("iframe");
+          f.id = ex.id + "frame";
+          f.title = ex.label || ex.id;
+          f.style.cssText = "width:100%;height:100vh;border:0;display:block;background:#0c1118";
+          sec.appendChild(f);
+          document.body.insertBefore(sec, document.getElementById("tooltip"));
+          var btn = document.createElement("button");
+          btn.textContent = ex.label || "→ " + ex.id;
+          // hidden until the enterFrom phase reports completion (e.g. ④ appears
+          // only AFTER the phase-3 uplink TRANSMIT), unless it opens from briefing.
+          var gated = (ex.enterFrom || "phase3") === "phase3";
+          btn.style.cssText =
+            "position:fixed;right:18px;bottom:18px;z-index:20;" +
+            "font:700 13px/1 ui-monospace,Menlo,monospace;letter-spacing:.05em;color:#06251c;" +
+            "background:#4ec98a;border:0;border-radius:10px;padding:13px 18px;cursor:pointer;" +
+            "box-shadow:0 6px 22px rgba(78,201,138,.45);" +
+            (gated ? "display:none;" : "");
+          host.appendChild(btn); // fixed 버튼이지만 host가 hidden이면 함께 숨겨짐
+          extraBtns.push(btn);
+          var url = ex.path + (ex.path.indexOf("?") >= 0 ? "&" : "?") + "gs=" + encodeURIComponent(GS);
+          extraSecs.push({
+            el: sec,
+            onShow: function () {
+              if (!f.getAttribute("src")) f.setAttribute("src", url);
+            },
+          });
+          btn.addEventListener("click", function () {
+            showPhaseByEl(sec, true);
+          });
+        }
+        // reveal phase-3-gated extra buttons once the uplink is transmitted
+        // (the phase-3 console posts "attack-fired" up to this Command Builder).
+        window.addEventListener("message", function (e) {
+          if (e.data && e.data.type === "attack-fired")
+            extraBtns.forEach(function (b) {
+              b.style.display = "";
+            });
+        });
+        // pick the scenario-specific hero (scn2 kill-sequence · scn3 drone-spoof); hide the rest
+        function selectHero(id) {
+          var heroes = document.querySelectorAll(".hero[data-scn]");
+          var matched = false;
+          heroes.forEach(function (h) {
+            var on = h.getAttribute("data-scn") === id;
+            h.hidden = !on;
+            if (on) matched = true;
+          });
+          if (!matched && heroes.length) heroes[0].hidden = false; // fallback: first hero
+        }
+        fetch("/api/scenario")
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (sc) {
+            selectHero((sc && sc.id) || "scn2");
+            var n = sc && sc.phaseCount;
+            if (n)
+              Array.prototype.forEach.call(document.querySelectorAll(".phasetag"), function (t) {
+                t.textContent = t.textContent.replace(/\/\s*\d+/, "/ " + n);
+              });
+            // phase-1 briefing text is scenario-specific: common holds the skeleton
+            // (SVG, layout), the scenario supplies only the words via scenario.json.
+            if (sc && sc.briefing) {
+              var b = sc.briefing;
+              var tEl = document.querySelector(".brieftitle");
+              if (b.title && tEl) tEl.textContent = b.title;
+              var box = document.querySelector(".brieftext");
+              if (b.sections && b.sections.length && box)
+                box.innerHTML = b.sections
+                  .map(function (s) {
+                    return '<div class="bsec"><h3>' + s.h + "</h3><p>" + s.p + "</p></div>";
+                  })
+                  .join("");
+              var ackEl = document.querySelector(".understand span");
+              if (b.ack && ackEl) ackEl.textContent = b.ack;
+            }
+            ((sc && sc.extras) || []).forEach(makeExtraPhase);
+            collectPhases();
+            routeFromUrl(); // honor /1 /2 /3 /4 on first load
+          })
+          .catch(function () {
+            selectHero("scn2");
+            collectPhases();
+            routeFromUrl();
+          });
+      })();
+    </script>
+  </body>
+</html>

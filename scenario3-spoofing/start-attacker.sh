@@ -3,13 +3,13 @@
 # 시나리오 폴더에 두지만 phase 1-3 자원은 전부 공용 ../common/attacker 아래에 있어
 # 스스로 그리로 진입한다. 시나리오별 차이는 이 폴더의 scenario.json + extras/ 로만 표현.
 #
-# 단일 포트(:8002) 하나로 ①②③ 전부. 별도 창/프록시 포트 없음.
-#   http://localhost:8002  Command Builder (Python)
+# 단일 포트(:8003) 하나로 ①②③ 전부. 별도 창/프록시 포트 없음.
+#   http://localhost:8003  Command Builder (Python)
 #     ├ 페이즈① 명령 조립  ·  페이즈② IQ 생성
-#     └ 페이즈③ 위성 조준:  /targeting(콘솔) + /vsa(OpenVSA 렌더러) + gpredict(:6082) 직접 iframe
+#     └ 페이즈③ 위성 조준:  /targeting(콘솔) + /vsa(OpenVSA 렌더러) + gpredict(:6083) 직접 iframe
 #
-# ※ OpenVSA는 Electron 앱이지만 렌더러는 정적 웹(+WS :4534)이라 :8002이 /vsa 로 서빙한다.
-#   gpredict noVNC는 Docker :6082 을 그대로 iframe(프록시 불필요). TRANSMIT은 피해 GS API(/api/inject).
+# ※ OpenVSA는 Electron 앱이지만 렌더러는 정적 웹(+WS :4534)이라 :8003이 /vsa 로 서빙한다.
+#   gpredict noVNC는 Docker :6083 을 그대로 iframe(프록시 불필요). TRANSMIT은 피해 GS API(/api/inject).
 #
 # 사용법 (시나리오 폴더에서):
 #   ./start-attacker.sh            # 설치 + 확인 + 실행 (전체)
@@ -18,10 +18,10 @@
 #   ./start-attacker.sh up         # 화면 실행만 (설치가 끝난 뒤)
 #
 # 환경변수(선택):
-#   GS_URL       피해 지상국 base (ACQUIRE/RESET·forward 대상). 기본 http://localhost:4542
-#   BUILDER_PORT ① Command Builder 포트. 기본 8002
+#   GS_URL       피해 지상국 base (ACQUIRE/RESET·forward 대상). 기본 http://localhost:4543
+#   BUILDER_PORT ① Command Builder 포트. 기본 8003
 #   CONSOLE_PORT ③ 조준 콘솔 단일 포트(console+vsa+gpredict). 기본 8090
-#   GP_PORT      gpredict noVNC Docker 포트(프록시 대상). 기본 6082
+#   GP_PORT      gpredict noVNC Docker 포트(프록시 대상). 기본 6083
 #   GP_IMG       gpredict Docker 이미지명. 기본 demosat-gpredict
 #   UPLINK_OUT_DIR  attack.cf32 출력 폴더. 기본 ~/uplink
 #   NO_OPEN      1이면 브라우저 자동 열기 끄기 (기본: 실행 후 ①③ 화면 자동 오픈)
@@ -30,14 +30,11 @@
 #   SOLAR_PORT   솔라 패널 아두이노 시리얼 포트 강제 지정(미지정 시 WHOAMI 자동탐지).
 #   PANEL_SPIN   1이면 솔라 패널을 연속회전 서보로 취급(공격 시 SPIN). bridge.js 로 전달.
 #   ── Arduino(scn2 전용, scenario.json 의 "arduinoBridge": true 일 때만) ──
-#   FQBN         업로드 보드 타입. 미지정 시 안테나는 arduino-cli 자동감지 FQBN(예 MKR WiFi
-#                1010 → arduino:samd:mkrwifi1010), 솔라는 arduino:avr:uno. 강제 지정도 가능.
-#   NO_FLASH     1이면 스케치 자동 업로드 + 코어/라이브러리 자동 설치 생략(기존 펌웨어 사용)
-#                ※ 업로드 전 필요한 코어(SAMD/AVR)와 Stepper 라이브러리를 arduino-cli 로 자동 설치.
-#                  업로드 후엔 WHOAMI 재프로브로 안테나·솔라 '연결신호'를 확인·요약 출력한다.
+#   FQBN         업로드 보드 타입. 기본 arduino:avr:uno (Nano/MKR 등이면 변경)
+#   NO_FLASH     1이면 스케치 자동 업로드 생략(기존 펌웨어 사용)
 #   NO_SELFTEST  1이면 모터 자가진단(왕복+준비자세) 생략
-#   READY_AZ     자가진단 후 준비 자세 방위각. 기본 180 (보드 부팅 가정값과 같게 — 케이블 꼬임 방지)
-#   READY_EL     자가진단 후 준비 자세 앙각. 기본 50 (조준 시 10°로 크게 틸트하도록 합의)
+#   READY_AZ     자가진단 후 준비 자세 방위각. 기본 0 (콘솔 조준각과 다르게)
+#   READY_EL     자가진단 후 준비 자세 앙각. 기본 0
 #
 # ⚠️ 이 스크립트는 '공격자 쪽'만 띄웁니다. 피해 지상국(⑤)은 별도로 실행하세요:
 #     ./start-victim.sh   (또는 cd ../common/victim/backend && node server.js)
@@ -52,23 +49,17 @@ SCN_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCN_DIR/../common/attacker"
 
 MODE="${1:-all}"
-GS_URL="${GS_URL:-http://localhost:4542}"
-BUILDER_PORT="${BUILDER_PORT:-8002}"
+GS_URL="${GS_URL:-http://localhost:4543}"
+BUILDER_PORT="${BUILDER_PORT:-8003}"
 CONSOLE_PORT="${CONSOLE_PORT:-8090}"   # 단일 포트: console(/) + OpenVSA(/vsa) + gpredict(/gpredict)
-GP_PORT="${GP_PORT:-6082}"
-CTRL_PORT="${CTRL_PORT:-6072}"   # gpredict 시간제어 서버(phase3 → /arm). noVNC(GP_PORT)와 한 쌍.
+GP_PORT="${GP_PORT:-6083}"
+CTRL_PORT="${CTRL_PORT:-6073}"   # gpredict 시간제어 서버(phase3 → /arm). noVNC(GP_PORT)와 한 쌍.
 GP_IMG="${GP_IMG:-demosat-gpredict}"
-UPLINK_DEST="${UPLINK_DEST:-ws://localhost:4552}"
+UPLINK_DEST="${UPLINK_DEST:-ws://localhost:4553}"
 UPLINK_OUT_DIR="${UPLINK_OUT_DIR:-$HOME/uplink}"
-# "attacker fully ready" flag — written only AFTER the antenna/solar setup finishes, so
-# the finale's restart reload waits for the hardware (not just the web builder). app.py
-# serves it at /api/ready; run-booth.sh clears it on restart.
+# "attacker fully ready" flag — written only AFTER setup finishes, so the finale's
+# restart reload waits for it. app.py serves it at /api/ready; run-booth.sh clears it.
 export READY_FLAG="${READY_FLAG:-/tmp/demosat-attacker-ready.flag}"
-# 하드웨어 프로비저닝 캐시 — 최초(mode=all) 1회에 감지한 보드 포트/FQBN 을 적어두고,
-# 재시작(mode=up)엔 이 파일이 있으면 포트감지·펌웨어 업로드·모터 자가진단을 건너뛴다
-# (다음 참가자 리셋을 빠르게). 부스 전체를 새로 켜면 mode=all 이라 캐시와 무관하게 다시
-# 프로비저닝한다. 보드를 바꿔 꽂았거나 강제 재감지하려면 이 파일을 지우면 된다.
-export HW_CACHE="${HW_CACHE:-/tmp/demosat-attacker-hw.env}"
 # 시나리오 델타: 이 폴더의 scenario.json(페이즈 구성) + extras/(④+ 전용 화면)를 Command
 # Builder에 전달. extras/ 가 없으면(scn2) EXTRA_DIR 미설정 → 순수 3-phase 공격.
 SCENARIO_CONFIG="${SCENARIO_CONFIG:-$SCN_DIR/scenario.json}"
@@ -151,50 +142,6 @@ free_port() {
   free_tcp_port "$1" "$2"
 }
 
-# 이전 실행이 남긴 Arduino 브리지(node bridge.js)를 정리한다. TCP 가 아니라 시리얼 포트를 물기
-# 때문에 free_port 로는 안 잡힌다. 안 죽이면 그 좀비 브리지가 포트를 계속 쥐고 있어:
-#   ① 새 브리지와 '동시에 같은 시리얼에 write' → 명령이 바이트 단위로 뒤섞여(MODE/ANG 깨짐)
-#      서보·모터가 제대로 안 돈다.  ② flash 업로드가 'Resource busy' 로 실패한다.
-# 그래서 detect/flash/selftest/새 브리지 이전에 반드시 정리한다. 데모 전용이라 bridge.js 매칭 안전.
-free_serial_bridge() {
-  local victims; victims="$(pids_by_pattern 'bridge\.js')"
-  [ -z "$victims" ] && return 0
-  c_warn "이전 Arduino 브리지 정리(시리얼 중복 write 방지) → kill: $(echo $victims | tr '\n' ' ')"
-  kill_by_pattern 'bridge\.js'
-  sleep 1
-  [ -n "$(pids_by_pattern 'bridge\.js')" ] && { kill_by_pattern 'bridge\.js'; sleep 1; }
-  return 0
-}
-
-# ── 시리얼 I/O 는 전부 공용 serial.js 를 거친다 ───────────────────────────────
-# 예전엔 여기서 직접 `stty -f` + `exec 3<>/dev/cu.xxx` 로 포트를 다뤘는데, 이건 macOS 전용이라
-# Windows(Git Bash)에선 stty 플래그도 장치 경로도 맞지 않아 아두이노가 통째로 죽었다.
-# serial.js 가 OS 별 차이(stty ↔ mode.com, /dev/cu.* ↔ COM3, 열기 플래그)를 흡수한다.
-SERIAL_JS="$SCN_DIR/../common/arduino/bridge/serial.js"
-
-# 포트 존재 확인. Windows 의 'COM3' 은 파일이 아니라서 `[ -e ]` 가 항상 거짓이다.
-port_exists() {
-  case "${1:-}" in
-    "") return 1 ;;
-    [Cc][Oo][Mm][0-9]*) return 0 ;;
-    *) [ -e "$1" ] ;;
-  esac
-}
-
-# 종료(Ctrl+C 등) 시 모터를 정지시킨다. 스케치는 공격(mode 1)이면 스스로 계속 왕복하므로,
-# 브리지를 죽이는 것만으로는 안 멈춘다 — 보드에 MODE 0(정지)을 직접 보내야 한다.
-# (브리지 SIGTERM 핸들러도 MODE 0 을 보내지만, 브리지가 이미 죽었을 때를 대비한 안전빵.)
-stop_motors() {
-  local dev
-  have node || return 0
-  for dev in "$SOLAR_DEV" "$ANT_DEV"; do
-    port_exists "$dev" || continue
-    # 포트를 여는 순간 Uno 는 리셋된다 → 부팅을 기다렸다가 MODE 0 을 보내야 먹는다.
-    # (MKR 같은 네이티브 USB 보드는 리셋되지 않으므로 이 MODE 0 이 유일한 정지 수단이다.)
-    node "$SERIAL_JS" send "$dev" 9600 "1800:" "300:MODE 0" >/dev/null 2>&1 || true
-  done
-}
-
 # gpredict(③ 조준)는 Docker 컨테이너로만 뜨기 때문에 데몬이 꺼져 있으면 화면이 안 열린다.
 # 그래서 여기서 데몬을 자동 기동하고 올라올 때까지 기다린다. Docker CLI 자체가 없으면(미설치)
 # 조용히 실패(1) → 호출부가 gpredict 없이 진행. 성공 0 / 실패 1. 최대 DOCKER_WAIT(기본 90)초 대기.
@@ -252,10 +199,23 @@ free_gpredict() {
   echo "$ids" | xargs docker stop >/dev/null 2>&1 || true
 }
 
+# ── 시리얼 I/O 는 전부 공용 serial.js 를 거친다 ───────────────────────────────
+# 예전엔 여기서 직접 `stty -f` + `exec 3<>/dev/cu.xxx` 로 포트를 다뤘는데, 이건 macOS 전용이라
+# Windows(Git Bash)에선 stty 플래그도 장치 경로도 맞지 않아 아두이노가 통째로 죽었다.
+# serial.js 가 OS 별 차이(stty ↔ mode.com, /dev/cu.* ↔ COM3, 열기 플래그)를 흡수한다.
+SERIAL_JS="$SCN_DIR/../common/arduino/bridge/serial.js"
+
+# 포트 존재 확인. Windows 의 'COM3' 은 파일이 아니라서 `[ -e ]` 가 항상 거짓이다.
+port_exists() {
+  case "${1:-}" in
+    "") return 1 ;;
+    [Cc][Oo][Mm][0-9]*) return 0 ;;
+    *) [ -e "$1" ] ;;
+  esac
+}
+
 # 한 시리얼 포트를 열어 WHOAMI 를 보내고 펌웨어가 응답하는 역할(antenna/solar)을 echo 한다.
 # motor.sh 와 동일한 방식(펌웨어에 심은 ID 로 보드 식별). 응답 없으면 빈 문자열.
-# 실제 시리얼 열기·보율 설정·타임아웃 읽기는 serial.js 가 OS 별로 처리한다
-# (Windows 는 .NET SerialPort 를 써서 ReadTimeout 이 정확히 지켜지도록 한다).
 probe_serial_role() {
   local p="$1"
   port_exists "$p" || return 0
@@ -263,51 +223,24 @@ probe_serial_role() {
   node "$SERIAL_JS" whoami "$p" 9600 2>/dev/null | tr -d '\r' | head -1
 }
 
-# 연결된 USB 시리얼 포트를 스캔해 "포트<TAB>추정FQBN" 행으로 출력한다. arduino-cli 가 있으면
-# board list 로 칩 종류와 무관하게(정품 Uno·CH340/CP210x 클론 등) 포트를 잡고, 정품 보드는 FQBN
-# 까지 얻는다. 블루투스/디버그 포트(properties 없음·이름 불일치)는 제외. arduino-cli 가 없으면
-# OS 별 포트 열거로 폴백(macOS cu.* · Linux ttyACM/ttyUSB · Windows COMx).
-#   ※ 예전엔 이 JSON 을 python3 로 팠는데 Windows 엔 'python3' 이름이 없는 설치가 흔해 조용히
-#     폴백으로 떨어졌고, 그 폴백마저 /dev/cu.* glob 이라 Windows 에선 결과가 늘 비었다.
-#     이제 파싱까지 serial.js(node) 가 맡는다 — node 는 어차피 필수 의존성이다.
-list_serial_ports() {
-  have node || return 0
-  node "$SERIAL_JS" boards 2>/dev/null | tr -d '\r'
-}
-
-# 연결된 보드를 1회 탐지해 역할별 포트를 전역에 저장한다(flash·selftest·bridge 공유).
-# ANT_PORT/SOLAR_PORT 로 강제 지정 가능. 미지정 포트는 WHOAMI 로 antenna/solar 분류하고,
-# 펌웨어가 아직 없어(첫 업로드) WHOAMI 무응답인 USB 시리얼이 정확히 1개면 안테나로 가정한다.
-ANT_DEV=""; SOLAR_DEV=""; ANT_ASSUMED=0; ANT_FQBN=""
+# 연결된 시리얼 보드를 1회 탐지해 역할별 포트를 전역에 저장한다(flash·selftest·bridge 공유).
+# ANT_PORT/SOLAR_PORT 로 강제 지정 가능. 미지정 포트는 WHOAMI 로 antenna/solar 분류.
+# 포트 열거는 serial.js 가 OS 별로 처리한다(macOS cu.* · Linux ttyACM/USB · Windows COMx).
+ANT_DEV=""; SOLAR_DEV=""
 detect_boards() {
   ANT_DEV="${ANT_PORT:-}"; SOLAR_DEV="${SOLAR_PORT:-}"
   { [ -n "$ANT_DEV" ] && [ -n "$SOLAR_DEV" ]; } && return 0   # 둘 다 지정 → 탐색 불필요
-  local scan; scan="$(list_serial_ports)"
-  local p fq role
-  local unknown=()
+  have node || return 0
+  local p fq role scan; scan="$(node "$SERIAL_JS" boards 2>/dev/null | tr -d '\r')"
   while IFS=$'\t' read -r p fq; do
     port_exists "$p" || continue
     { [ "$p" = "$ANT_DEV" ] || [ "$p" = "$SOLAR_DEV" ]; } && continue
     role="$(probe_serial_role "$p")"
-    if   [ "$role" = "antenna" ] && [ -z "$ANT_DEV" ];   then ANT_DEV="$p"; [ -z "$ANT_FQBN" ] && ANT_FQBN="$fq"
-    elif [ "$role" = "solar" ]   && [ -z "$SOLAR_DEV" ]; then SOLAR_DEV="$p"
-    elif [ -z "$role" ];                                 then unknown+=("$p"$'\t'"$fq")   # 펌웨어 미탑재(첫 업로드) 후보
-    fi
+    [ -z "$ANT_DEV" ]   && [ "$role" = "antenna" ] && ANT_DEV="$p"
+    [ -z "$SOLAR_DEV" ] && [ "$role" = "solar" ]   && SOLAR_DEV="$p"
   done <<EOF
 $scan
 EOF
-  # WHOAMI 무응답만 남음 = 첫 업로드로 펌웨어가 아직 없음. 안테나가 주 보드이므로 미분류 후보가
-  # 정확히 1개면 안테나로 가정해 업로드한다(업로드 후에는 WHOAMI 로 정상 식별). 2개 이상이면 특정 불가.
-  if [ -z "$ANT_DEV" ] && [ "${#unknown[@]}" -ge 1 ]; then
-    if [ "${#unknown[@]}" -eq 1 ]; then
-      IFS=$'\t' read -r ANT_DEV ANT_FQBN <<<"${unknown[0]}"
-      ANT_ASSUMED=1
-      c_warn "WHOAMI 무응답 USB 시리얼 1개($ANT_DEV) → 첫 업로드로 보고 안테나로 가정해 업로드합니다(아니면 ANT_PORT 로 지정)."
-    else
-      c_warn "WHOAMI 무응답 USB 시리얼이 여러 개 → 어느 게 안테나인지 특정 불가. ANT_PORT=/dev/cu.xxx (SOLAR_PORT=...) 지정 후 재실행:"
-      local u; for u in "${unknown[@]}"; do c_warn "   • ${u%%$'\t'*}"; done
-    fi
-  fi
 }
 
 # arduino-cli 자체 자동 설치 — 이게 없으면 스케치(antenna_gimbal·solar)가 한 번도 업로드되지
@@ -365,66 +298,20 @@ ensure_arduino_cli() {
   return 1
 }
 
-# arduino-cli 코어/라이브러리 자동 설치 — 자동 업로드(flash_boards)가 '첫 실행부터' 성공하도록.
-# 안테나 스케치(antenna_gimbal)는 Stepper 라이브러리를 쓰는데, 이게 없으면 compile 이
-# 'Stepper.h: No such file or directory' 로 실패한다. 또 보드 코어(MKR=arduino:samd,
-# Uno=arduino:avr)가 없으면 업로드가 실패한다. 감지된 FQBN 의 코어 + Stepper 를 미리 깐다.
-# 이미 있으면 no-op. arduino-cli 없거나 NO_FLASH=1 이면 건너뜀. best-effort(실패해도 계속).
-ensure_arduino_deps() {
-  [ "${NO_FLASH:-0}" = "1" ] && return 0
-  have arduino-cli || return 0
-  # ① 스케치 의존 라이브러리:
-  #    · antenna_gimbal              → AccelStepper
-  #    · solar_panel_uno/_spin       → Servo
-  #   ⚠ 최신 arduino-cli(1.5+)/AVR 코어는 Servo 가 '코어 번들'이 아니라 별도 라이브러리다.
-  #     없으면 솔라 컴파일이 'Servo.h: No such file or directory' 로 실패 → 솔라 모터가 flash
-  #     안 돼 안 움직인다. 그래서 AccelStepper 와 Servo 를 둘 다 확인·설치한다.
-  : >/tmp/demosat-ard-deps.log
-  local lib
-  for lib in AccelStepper Servo; do
-    if ! arduino-cli lib list 2>/dev/null | grep -qi "^$lib[[:space:]]"; then
-      say "arduino-cli: $lib 라이브러리 설치(스케치 의존)"
-      if arduino-cli lib install "$lib" >>/tmp/demosat-ard-deps.log 2>&1; then
-        c_ok "$lib 라이브러리 준비됨"
-      else
-        c_warn "$lib 설치 실패 — /tmp/demosat-ard-deps.log (해당 스케치 컴파일이 실패할 수 있음)"
-      fi
-    fi
-  done
-  # ② 감지된 보드 FQBN 의 코어 설치. FQBN 'vendor:arch:board' 에서 'vendor:arch' 만 추출.
-  #    예) arduino:samd:mkrwifi1010 → arduino:samd,  arduino:avr:uno → arduino:avr.
-  local fqbn core seen=""
-  for fqbn in "${FQBN:-}" "${ANT_FQBN:-}" "arduino:avr:uno"; do
-    [ -n "$fqbn" ] || continue
-    core="$(printf '%s' "$fqbn" | cut -d: -f1-2)"
-    [ -n "$core" ] || continue
-    case " $seen " in *" $core "*) continue;; esac; seen="$seen $core"
-    arduino-cli core list 2>/dev/null | grep -q "^$core[[:space:]]" && continue
-    say "arduino-cli: 보드 코어 설치 $core"
-    if arduino-cli core install "$core" >>/tmp/demosat-ard-deps.log 2>&1; then
-      c_ok "코어 $core 준비됨"
-    else
-      c_warn "코어 $core 설치 실패 — /tmp/demosat-ard-deps.log"
-    fi
-  done
-}
-
 # 스케치 자동 업로드(arduino-cli). 안테나=antenna_gimbal, 솔라=solar_panel_uno(또는 PANEL_SPIN
 # 시 solar_panel_spin). 실패해도 기존 펌웨어로 계속. NO_FLASH=1 로 생략, FQBN 으로 보드 변경.
 flash_boards() {
   [ "${NO_FLASH:-0}" = "1" ] && { c_warn "NO_FLASH=1 → 스케치 업로드 생략(기존 펌웨어 사용)"; return 0; }
   have arduino-cli || { c_warn "arduino-cli 없음 → 스케치 업로드 생략(기존 펌웨어 사용). 설치: macOS brew install arduino-cli · Windows winget install ArduinoSA.CLI"; return 0; }
   local fqbn="${FQBN:-arduino:avr:uno}"
-  local ant_fqbn="${FQBN:-${ANT_FQBN:-arduino:avr:uno}}"   # 정품 보드면 스캔에서 얻은 FQBN, 아니면 Uno(28BYJ-48+ULN2003 기본)
   local solar_sketch; solar_sketch="$([ -n "${PANEL_SPIN:-}" ] && echo solar_panel_spin || echo solar_panel_uno)"
   if [ -z "$ANT_DEV" ] && [ -z "$SOLAR_DEV" ]; then
-    c_warn "업로드할 USB 시리얼 보드가 하나도 안 잡힘 — 케이블/전원 확인. 그래도 안 잡히면 ANT_PORT=/dev/cu.xxx (SOLAR_PORT=...) 지정 후 재실행."
+    c_warn "업로드할 보드 미식별 — 첫 업로드면 펌웨어가 없어 자동식별 불가. ANT_PORT=/dev/cu.xxx (SOLAR_PORT=...) 지정 후 재실행."
     return 0
   fi
   if [ -n "$ANT_DEV" ]; then
-    [ "${ANT_ASSUMED:-0}" = "1" ] && say "안테나 포트 자동 추정: $ANT_DEV (WHOAMI 무응답=첫 업로드로 판단)"
-    say "안테나 스케치 업로드 → $ANT_DEV ($ant_fqbn)"
-    if arduino-cli compile --upload -p "$ANT_DEV" --fqbn "$ant_fqbn" ../arduino/antenna_gimbal >/tmp/demosat-flash-ant.log 2>&1; then
+    say "안테나 스케치 업로드 → $ANT_DEV ($fqbn)"
+    if arduino-cli compile --upload -p "$ANT_DEV" --fqbn "$fqbn" ../arduino/antenna_gimbal >/tmp/demosat-flash-ant.log 2>&1; then
       c_ok "antenna_gimbal 업로드 완료 → $ANT_DEV"
     else
       c_warn "안테나 업로드 실패 — /tmp/demosat-flash-ant.log 확인(코어 미설치면 'arduino-cli core install arduino:avr'). 기존 펌웨어로 계속."
@@ -441,28 +328,24 @@ flash_boards() {
 }
 
 # 안테나 2축 모터 자가진단: az 모터·el 모터를 각각 왕복시켜 동작을 확인한 뒤, 콘솔 ENGAGE 조준각과
-# 준비 자세(READY_AZ/READY_EL, 기본 az 180°/el 50°)로 정렬한다. 브리지 기동 前에 직접 시리얼로 수행.
+# '다른' 준비 자세(READY_AZ/READY_EL, 기본 0°/0°)로 정렬한다. 브리지 기동 前에 직접 시리얼로 수행.
 # NO_SELFTEST=1 로 생략. (브리지가 뜨면 피해 GS 지향각을 반영하므로 준비 자세는 시작 확인용이다.)
 motor_selftest() {
   [ "${NO_SELFTEST:-0}" = "1" ] && return 0
   local p="$ANT_DEV"
   port_exists "$p" || { c_warn "안테나 보드 없음 → 모터 자가진단 생략"; return 0; }
   have node || { c_warn "node 없음 → 모터 자가진단 생략"; return 0; }
-  # 준비자세 방위각은 보드 부팅 가정값(180°)과 '같게' 둔다 — 다르게 두면(예 0°) 셋업 때
-  # 180°→0° 로 반바퀴 돌아 선이 꼬인다. az 는 180° 부근에서만 움직인다.
-  local raz="${READY_AZ:-180}" rel="${READY_EL:-50}"   # 준비자세 az 180°(부팅값)·el 50°(합의값). 조준 시 el 10°로 틸트.
+  local raz="${READY_AZ:-0}" rel="${READY_EL:-0}"
   say "안테나 모터 자가진단 — az·el 각각 왕복 후 준비 자세 ${raz}°/${rel}°"
   # 각 인자는 "대기ms:보낼줄" — serial.js 가 한 번 연 포트로 순서대로 흘려보낸다.
-  # ⚠ 케이블 꼬임 방지 — AZ 는 보드 부팅 가정값(180°) 부근 ±30° 안에서만 살짝 왕복.
-  #    (절대 0° 같은 먼 각을 주면 반바퀴 돌아 선이 꼬인다.) EL 은 절대 90° 초과 금지.
   if node "$SERIAL_JS" send "$p" 9600 \
        "2200:"                        `# 스케치 부팅 대기(포트 열림 = Uno 리셋)` \
        "400:TRACK"                    `# 스윕/스핀 해제 → 위치추종 모드` \
-       "1600:AZ 210"                  `# ① az 모터 확인 (180→210°, +30°만)` \
-       "1600:AZ 180"                  `# ② az 모터 원위치(부팅값)` \
-       "2000:EL 80"                   `# ③ el 모터 확인 (→80°, 90° 미만)` \
-       "2000:EL 20"                   `# ④ el 모터 반대로 (→20°)` \
-       "3000:AZEL $raz $rel"          `# ⑤ 준비 자세로 정렬(az 180°·el 50°)` \
+       "2500:AZ 300"                  `# ① az 모터 이동` \
+       "2500:AZ 60"                   `# ② az 모터 반대로` \
+       "2500:EL 80"                   `# ③ el 모터 이동` \
+       "2500:EL 10"                   `# ④ el 모터 반대로` \
+       "3000:AZEL $raz $rel"          `# ⑤ 준비 자세로 정렬(두 모터 동시)` \
        2>/dev/null; then
     c_ok "모터 자가진단 완료 → 준비 자세 az=${raz}° el=${rel}° (ENGAGE 시 여기서 목표각으로 움직이는 게 보임)"
   else
@@ -470,53 +353,7 @@ motor_selftest() {
   fi
 }
 
-# 준비 자세로만 '빠르게' 이동(왕복 자가진단 생략) — 재시작(다음 참가자) 전용.
-# 최초 1회는 motor_selftest 로 az·el 왕복까지 확인하지만, 재시작마다 ~12초 왕복을 반복하면
-# 리셋이 느리다. 여기선 포트 열림(=Uno 리셋) 대기 후 준비 자세 한 번만 보낸다(~4초).
-motor_ready() {
-  local p="$ANT_DEV"
-  port_exists "$p" || { c_warn "안테나 보드 없음 → 준비자세 이동 생략"; return 0; }
-  have node || { c_warn "node 없음 → 준비자세 이동 생략"; return 0; }
-  local raz="${READY_AZ:-180}" rel="${READY_EL:-50}"
-  say "안테나 준비 자세로 이동 ${raz}°/${rel}° (자가진단 생략 · 빠른 리셋)"
-  if node "$SERIAL_JS" send "$p" 9600 \
-       "2200:"                 `# 포트 열림=Uno 리셋 → 부팅 대기` \
-       "400:TRACK"             `# 스윕/스핀 해제 → 위치추종` \
-       "1500:AZEL $raz $rel"   `# 준비 자세 1회 정렬` \
-       2>/dev/null; then
-    c_ok "준비 자세 정렬 완료 az=${raz}° el=${rel}°"
-  else
-    c_warn "$p 열기/전송 실패 → 생략(브리지는 그대로 시도)"
-  fi
-}
-
-# 연결신호 최종 확인 — 업로드가 끝난 뒤 두 보드가 실제로 WHOAMI 에 응답하는지 재프로브해 요약한다.
-# detect_boards 는 부팅 시 '어느 포트가 무엇인지' 1회 분류만 한다. 여기서는 flash 후 펌웨어가
-# 정상 응답하는지(=연결신호 확인) 최종 점검하고 ✓/! 로 사람이 한눈에 보게 출력한다.
-# 시리얼을 잠깐 열었다 닫으므로 반드시 start_bridge(포트를 상시 점유) '전에' 호출한다.
-verify_boards() {
-  say "안테나·솔라 연결신호 확인(WHOAMI 재프로브)"
-  local any=0
-  if port_exists "$ANT_DEV"; then
-    any=1
-    if [ "$(probe_serial_role "$ANT_DEV")" = "antenna" ]; then
-      c_ok "안테나 연결신호 확인 (WHOAMI=ANTENNA) → $ANT_DEV"
-    else
-      c_warn "안테나 WHOAMI 무응답 → $ANT_DEV — 펌웨어 업로드 실패? /tmp/demosat-flash-ant.log 확인(엉뚱한 펌웨어면 재플래시 필요)"
-    fi
-  fi
-  if port_exists "$SOLAR_DEV"; then
-    any=1
-    if [ "$(probe_serial_role "$SOLAR_DEV")" = "solar" ]; then
-      c_ok "솔라패널 연결신호 확인 (WHOAMI=SOLAR_PANEL) → $SOLAR_DEV"
-    else
-      c_warn "솔라패널 WHOAMI 무응답 → $SOLAR_DEV — /tmp/demosat-flash-solar.log 확인"
-    fi
-  fi
-  [ "$any" = 1 ] || c_warn "확인할 보드가 없음 — USB 케이블/전원 확인(필요 시 ANT_PORT=/dev/cu.xxx SOLAR_PORT=/dev/cu.yyy 로 강제 지정)"
-}
-
-# Arduino 브리지 기동(best-effort). 피해 GS(:4542) 상태를 폴링해 물리 안테나(AZEL/SWEEP)와
+# Arduino 브리지 기동(best-effort). 피해 GS(:4543) 상태를 폴링해 물리 안테나(AZEL/SWEEP)와
 # 솔라 패널 모터를 시리얼로 구동한다. detect_boards 가 찾은 포트를 사용. 보드가 없으면(부스 미연결)
 # 경고만 남기고 건너뛴다 — 브리지는 모터 구동 전용이라 나머지 공격 화면과 무관하다.
 start_bridge() {
@@ -525,21 +362,10 @@ start_bridge() {
     c_warn "시리얼 보드 없음/미식별 → Arduino 브리지 건너뜀(모터 미구동, 화면은 정상). 필요 시 ANT_PORT=/dev/cu.xxx 로 지정."
     return 0
   fi
-  free_serial_bridge   # 진입 시 재확인: 어떤 좀비 브리지도 없이 '단 하나'의 브리지만 뜨게 보장
-  # 데모는 항상 nominal 에서 시작해야 한다(transmit 전엔 솔라 정지, transmit 해야 회전).
-  # 이전 실행의 tumbling/solarAttacked 가 GS 에 latch 돼 있으면 브리지가 켜지자마자 MODE 1 을
-  # 보내 솔라가 상시 회전한다. 그래서 브리지 기동 직전에 피해 GS 를 nominal 로 되돌린다(best-effort).
-  if have curl; then
-    if curl -fsS -X POST "$GS_URL/api/reset" -o /dev/null 2>/dev/null; then
-      say "피해 GS reset → nominal (transmit 전 솔라 정지 보장)"
-    else
-      c_warn "GS reset 실패($GS_URL/api/reset) — GS 미기동일 수 있음. 남은 공격상태면 솔라가 바로 돌 수 있으니 수동 reset 권장."
-    fi
-  fi
   ( cd ../arduino/bridge && GS_URL="$GS_URL" ANT_PORT="$ANT_DEV" SOLAR_PORT="$SOLAR_DEV" \
       ${PANEL_SPIN:+PANEL_SPIN="$PANEL_SPIN"} node bridge.js ) >/tmp/demosat-bridge.log 2>&1 &
   pids+=($!)
-  c_ok "Arduino 브리지 실행 (ant=${ANT_DEV:-—} solar=${SOLAR_DEV:-—}) → 피해 GS(:4542) 폴링. 로그: /tmp/demosat-bridge.log"
+  c_ok "Arduino 브리지 실행 (ant=${ANT_DEV:-—} solar=${SOLAR_DEV:-—}) → 피해 GS(:4543) 폴링. 로그: /tmp/demosat-bridge.log"
 }
 
 # ── 최초 설치 ────────────────────────────────────────────────────────────────
@@ -616,7 +442,7 @@ check() {
 # ── attacker 화면 실행 ────────────────────────────────────────────────────────
 up() {
   say "3/3  attacker 화면 실행"
-  rm -f "$READY_FLAG" 2>/dev/null || true   # not-ready until the full setup (incl. Arduino) finishes
+  rm -f "$READY_FLAG" 2>/dev/null || true   # not-ready until the full setup finishes
   local py; py="$(pick_python)"
   [ -n "$py" ] || die "python 인터프리터를 찾을 수 없음 → './start-attacker.sh install' 먼저"
   "$py" -c "import numpy" 2>/dev/null || die "numpy 없음 → './start-attacker.sh install' 먼저"
@@ -632,8 +458,6 @@ up() {
   local pids=()
   cleanup() {
     echo; echo "[cleanup] 종료 중…"
-    free_serial_bridge   # 브리지(node) 확실히 종료 → 그 SIGTERM 핸들러가 보드에 MODE 0 전송(모터 정지)
-    stop_motors          # 안전빵: 보드에 MODE 0 직접 전송(브리지가 못 보냈을 경우)
     # Windows 는 bash 서브셸을 죽여도 그 아래 node/python 자식이 살아 포트를 계속 문다 →
     # kill_shell_tree 가 WINPID 로 변환해 taskkill //T 로 트리째 내린다(그 외 OS 는 kill 과 동일).
     local _p; for _p in "${pids[@]:-}"; do kill_shell_tree "$_p"; done
@@ -648,7 +472,7 @@ up() {
   # OpenVSA 백엔드(node server.js)가 물던 포트도 함께 정리한다. 이걸 안 하면 좀비 OpenVSA가
   # WS :4534 를 물고 있어 새 server.js 가 bind 실패로 조용히 죽고 → /vsa 렌더러의 WS 연결이
   # 안 돼 STEP 2 'VIRTUAL ANTENNA UPLINK' 패널이 백지로 남는다(② 위성 조준 화면 안 열림).
-  #   :4532 rigctld · :4533 rotctld · :4534 WS(렌더러). (:4552 은 피해 GS 목적지라 바인딩 안 함)
+  #   :4532 rigctld · :4533 rotctld · :4534 WS(렌더러). (:4553 은 피해 GS 목적지라 바인딩 안 함)
   free_port 4534 "OpenVSA WS"
   free_port 4533 "OpenVSA rotctld"
   free_port 4532 "OpenVSA rigctld"
@@ -679,8 +503,8 @@ up() {
     done
   fi
 
-  # ③ OpenVSA 백엔드(rotctld :4533 ← gpredict / rigctld :4532 / WS :4534 → 렌더러 시각화 / forward :4552).
-  #   OpenVSA UI(렌더러)는 :8002 이 /vsa 로 서빙한다 — 별도 :8090 프록시·데스크탑 창 없음.
+  # ③ OpenVSA 백엔드(rotctld :4533 ← gpredict / rigctld :4532 / WS :4534 → 렌더러 시각화 / forward :4553).
+  #   OpenVSA UI(렌더러)는 :8003 이 /vsa 로 서빙한다 — 별도 :8090 프록시·데스크탑 창 없음.
   ( cd openvsa && UPLINK_DEST="$UPLINK_DEST" node server.js ) >/tmp/demosat-openvsa.log 2>&1 &
   pids+=($!)
   # WS :4534 가 실제로 떴는지 확인 — 안 뜨면 STEP 2 'VIRTUAL ANTENNA UPLINK' 가 백지로 남으므로
@@ -698,35 +522,21 @@ up() {
   fi
 
   # ③ Arduino (scn2 전용) — 보드 감지 → 스케치 업로드 → 모터 자가진단 → 브리지 기동.
-  #   피해 GS(:4542) /api/state 를 폴링해 물리 안테나(AZ/EL)·솔라 '모터'를 구동한다.
+  #   피해 GS(:4543) /api/state 를 폴링해 물리 안테나(AZ/EL)·솔라 '모터'를 구동한다.
   #   보드가 USB로 연결돼 있어야 실제로 돈다. 없으면 경고만 하고 건너뜀(화면은 정상).
   if grep -q '"arduinoBridge"[[:space:]]*:[[:space:]]*true' "$SCENARIO_CONFIG" 2>/dev/null; then
-    free_serial_bridge # 이전 실행의 좀비 브리지 정리(포트 해제) → 업로드/자가진단/새 브리지 충돌 방지
-    # 최초 부팅(mode=all)에만 '무거운' 하드웨어 프로비저닝을 하고 감지한 보드 포트를 HW_CACHE 에
-    # 적어둔다. 다음 참가자 리셋(mode=up)엔 캐시가 있으면 포트감지·코어/라이브러리 설치·스케치
-    # 업로드·WHOAMI 확인·왕복 자가진단을 전부 건너뛰고, 안테나를 준비 각도로 옮기는 것만 한다.
-    if [ "$MODE" = up ] && [ -f "$HW_CACHE" ]; then
-      . "$HW_CACHE"    # 캐시된 ANT_DEV/SOLAR_DEV/ANT_FQBN 로드(감지 생략)
-      c_ok "재시작 빠른 경로 — 포트감지·펌웨어 업로드·모터 자가진단 생략(캐시 $HW_CACHE) · ant=${ANT_DEV:-—} solar=${SOLAR_DEV:-—}"
-      motor_ready      # 준비 각도로만 이동(왕복 자가진단 없이 빠르게)
-    else
-      ensure_arduino_cli # arduino-cli 자체가 없으면 자동 설치(없으면 스케치 미업로드 → 모터 미동작)
-      detect_boards      # 시리얼 포트 1회 탐지(WHOAMI 역할 분류) → ANT_DEV/SOLAR_DEV
-      ensure_arduino_deps # 코어(MKR SAMD·Uno AVR) + Stepper 라이브러리 자동 설치 → flash 첫 실행부터 성공
-      flash_boards       # antenna_gimbal / solar 스케치 자동 업로드(arduino-cli)
-      verify_boards      # WHOAMI 재프로브 → 안테나·솔라 '연결신호 확인' 요약(start_bridge 전에)
-      motor_selftest     # az·el 모터 왕복 테스트 후 준비 자세 정렬(최초 1회)
-      # 감지된 포트를 캐시에 저장 → 다음 참가자부턴 위 빠른 경로로 진입
-      printf 'ANT_DEV=%q\nSOLAR_DEV=%q\nANT_FQBN=%q\n' "${ANT_DEV:-}" "${SOLAR_DEV:-}" "${ANT_FQBN:-}" > "$HW_CACHE" 2>/dev/null || true
-    fi
-    start_bridge       # 브리지 기동(이후 피해 GS 지향각·acquire 스윕 반영) — 매번
+    ensure_arduino_cli # arduino-cli 자체가 없으면 자동 설치(없으면 스케치 미업로드 → 모터 미동작)
+    detect_boards      # 시리얼 포트 1회 탐지(WHOAMI 역할 분류) → ANT_DEV/SOLAR_DEV
+    flash_boards       # antenna_gimbal / solar 스케치 자동 업로드(arduino-cli)
+    motor_selftest     # az·el 모터 왕복 테스트 후 준비 자세 정렬
+    start_bridge       # 브리지 기동(이후 피해 GS 지향각·acquire 스윕 반영)
   fi
 
-  # 단일 진입점 = :8002 하나. ① 명령 조립 → ② IQ 생성 → ③ 위성 조준 이 한 앱 안에서 전부.
-  #   ③ 조준: 콘솔=:8002 /targeting · OpenVSA=:8002 /vsa · gpredict noVNC=Docker(:GP_PORT) 직접 iframe.
+  # 단일 진입점 = :8003 하나. ① 명령 조립 → ② IQ 생성 → ③ 위성 조준 이 한 앱 안에서 전부.
+  #   ③ 조준: 콘솔=:8003 /targeting · OpenVSA=:8003 /vsa · gpredict noVNC=Docker(:GP_PORT) 직접 iframe.
   local BUILDER_URL="http://localhost:$BUILDER_PORT/?gs=$GS_URL&gpport=$GP_PORT&ctrlport=$CTRL_PORT"
 
-  # 빌더(:8002)가 응답할 때까지 대기(최대 ~10초)
+  # 빌더(:8003)가 응답할 때까지 대기(최대 ~10초)
   for _ in $(seq 1 50); do
     curl -fsS "http://localhost:$BUILDER_PORT/" >/dev/null 2>&1 && break
     sleep 0.2
@@ -740,11 +550,10 @@ up() {
   echo "   ⑤ 피해 지상국은 별도 실행:  ./start-victim.sh  (또는 cd ../common/victim/backend && node server.js)"
   echo "   ℹ️ ③ TRANSMIT은 피해 GS API(/api/inject)로 공격 명령을 발사합니다."
   grep -q '"arduinoBridge"[[:space:]]*:[[:space:]]*true' "$SCENARIO_CONFIG" 2>/dev/null && \
-    echo "   🔩 Arduino(보드 연결 시): 스케치 자동 업로드 → 모터 자가진단(왕복+준비자세) → 브리지가 피해 GS(:4542) 지향각/스윕 반영. 로그 /tmp/demosat-{flash-ant,flash-solar,bridge}.log"
+    echo "   🔩 Arduino(보드 연결 시): 스케치 자동 업로드 → 모터 자가진단(왕복+준비자세) → 브리지가 피해 GS(:4543) 지향각/스윕 반영. 로그 /tmp/demosat-{flash-ant,flash-solar,bridge}.log"
   echo "───────────────────────────────────────────────"
 
-  # Setup (builder + OpenVSA + Arduino self-test/ready) is done → mark attacker ready.
-  # The finale's restart reload (console → /api/ready) waits for exactly this moment.
+  # Setup done → mark attacker ready (the finale's restart reload waits for this).
   : > "$READY_FLAG" 2>/dev/null || true
 
   open_url "$BUILDER_URL"   # 단일 진입점 (②③ 전부 이 앱 안에서)

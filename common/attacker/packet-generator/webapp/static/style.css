@@ -1,0 +1,524 @@
+:root{
+  --bg:#0a0e14; --panel:#0f1620; --panel2:#131c28; --line:#1e2b3a;
+  --ink:#c7d3e0; --dim:#7f92a6; --accent:#39c5ff; --amber:#ffb020;
+  --danger:#ff3b4e; --ok:#33d17a; --star:#ffd23f;
+  --f-pre:#5a6b7d; --f-tc:#39c5ff; --f-sp:#8a7dff; --f-op:#33d17a;
+  --f-pl:#ffb020; --f-crc:#ff6ad5;
+  --mono:'SFMono-Regular',ui-monospace,'Cascadia Code','Consolas',monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:18px;line-height:1.5}
+h2{font-size:15px;letter-spacing:.16em;color:var(--dim);margin:0 0 12px;font-weight:700}
+.hidden{display:none!important}
+.muted{color:var(--dim);font-size:16px}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;
+  padding:16px 22px;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{display:flex;gap:14px;align-items:center}
+.sat{font-size:34px}
+.sat-ico{width:34px;height:34px;display:block}
+.title{font-weight:700;letter-spacing:.06em;color:#eaf2fb;font-size:22px}
+.sub{font-size:15px;color:var(--dim)}
+.linkinfo{display:flex;gap:12px;align-items:center;font-size:16px;color:var(--dim)}
+.linkinfo .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+
+/* ── MISSION briefing ── */
+.mission{display:flex;gap:18px;align-items:flex-start;margin:16px 16px 0;padding:18px 22px;
+  background:linear-gradient(90deg,rgba(57,197,255,.08),rgba(19,28,40,.5));
+  border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px}
+.mtag{font-size:16px;font-weight:800;letter-spacing:.1em;color:var(--accent);white-space:nowrap;padding-top:2px}
+.mtext{font-size:18px;line-height:1.6;color:#dbe6f2;max-width:1200px}
+.mtext b{color:#fff}
+
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 540px;gap:16px;padding:16px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+
+/* ── mission-load error note (dossier styles retained for that fallback) ── */
+.dnote{margin-top:12px;font-size:15px;color:var(--amber)}
+.dnote.dim{color:var(--dim)}
+.progresswrap{margin-bottom:16px}
+.prow{display:flex;justify-content:space-between;font-size:15px;color:var(--dim);letter-spacing:.08em}
+.prail{height:10px;background:#0a121c;border:1px solid var(--line);border-radius:6px;margin:8px 0;overflow:hidden}
+.prail > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--ok));transition:.3s}
+.phint{font-size:15px;color:var(--dim)}
+
+/* ── step cards ── */
+.steps #stepList{display:flex;flex-direction:column;gap:14px}
+.step{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--panel2);
+  border-left:4px solid var(--line)}
+.step.done{border-left-color:var(--ok)}
+.step.mismatch{border-left-color:var(--danger)}
+.step.locked{opacity:.5}
+.step.locked .stitle{color:var(--dim)}
+/* collapsible steps — completed ones fold to a one-line recap */
+.step:not(.locked) > .shead{cursor:pointer}
+.step.collapsed > .shead{margin-bottom:0}
+.step.collapsed .sbody{display:none}
+.ssum{font-size:14px;color:var(--dim);font-family:var(--mono);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
+.step:not(.collapsed) .ssum{display:none}
+.chev{color:var(--dim);font-size:13px;margin-left:4px}
+.lockmsg{padding:16px;text-align:center;color:var(--dim);font-size:15px;
+  border:1px dashed var(--line);border-radius:8px;background:#0a121c}
+.pill.locked{background:rgba(127,146,166,.12);color:var(--dim)}
+.shead{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.snum{width:30px;height:30px;border-radius:50%;background:#0a121c;border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;color:var(--dim)}
+.step.done .snum{background:var(--ok);color:#001018;border-color:var(--ok)}
+.step.mismatch .snum{background:var(--danger);color:#fff;border-color:var(--danger)}
+.stitle{flex:1;font-weight:700;letter-spacing:.05em;color:#eaf2fb;font-size:18px}
+.pill{font-size:14px;padding:4px 11px;border-radius:6px;letter-spacing:.05em;font-weight:700}
+.pill.pending{background:rgba(127,146,166,.2);color:var(--dim)}
+.pill.ok{background:rgba(51,209,122,.18);color:var(--ok)}
+.pill.bad{background:rgba(255,59,78,.2);color:var(--danger)}
+.sprompt{margin-top:12px;font-size:15px;color:var(--dim)}
+
+.rfrow{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.rflabel{flex:0 0 130px;font-size:15px;color:var(--dim);letter-spacing:.05em}
+
+/* ── STEP 2 · SDR auto-detect (magic typing, no participant input) ── */
+.rfauto-intro{margin-bottom:12px;padding:9px 12px;border-radius:7px;font-size:14px;
+  border:1px solid var(--accent);background:rgba(57,197,255,.08);color:var(--ink)}
+.rfauto-intro.done{border-color:var(--ok);background:rgba(51,209,122,.1)}
+.rfauto{flex:0 0 180px;display:flex;align-items:center;gap:6px;min-height:40px;padding:8px 12px;border-radius:7px;
+  background:#070d15;border:1px solid var(--line);font-family:var(--mono);font-size:18px;font-weight:700;
+  color:var(--accent);transition:border-color .2s}
+.rfauto.done{border-color:var(--ok);color:var(--ok)}
+.rfauto .rfval{white-space:pre}
+.rfauto .rfok{margin-left:auto;color:var(--ok);font-weight:800}
+.rfcaret{color:var(--accent);animation:rfblink .8s steps(1) infinite;font-weight:400}
+@keyframes rfblink{50%{opacity:0}}
+/* per-field explanation shown to the RIGHT of each auto-filled RF value, so the
+   Step-2 card stays short instead of stacking a legend underneath. */
+.rfdesc{flex:1 1 auto;min-width:0;font-size:13px;line-height:1.45;color:var(--dim)}
+.rfdesc b{color:var(--ink)}
+
+.star{color:var(--star);font-size:13px}
+
+/* ═══════════ STEP 1 · Scratch-style command composer ═══════════ */
+/* Click a subsystem block to load it into the script, then TYPE the real
+   command and its value into the block's slots. Subsystem colour-coding:
+   ADCS=cyan · POWER=amber · COMM=green · OBC=violet. */
+.composer{display:grid;grid-template-columns:196px 1fr;gap:16px;margin-top:4px}
+.palette{display:flex;flex-direction:column;gap:10px}
+.palcap,.scriptcap{font-size:13px;letter-spacing:.14em;color:var(--dim);font-weight:800;margin-bottom:2px}
+.palblock{position:relative;display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:9px;
+  color:#04121a;font-weight:800;font-size:15px;cursor:pointer;user-select:none;
+  box-shadow:0 3px 0 rgba(0,0,0,.4);transition:transform .1s,filter .1s,box-shadow .1s}
+.palblock:hover{filter:brightness(1.06)}
+.palblock:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.4)}
+.palblock.active{box-shadow:0 0 0 2px #eaf2fb,0 3px 0 rgba(0,0,0,.4)}
+.palhint{margin-top:6px;font-size:13px;color:var(--dim);line-height:1.5}
+.sub-ADCS{background:#39c5ff}.sub-POWER{background:#ffb020}.sub-COMM{background:#33d17a}.sub-OBC{background:#8a7dff}
+
+.script{background:#08111b;border:1px solid var(--line);border-radius:12px;padding:14px;min-height:230px}
+.hat{display:inline-block;background:#c02234;color:#fff;font-weight:800;letter-spacing:.05em;font-size:15px;
+  padding:10px 20px;border-radius:11px 11px 3px 3px;box-shadow:0 3px 0 rgba(0,0,0,.4)}
+.dropzone{margin-top:-3px;border:2px dashed var(--line);border-radius:0 10px 10px 10px;min-height:130px;
+  padding:12px;transition:.15s}
+.dropzone.empty{display:flex;align-items:center;justify-content:center;min-height:120px}
+.dzhint{color:var(--dim);font-size:15px;font-style:italic}
+
+.cblock{border-radius:10px;padding:12px 14px;box-shadow:0 3px 0 rgba(0,0,0,.35)}
+.cbrow{display:flex;align-items:center;gap:9px}
+.cbkw{font-weight:800;color:#04121a;font-size:16px}
+/* the chosen command name, and the tag shown above the command list */
+.cbcmd{flex:1;min-width:120px;font-family:var(--mono);font-size:18px;font-weight:800;padding:9px 11px;
+  border-radius:7px;background:#fff;color:#0a0e14;border:2px solid #0b7a3f;box-shadow:0 0 0 2px rgba(11,122,63,.4)}
+.cbpicktag{flex:1;font-weight:800;color:#04121a;font-size:15px;letter-spacing:.02em}
+/* full name of the subsystem acronym, shown one line under the "choose a command" tag */
+.cbsubfull{display:block;margin-top:3px;font-weight:600;font-size:12.5px;letter-spacing:0;opacity:.72}
+.cbchg{background:rgba(0,0,0,.28);color:#fff;border:none;border-radius:7px;padding:0 11px;height:30px;
+  font-size:13px;font-weight:700;cursor:pointer;flex:none;white-space:nowrap}
+.cbchg:hover{background:rgba(0,0,0,.45)}
+.cbx{margin-left:2px;background:rgba(0,0,0,.28);color:#fff;border:none;border-radius:7px;width:30px;height:30px;
+  font-size:14px;cursor:pointer;flex:none}
+.cbx:hover{background:rgba(0,0,0,.45)}
+/* click-to-pick command list */
+.cbpicklist{margin-top:11px;display:flex;flex-direction:column;gap:7px}
+.cmdpick{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;width:100%;
+  padding:9px 12px;border:2px solid rgba(0,0,0,.18);border-radius:8px;background:rgba(255,255,255,.55);
+  cursor:pointer;transition:.12s}
+.cmdpick:hover{background:#fff;border-color:#0a0e14;transform:translateX(2px)}
+.cmdpick code{font-family:var(--mono);font-size:16px;font-weight:800;color:#0a0e14;background:none;padding:0}
+.cmdpick .cmddesc{font-size:13px;color:#04121a;opacity:.72;line-height:1.4}
+.cbargs{margin-top:11px;display:flex;flex-direction:column;gap:9px}
+.cbarg{display:flex;align-items:center;gap:9px}
+.cbflag{font-family:var(--mono);font-weight:800;color:#04121a;min-width:92px}
+.cbval{width:130px;font-family:var(--mono);font-size:17px;font-weight:700;padding:8px 10px;
+  border:2px solid transparent;border-radius:7px;background:#fff;color:#0a0e14;outline:none}
+.cbval::placeholder{color:#8aa;font-weight:500;font-size:14px}
+.cbval.good{border-color:#0b7a3f;box-shadow:0 0 0 2px rgba(11,122,63,.35)}
+.cbval.bad{background:#ffe1e4;color:#b3001b;border-color:var(--danger)}
+.cbunit{color:#04121a;font-weight:800}
+.cbzone{font-size:13px;font-weight:800}.cbzone.safe{color:#0b5a2e}.cbzone.danger{color:#7a0010}
+.cbmsg{margin-top:9px;font-size:14px;color:#4a0713;font-weight:700}
+.cbmsg:empty{margin:0}
+.cbnopay{color:#04121a;font-weight:700;font-size:14px}
+.cbeffect{margin-top:4px;padding:10px 12px;border-left:4px solid rgba(0,0,0,.4);background:rgba(0,0,0,.14);
+  border-radius:0 8px 8px 0;font-size:14px;color:#04121a}
+.cbeffect b{color:#000}
+
+/* opcode chip — hex "address" set dressing in front of every command name (0x21 …) */
+.opchip{font-family:var(--mono);font-weight:800;font-size:13px;letter-spacing:.02em;
+  color:#7ee6a6;background:#06170f;border:1px solid #1f7a4d;border-radius:5px;padding:2px 6px;flex:none}
+.cmdpickname{display:flex;align-items:center;gap:8px}
+.cmdstar{color:#e8a400;font-size:14px}
+/* the ★ main command stands out in the list so visitors actually find "spin the satellite" */
+.cmdpick.star{border-color:#e8a400;background:rgba(232,164,0,.13)}
+.cmdpick.star:hover{border-color:#e8a400;background:rgba(232,164,0,.2)}
+
+/* value slider — green(safe)/red(danger) track so the RED zone is unmistakable */
+.cbslidewrap{display:flex;align-items:center;gap:10px;flex:1;min-width:180px}
+.cbslider{-webkit-appearance:none;appearance:none;height:12px;border-radius:7px;flex:1;min-width:140px;
+  outline:none;cursor:pointer;border:1px solid rgba(0,0,0,.35);box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
+.cbslider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;
+  background:#fff;border:3px solid #0a0e14;cursor:pointer;box-shadow:0 2px 5px rgba(0,0,0,.5)}
+.cbslider::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid #0a0e14;
+  cursor:pointer;box-shadow:0 2px 5px rgba(0,0,0,.5)}
+.cbslider.armed::-webkit-slider-thumb{border-color:#7a0010;background:#ffdbe0}
+.cbslider.armed::-moz-range-thumb{border-color:#7a0010;background:#ffdbe0}
+.cbreadout{font-family:var(--mono);font-weight:800;font-size:16px;color:#0a0e14;min-width:74px;text-align:right}
+.cbreadout.over{color:#7a0010}
+
+/* "완료" gate button — arms Step 2's RF auto-detect */
+.s1foot{margin-top:14px;display:flex;justify-content:flex-end}
+.s1done{padding:11px 20px;border:none;border-radius:8px;font-family:var(--mono);font-size:15px;font-weight:800;
+  letter-spacing:.02em;cursor:pointer;transition:.15s}
+.s1done.disabled{background:#0e1722;color:var(--dim);border:1px solid var(--line);cursor:not-allowed}
+.s1done.ready{background:var(--accent);color:#001018;box-shadow:0 3px 0 rgba(0,0,0,.4)}
+.s1done.ready:hover{filter:brightness(1.08)}
+.s1done.ready:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.4)}
+.s1done.committed{background:rgba(51,209,122,.14);color:var(--ok);border:1px solid var(--ok);cursor:default}
+
+/* frame breakdown */
+.breakdown{display:flex;flex-wrap:wrap;gap:8px;min-height:44px}
+.await{color:var(--dim);font-size:16px;font-style:italic}
+.seg{border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:var(--panel2)}
+.seg .sl{font-size:13px;letter-spacing:.05em;color:var(--dim);margin-bottom:6px;white-space:nowrap;text-transform:uppercase}
+.seg .bytes{display:flex;gap:5px}
+.byte{font-size:16px;padding:4px 7px;border-radius:5px;background:#0a121c;color:#eaf2fb;cursor:default;border-bottom:3px solid transparent}
+.f-preamble .byte{border-color:var(--f-pre)} .f-preamble .sl{color:var(--f-pre)}
+.f-tc_header .byte{border-color:var(--f-tc)} .f-tc_header .sl{color:var(--f-tc)}
+.f-sp_header .byte{border-color:var(--f-sp)} .f-sp_header .sl{color:var(--f-sp)}
+.f-opcode .byte{border-color:var(--f-op)} .f-opcode .sl{color:var(--f-op)}
+.f-payload .byte{border-color:var(--f-pl)} .f-payload .sl{color:var(--f-pl)}
+.f-crc .byte{border-color:var(--f-crc)} .f-crc .sl{color:var(--f-crc)}
+.metaline{margin-top:12px;font-size:15px;color:var(--dim)}
+
+#wave{width:100%;height:100px;background:#070c12;border:1px solid var(--line);border-radius:8px;margin-bottom:14px}
+
+.genbtn{width:100%;padding:16px;border:none;border-radius:9px;cursor:pointer;font-family:var(--mono);
+  font-weight:700;font-size:19px;letter-spacing:.04em}
+.genbtn.locked{background:#131c28;color:var(--dim);border:1px solid var(--line);cursor:not-allowed}
+.genbtn.armed{background:linear-gradient(90deg,var(--danger),#c02234);color:#fff}
+.genbtn.armed:hover{filter:brightness(1.1)}
+.result{margin-top:14px;padding:14px;border:1px solid var(--ok);border-radius:8px;background:rgba(51,209,122,.08);font-size:16px}
+.result a{color:var(--accent)} .result .path{color:#eaf2fb;word-break:break-all}
+
+.tooltip{position:fixed;z-index:50;background:#050a10;border:1px solid var(--accent);border-radius:6px;
+  padding:10px 12px;font-size:15px;color:var(--ink);max-width:280px;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+.tooltip b{color:var(--accent)}
+
+/* ═══════════ PHASE A · BRIEFING ═══════════ */
+.phase{}
+.briefwrap{max-width:none;margin:0;padding:26px 32px 40px}
+.phasetag{display:inline-block;font-size:14px;font-weight:800;letter-spacing:.14em;color:var(--accent);
+  border:1px solid var(--accent);border-radius:6px;padding:5px 12px;margin-bottom:16px}
+.brieftitle{font-size:30px;color:#eaf2fb;margin:0 0 26px;font-weight:700;letter-spacing:.02em}
+.briefgrid{display:grid;grid-template-columns:480px 1fr;gap:34px;align-items:start}
+
+.scene{background:linear-gradient(180deg,#0b1220,#070c14);border:1px solid var(--line);
+  border-radius:14px;padding:16px}
+.satscene{width:100%;height:auto;display:block}
+:root{--dur:10s}
+.sat{transform-box:fill-box;transform-origin:center;animation:tumble var(--dur) linear infinite}
+/* (removed dead .panel/.pgrid SVG solar-panel styles — the drawn satellite is now
+   sat.png. The .panel stroke:#39c5ff leaked into <section class="panel"> and its SVG,
+   giving the phase-2 sun a sky-blue outline via CSS stroke inheritance.) */
+.rays{animation:raysfade var(--dur) ease-in-out infinite}
+.cmdflash{opacity:0;animation:cmdpop var(--dur) ease-out infinite}
+@keyframes tumble{0%,22%{transform:rotate(0)}100%{transform:rotate(720deg)}}
+@keyframes raysfade{0%,24%{opacity:.85}46%,100%{opacity:.1}}
+@keyframes cmdpop{0%,19%{opacity:0;transform:translateY(8px)}23%{opacity:1;transform:none}
+  54%{opacity:1}60%{opacity:.85}100%{opacity:.85}}
+.statebar{position:relative;height:26px;margin-top:12px;text-align:center}
+.stlabel{position:absolute;left:0;right:0;font-size:16px;font-weight:700;letter-spacing:.04em}
+.stlabel.ok{color:var(--ok);animation:okfade var(--dur) ease-in-out infinite}
+.stlabel.bad{color:var(--danger);animation:badfade var(--dur) ease-in-out infinite}
+@keyframes okfade{0%,26%{opacity:1}33%,100%{opacity:0}}
+@keyframes badfade{0%,26%{opacity:0}33%,100%{opacity:1}}
+.powerwrap{display:flex;align-items:center;gap:12px;margin-top:14px;font-size:15px;color:var(--dim)}
+.powerbar{flex:1;height:14px;border-radius:7px;background:#0a121c;border:1px solid var(--line);overflow:hidden}
+.powerfill{display:block;height:100%;width:100%;background:var(--ok);animation:powerdrop var(--dur) ease-in-out infinite}
+@keyframes powerdrop{0%,25%{width:100%;background:var(--ok)}45%{width:46%;background:var(--amber)}
+  65%,100%{width:7%;background:var(--danger)}}
+
+/* compact persistent scene inside the builder's intel panel */
+/* phase-2 mini "WHAT YOUR UPLINK DOES" reminder — kept as compact as possible so the
+   CCSDS packet builder below stays in view: minimal top margin, tight padding, and a
+   capped scene height. */
+.minisc{margin-top:2px;padding:8px 10px}
+.minisc .scenecap{font-size:13px;font-weight:800;letter-spacing:.1em;color:var(--accent);margin-bottom:4px}
+.minisc .satscene{max-height:120px}
+.minisc .statebar{height:18px;margin-top:4px}
+.minisc .stlabel{font-size:14px}
+.minisc .powerwrap{margin-top:5px;font-size:14px}
+/* ...but give the CCSDS PACKET / OOK headings extra breathing room above them */
+.wire h2{margin-top:16px}
+
+.brieftext{display:flex;flex-direction:column;gap:20px}
+.bsec h3{margin:0 0 6px;font-size:18px;color:var(--accent);letter-spacing:.03em}
+.bsec p{margin:0;font-size:17px;line-height:1.6;color:#dbe6f2}
+.bsec b{color:#fff}
+.hl{display:inline;color:#ff6a78;font-weight:700}
+.understand{display:flex;gap:12px;align-items:flex-start;margin:30px 0 18px;padding:16px 18px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:17px;color:#dbe6f2}
+.understand input{width:22px;height:22px;margin-top:1px;accent-color:var(--accent);cursor:pointer}
+.bigbtn{padding:16px 34px;border:none;border-radius:10px;font-family:var(--mono);font-weight:700;
+  font-size:19px;letter-spacing:.04em;cursor:pointer;background:linear-gradient(90deg,var(--accent),#2a8fd0);color:#001018}
+.bigbtn:disabled{background:#131c28;color:var(--dim);cursor:not-allowed}
+.bigbtn:not(:disabled):hover{filter:brightness(1.1)}
+
+/* ═══════════ PHASE B extras ═══════════ */
+.objbar{display:flex;gap:16px;align-items:center;margin:16px 16px 0;padding:14px 20px;
+  background:linear-gradient(90deg,rgba(57,197,255,.08),rgba(19,28,40,.5));
+  border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;font-size:16px;color:#dbe6f2}
+.objbar b{color:#fff}
+#frameProg{color:var(--accent);font-weight:700}
+.wavehint{font-size:14px;color:var(--dim);margin:-6px 0 12px}
+/* progressive frame: pending vs filled segments */
+.seg.pending{border-style:dashed;opacity:.6}
+.seg.pending .bytes{opacity:.5}
+.byte.ph{color:var(--dim);background:#0a121c;border-bottom-color:transparent}
+.seg .anno{font-size:13px;color:var(--ok);margin-top:4px}
+.seg.pending .anno{color:var(--amber)}
+
+@media(max-width:1300px){.grid{grid-template-columns:1fr}.briefgrid{grid-template-columns:1fr}}
+
+/* ═══════════ PHASE 1 · ATTACK HERO (signature kill-sequence) ═══════════ */
+.hero{--hdur:9s;display:grid;grid-template-columns:minmax(0,1.28fr) minmax(0,.9fr);gap:30px;align-items:center;margin-bottom:8px}
+.hero[hidden]{display:none!important}   /* .hero display:grid otherwise beats the UA [hidden] rule */
+.hero-scene{position:relative;border:1px solid var(--line);border-radius:16px;padding:14px 16px 12px;overflow:hidden;
+  background:
+    radial-gradient(120% 90% at 12% 6%, rgba(57,197,255,.10), transparent 55%),
+    radial-gradient(90% 90% at 88% 98%, rgba(255,59,78,.13), transparent 60%),
+    linear-gradient(180deg,#0b1424,#05080f);
+  box-shadow:0 26px 64px -34px rgba(0,0,0,.9), inset 0 0 0 1px rgba(255,255,255,.02)}
+.hs-svg{width:100%;height:auto;display:block}
+
+/* satellite tumble — flat, then spins hard after the command lands */
+.hs-sat{transform-box:fill-box;transform-origin:center;animation:hs-tumble var(--hdur) linear infinite}
+@keyframes hs-tumble{0%,17%{transform:rotate(0)}27%{transform:rotate(46deg)}66%{transform:rotate(680deg)}100%{transform:rotate(1030deg)}}
+
+/* sun rays fade as the panel loses the sun */
+.hs-rays{opacity:.9;animation:hs-rays var(--hdur) ease-in-out infinite}
+@keyframes hs-rays{0%,20%{opacity:.9}42%,100%{opacity:.1}}
+
+/* RF beam flashes on inject, then dims */
+.hs-beam{opacity:0;animation:hs-beam var(--hdur) ease-out infinite}
+.hs-beam-dash{animation:hs-beam var(--hdur) ease-out infinite, hs-dash 1s linear infinite}
+@keyframes hs-beam{0%,15%{opacity:0}18%{opacity:1}30%{opacity:1}40%{opacity:.12}100%{opacity:.06}}
+@keyframes hs-dash{to{stroke-dashoffset:-30}}
+
+/* dish feed + rim light up as the command fires */
+.hs-feed{animation:hs-feed var(--hdur) ease-out infinite}
+@keyframes hs-feed{0%,15%{fill:#2a4a63}18%,30%{fill:#39c5ff}45%,100%{fill:#2a4a63}}
+.hs-dish{animation:hs-dishp var(--hdur) ease-out infinite}
+@keyframes hs-dishp{0%,15%{stroke:#3a4d64}18%,30%{stroke:#39c5ff}45%,100%{stroke:#3a4d64}}
+
+/* the packet rides the beam up to the satellite */
+.hs-packet{opacity:0;transform:translate(122px,232px);animation:hs-packet var(--hdur) ease-in infinite}
+@keyframes hs-packet{0%,15%{opacity:0;transform:translate(122px,232px)}
+  19%{opacity:1;transform:translate(150px,222px)}
+  29%{opacity:1;transform:translate(352px,152px)}
+  33%{opacity:0;transform:translate(374px,144px)}100%{opacity:0;transform:translate(374px,144px)}}
+
+/* battery bleeds out: green → amber → red → dead flicker */
+.hs-battfill{transform-box:fill-box;transform-origin:left center;animation:hs-batt var(--hdur) ease-in-out infinite}
+@keyframes hs-batt{0%,20%{transform:scaleX(1);fill:#33d17a}
+  44%{transform:scaleX(.52);fill:#ffb020}
+  66%{transform:scaleX(.2);fill:#ff3b4e}
+  86%{transform:scaleX(.06);fill:#ff3b4e}
+  91%{transform:scaleX(.05);fill:#4a1420}
+  94%{transform:scaleX(.05);fill:#ff3b4e}
+  100%{transform:scaleX(.05);fill:#ff3b4e}}
+
+/* red flash at the moment of impact */
+.hs-flash{animation:hs-flash var(--hdur) ease-out infinite}
+@keyframes hs-flash{0%,16%{opacity:0}18%{opacity:.16}24%{opacity:0}100%{opacity:0}}
+
+.hs-star{animation:hs-tw 3.2s ease-in-out infinite}
+@keyframes hs-tw{0%,100%{opacity:.25}50%{opacity:.9}}
+
+/* state caption — one line, crossfading with the story */
+.hs-caption{position:relative;height:24px;margin-top:6px;text-align:center;font-size:15px;font-weight:700;letter-spacing:.03em}
+.hs-cap{position:absolute;left:0;right:0;opacity:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hs-cap--ok{color:var(--ok);animation:hs-cok var(--hdur) infinite}
+.hs-cap--inject{color:var(--accent);animation:hs-cinj var(--hdur) infinite}
+.hs-cap--tumble{color:var(--amber);animation:hs-ctum var(--hdur) infinite}
+.hs-cap--dead{color:var(--danger);animation:hs-cdead var(--hdur) infinite}
+@keyframes hs-cok{0%,14%{opacity:1}18%,100%{opacity:0}}
+@keyframes hs-cinj{0%,15%{opacity:0}19%,26%{opacity:1}30%,100%{opacity:0}}
+@keyframes hs-ctum{0%,29%{opacity:0}34%,60%{opacity:1}66%,100%{opacity:0}}
+@keyframes hs-cdead{0%,64%{opacity:0}70%{opacity:1}82%{opacity:.4}88%{opacity:1}100%{opacity:1}}
+
+/* copy column */
+.hero-copy{display:flex;flex-direction:column;gap:16px}
+.brieftitle{font-size:clamp(27px,2.85vw,40px);line-height:1.08;letter-spacing:-.012em;color:#eaf2fb;margin:0;font-weight:800}
+.brieftitle .kill{color:var(--danger);text-shadow:0 0 28px rgba(255,59,78,.5)}
+.brieftitle .legit{color:var(--ok);text-shadow:0 0 26px rgba(51,209,122,.4)}
+.hero-lead{margin:0;font-size:18px;line-height:1.55;color:#aebccd}
+.hero-lead b{color:#eaf2fb}
+.killchain{list-style:none;counter-reset:kc;margin:4px 0 0;padding:0;border:1px solid var(--line);
+  border-radius:12px;overflow:hidden;background:rgba(255,255,255,.015)}
+.killchain li{counter-increment:kc;display:flex;align-items:center;gap:14px;padding:12px 16px;
+  font-size:16px;color:#cdd9e6;border-top:1px solid var(--line)}
+.killchain li:first-child{border-top:0}
+.killchain li::after{content:counter(kc,decimal-leading-zero);margin-left:auto;font-family:var(--mono);
+  font-size:13px;font-weight:700;color:var(--dim);opacity:.7}
+.killchain b{color:#fff}
+.killchain code{font-family:var(--mono);color:var(--danger);background:rgba(255,59,78,.1);padding:1px 7px;border-radius:5px;font-size:14px}
+.kc-ico{flex:none;width:34px;height:34px;display:grid;place-items:center;font-size:18px;background:#0a121c;border:1px solid var(--line);border-radius:9px}
+
+/* deep-dive toggle — dry mechanics folded away */
+.deepdive{margin:22px 0 2px;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+.deepdive>summary{list-style:none;cursor:pointer;padding:16px 20px;font-size:16px;font-weight:700;letter-spacing:.02em;
+  color:#cdd9e6;display:flex;align-items:center;gap:12px;user-select:none}
+.deepdive>summary::-webkit-details-marker{display:none}
+.deepdive>summary:hover{color:#eaf2fb}
+.deepdive .dd-ico{color:var(--accent);transition:transform .2s;display:inline-block}
+.deepdive[open]>summary .dd-ico{transform:rotate(90deg)}
+.deepdive .dd-hint{margin-left:auto;font-size:13px;font-weight:600;color:var(--dim);letter-spacing:.04em}
+.deepdive .brieftext{padding:2px 22px 22px;gap:18px}
+
+@media(max-width:980px){.hero{grid-template-columns:1fr;gap:18px}.deepdive .dd-hint{display:none}}
+
+@media(prefers-reduced-motion:reduce){
+  .hs-sat,.hs-rays,.hs-beam,.hs-beam-dash,.hs-feed,.hs-dish,.hs-packet,.hs-battfill,.hs-flash,.hs-star,.hs-cap{animation:none!important}
+  /* legible still frame: command has landed, sun lost, battery nearly dead */
+  .hs-sat{transform:rotate(26deg)}
+  .hs-rays{opacity:.12}
+  .hs-beam{opacity:.22}
+  .hs-battfill{transform:scaleX(.16);fill:var(--danger)}
+  .hs-cap--tumble{opacity:1}
+}
+
+/* ═══════════ PHASE 1 · scn3 SPOOF HERO ═══════════ */
+/* Topology: hacker+antenna (bottom-left) uplinks → satellite (top); a drone flown
+   between the satellite and the ground station (right) replays a forged beacon, so
+   the GS dashboard flips red-alarm → fake green NOMINAL while the real sat tumbles. */
+.s3-scene{--s3dur:11s}
+.brieftitle .spoof{color:var(--ok);text-shadow:0 0 26px rgba(51,209,122,.4)}
+
+/* satellite keeps tumbling — it is already broken, so it never stops */
+.s3-sat{transform-box:fill-box;transform-origin:center;animation:s3-tumble var(--s3dur) linear infinite}
+@keyframes s3-tumble{to{transform:rotate(900deg)}}
+.s3-realtag{animation:s3-realtag var(--s3dur) ease-in-out infinite}
+@keyframes s3-realtag{0%,100%{opacity:.92}50%{opacity:.55}}
+
+/* attacker uplink beam: hacker antenna → satellite (fires early) */
+.s3-beam{opacity:0;animation:s3-beam var(--s3dur) ease-out infinite}
+.s3-beam-dash{animation:s3-beam var(--s3dur) ease-out infinite, s3-dash 1s linear infinite}
+@keyframes s3-beam{0%,3%{opacity:0}6%{opacity:1}18%{opacity:.9}24%{opacity:.12}100%{opacity:.06}}
+@keyframes s3-dash{to{stroke-dashoffset:-28}}
+.s3-feed{animation:s3-feed var(--s3dur) ease-out infinite}
+@keyframes s3-feed{0%,3%{fill:#2a4a63}6%,18%{fill:#39c5ff}26%,100%{fill:#2a4a63}}
+.s3-laptop{animation:s3-laptop 1.6s ease-in-out infinite}
+@keyframes s3-laptop{50%{opacity:.5}}
+
+/* GS dashboard flips red alarm → fake green NOMINAL when the spoof lands */
+.s3-dash-red{animation:s3-red var(--s3dur) ease-in-out infinite}
+@keyframes s3-red{0%,50%{opacity:1}56%,100%{opacity:0}}
+.s3-dash-green{opacity:0;animation:s3-green var(--s3dur) ease-in-out infinite}
+@keyframes s3-green{0%,52%{opacity:0}60%,100%{opacity:1}}
+.s3-siren{animation:s3-siren var(--s3dur) steps(1) infinite}
+@keyframes s3-siren{0%,8%,16%,24%,32%,40%,48%{opacity:1}4%,12%,20%,28%,36%,44%{opacity:.15}56%{opacity:.3;fill:#33465c}100%{opacity:.3;fill:#33465c}}
+
+/* drone launches from the attacker (bottom-left) and flies to the intercept point */
+.s3-drone{animation:s3-fly var(--s3dur) ease-in-out infinite}
+@keyframes s3-fly{0%,14%{transform:translate(150px,258px) scale(.5);opacity:.9}
+  40%,100%{transform:translate(478px,150px) scale(1);opacity:1}}
+.s3-dronetag{opacity:0;animation:s3-dronetag var(--s3dur) ease-out infinite}
+@keyframes s3-dronetag{0%,36%{opacity:0}44%,100%{opacity:1}}
+.s3-trail{animation:s3-trail var(--s3dur) ease-out infinite}
+@keyframes s3-trail{0%,14%{opacity:0}22%{opacity:.5}42%{opacity:.5}52%{opacity:.14}100%{opacity:.1}}
+.s3-waves{animation:s3-wavesOn var(--s3dur) step-end infinite}
+@keyframes s3-wavesOn{0%,44%{opacity:0}46%,100%{opacity:1}}
+.s3-wave{opacity:0;animation:s3-wave 1.4s ease-out infinite}
+@keyframes s3-wave{0%{opacity:0}22%{opacity:.85}100%{opacity:0}}
+.s3-packet{opacity:0;transform:translate(498px,150px);animation:s3-packet var(--s3dur) ease-in infinite}
+@keyframes s3-packet{0%,46%{opacity:0;transform:translate(498px,150px)}
+  51%{opacity:1;transform:translate(552px,168px)}
+  59%{opacity:1;transform:translate(602px,186px)}
+  63%{opacity:0;transform:translate(616px,192px)}100%{opacity:0;transform:translate(616px,192px)}}
+
+/* green "spoof succeeded" wash */
+.s3-flash{animation:s3-flash var(--s3dur) ease-out infinite}
+@keyframes s3-flash{0%,54%{opacity:0}60%{opacity:.12}68%{opacity:0}100%{opacity:0}}
+
+/* scn3 state captions: uplink → alarm → spoof → hidden */
+.s3-cap--attack{color:var(--accent);animation:s3-catk var(--s3dur) infinite}
+.s3-cap--alarm{color:var(--danger);animation:s3-calarm var(--s3dur) infinite}
+.s3-cap--spoof{color:var(--accent);animation:s3-cspoof var(--s3dur) infinite}
+.s3-cap--hidden{color:var(--ok);animation:s3-chidden var(--s3dur) infinite}
+@keyframes s3-catk{0%,2%{opacity:0}6%,14%{opacity:1}18%,100%{opacity:0}}
+@keyframes s3-calarm{0%,18%{opacity:0}22%,44%{opacity:1}48%,100%{opacity:0}}
+@keyframes s3-cspoof{0%,44%{opacity:0}48%,56%{opacity:1}60%,100%{opacity:0}}
+@keyframes s3-chidden{0%,58%{opacity:0}64%{opacity:1}100%{opacity:1}}
+
+@media(prefers-reduced-motion:reduce){
+  .s3-sat,.s3-realtag,.s3-beam,.s3-beam-dash,.s3-feed,.s3-laptop,.s3-dash-red,.s3-dash-green,.s3-siren,.s3-drone,.s3-dronetag,.s3-trail,.s3-waves,.s3-wave,.s3-packet,.s3-flash,.s3-cap--attack,.s3-cap--alarm,.s3-cap--spoof,.s3-cap--hidden{animation:none!important}
+  /* static still: spoof done — drone at intercept, real sat still tumbling, GS shows the fake green NOMINAL */
+  .s3-sat{transform:rotate(24deg)}
+  .s3-beam{opacity:.18}
+  .s3-drone{transform:translate(478px,150px) scale(1)}
+  .s3-dronetag{opacity:1}
+  .s3-trail{opacity:.12}
+  .s3-dash-red{opacity:0}
+  .s3-dash-green{opacity:1}
+  .s3-siren{opacity:.3;fill:#33465c}
+  .s3-cap--hidden{opacity:1}
+}
+
+/* ═══════════ neon glow on the active call-to-action (the button you must press) ═══════════ */
+@keyframes neon-cyan{0%,100%{box-shadow:0 0 11px rgba(57,197,255,.5),0 0 26px rgba(57,197,255,.22)}
+  50%{box-shadow:0 0 22px rgba(57,197,255,.95),0 0 52px rgba(57,197,255,.5)}}
+@keyframes neon-red{0%,100%{box-shadow:0 0 11px rgba(255,59,78,.5),0 0 26px rgba(255,59,78,.22)}
+  50%{box-shadow:0 0 22px rgba(255,59,78,.95),0 0 52px rgba(255,59,78,.5)}}
+.neon-cyan{animation:neon-cyan 1.5s ease-in-out infinite}
+.bigbtn:not(:disabled){animation:neon-cyan 1.7s ease-in-out infinite}   /* phase 1 · BUILD */
+.genbtn.armed{animation:neon-red 1.6s ease-in-out infinite}             /* phase 2 · GENERATE */
+
+/* ═══════════ generated cf32 "download" card — replaces the GENERATE button ═══════════ */
+.result.res-card{border:none;background:none;padding:0;margin-top:14px}
+.cf32card{border:1px solid var(--ok);border-radius:12px;padding:16px;
+  background:linear-gradient(180deg,rgba(51,209,122,.09),rgba(19,28,40,.35));
+  box-shadow:0 16px 44px -24px rgba(0,0,0,.85)}
+.cf32head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.cf32ico{flex:none;width:40px;height:40px;display:grid;place-items:center;font-size:22px;
+  background:#0a121c;border:1px solid var(--line);border-radius:10px}
+.cf32info{flex:1;min-width:0}
+.cf32name{font-family:var(--mono);font-weight:800;font-size:18px;color:#eaf2fb;word-break:break-all}
+.cf32meta{font-size:13px;color:var(--dim)}
+.cf32badge{flex:none;font-size:12px;font-weight:800;letter-spacing:.05em;color:var(--ok);
+  background:rgba(51,209,122,.14);border:1px solid rgba(51,209,122,.4);border-radius:6px;padding:5px 9px}
+.cf32dl{display:block;width:100%;padding:15px;border:none;border-radius:10px;cursor:pointer;
+  font-family:var(--mono);font-weight:800;font-size:18px;letter-spacing:.03em;color:#001018;
+  background:linear-gradient(90deg,var(--accent),#2a8fd0);transition:filter .15s}
+.cf32dl:hover{filter:brightness(1.08)}
+.cf32dl.downloading{background:#0e1722;color:var(--accent);border:1px solid var(--accent);cursor:default}
+.cf32dl.done{background:rgba(51,209,122,.16);color:var(--ok);border:1px solid var(--ok);cursor:default}
+.cf32prog{height:6px;margin-top:10px;border-radius:4px;background:#0a121c;border:1px solid var(--line);
+  overflow:hidden;opacity:0;transition:opacity .2s}
+.cf32prog.run{opacity:1}
+.cf32prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--ok))}
+.cf32prog.run i{animation:cf32fill 1.2s ease-out forwards}
+@keyframes cf32fill{to{width:100%}}
+.cf32hint{margin-top:12px;font-size:14px;color:var(--dim);text-align:center}
+
+@media(prefers-reduced-motion:reduce){
+  .neon-cyan,.bigbtn:not(:disabled){animation:none!important;box-shadow:0 0 16px rgba(57,197,255,.55)!important}
+  .genbtn.armed{animation:none!important;box-shadow:0 0 16px rgba(255,59,78,.55)!important}
+  .cf32prog.run i{animation:none;width:100%}
+}

@@ -16,6 +16,11 @@ eggs/
 .eggs/
 lib/
 lib64/
+# 위 `lib/`(Python 패키징 템플릿 규칙)은 이름이 lib인 '모든' 디렉터리를 무시한다.
+# OpenVSA 렌더러의 JS 소스가 src/lib/ 아래에 있어 통째로 커밋에서 누락됐고(→ ES 모듈
+# 그래프 404 → Virtual Antenna 화면 백지), 아래 디렉터리는 예외로 되살린다.
+!common/attacker/openvsa/src/lib/
+!scenario1-eavsdrop-attack/vsa/src/lib/
 parts/
 sdist/
 var/
