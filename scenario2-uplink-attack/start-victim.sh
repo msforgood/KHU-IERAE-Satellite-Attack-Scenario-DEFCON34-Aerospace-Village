@@ -10,6 +10,9 @@ set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 # 지상국(phase 1-3 공통 자원)은 공용 ../common/victim 아래. 시나리오 폴더에서 실행해도
 # 같은 공용 백엔드를 띄운다(scn2·scn3·scn4 공유). 시나리오 차이는 런타임 훅으로만 발현.
+# 포트 회수는 OS 마다 도구가 다르다(macOS·Linux=lsof, Windows Git Bash=netstat/taskkill).
+# 공용 헬퍼로 흡수 — 없으면 Windows 에서 이전 지상국이 살아남아 EADDRINUSE 로 죽는다.
+. "$DIR/../common/proc.sh"
 BACKEND="$DIR/../common/victim/backend"
 FRONTEND="$DIR/../common/victim/frontend"
 PORT="${GS_HTTP_PORT:-4542}"
@@ -40,22 +43,31 @@ ok "파일·문법 확인 완료"
 say "3/3  victim 지상국 실행 → $URL"
 UPLINK_PORT="${UPLINK_PORT:-4552}"
 
-# 포트 선점 정리: 이전 지상국(server.js)이 남아 있으면 종료, 다른 앱이 잡고 있으면 중단
+# 포트 선점 정리: 이전 지상국(server.js)이 남아 있으면 종료, 다른 앱이 잡고 있으면 중단.
+# 조회/종료는 proc.sh 가 OS 별로 처리한다(lsof·kill / netstat·taskkill //T).
+# ⚠ Windows 에선 커맨드라인 조회가 실패할 수 있는데(wmic 제거·권한), 그때 '남의 프로세스'로
+#   오판해 die 하면 부스가 못 뜬다. 조회 불가는 경고 후 회수(데모 전용 포트라 안전)로 처리한다.
 free_port(){
   local p="$1" pids pid cmd
-  pids="$(lsof -ti tcp:"$p" -sTCP:LISTEN 2>/dev/null || true)"
+  pids="$(port_pids "$p")"
   [ -z "$pids" ] && return 0
   for pid in $pids; do
-    cmd="$(ps -p "$pid" -o command= 2>/dev/null || true)"
-    if printf '%s' "$cmd" | grep -q "server.js"; then
+    cmd="$(pid_cmdline "$pid")"
+    if [ -z "$cmd" ]; then
+      printf "\033[33m  ! 포트 %s 점유 프로세스(pid %s)의 커맨드라인을 못 읽음 → 이전 실행으로 보고 정리\033[0m\n" "$p" "$pid"
+      kill_tree "$pid"
+    elif printf '%s' "$cmd" | grep -qE "server\.js|node"; then
       printf "\033[33m  ! 포트 %s 를 잡고 있던 이전 지상국(pid %s) 종료\033[0m\n" "$p" "$pid"
-      kill "$pid" 2>/dev/null || true
+      kill_tree "$pid"
     else
       die "포트 $p 를 다른 프로세스(pid $pid)가 사용 중 → $cmd
      그 프로그램을 종료하거나  GS_HTTP_PORT/UPLINK_PORT 로 다른 포트를 지정해 다시 실행하세요."
     fi
   done
   sleep 1
+  # TERM 을 무시하고 버티는 잔존 프로세스(Windows 강제종료 실패 등)는 한 번 더 강하게 회수.
+  [ -n "$(port_pids "$p")" ] && free_tcp_port "$p" "victim :$p"
+  return 0
 }
 free_port "$PORT"
 free_port "$UPLINK_PORT"
