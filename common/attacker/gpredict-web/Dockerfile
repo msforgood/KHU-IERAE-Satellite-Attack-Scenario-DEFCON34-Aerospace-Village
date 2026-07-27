@@ -19,6 +19,9 @@ COPY start.sh /start.sh
 COPY control.py /control.py
 COPY passloop.py /passloop.py
 COPY autopilot.sh /autopilot.sh
-RUN chmod +x /start.sh /autopilot.sh
+# Windows 체크아웃에서 넘어온 CRLF 를 제거(줄끝 \r 이 shebang 을 깨서
+# 컨테이너가 'exec /start.sh: no such file or directory' 로 즉사하는 것 방지).
+RUN sed -i 's/\r$//' /start.sh /autopilot.sh /control.py /passloop.py \
+    && chmod +x /start.sh /autopilot.sh
 EXPOSE 6080 6079
 CMD ["/start.sh"]
