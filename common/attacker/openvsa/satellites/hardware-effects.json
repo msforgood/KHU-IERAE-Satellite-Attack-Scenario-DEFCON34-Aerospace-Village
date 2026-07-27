@@ -1,9 +1,9 @@
 {
-  "adcs_torque": {
+  "spin_control": {
     "operatorDelay": 10,
-    "_comment": "★ MAIN SCENARIO. Excessive reaction-wheel torque → uncontrolled spin → solar panel loses sun-track → power generation collapse → energy supply alarm. Ongoing panel drift + cosineDropoff power loss are driven by the tumbling block in satellite-state.js (reads adcs_target.affectedHardware). Payload (int16 torque) scaling handled by PAYLOAD_HANDLERS.adcs_torque_magnitude (added in GS backend).",
+    "_comment": "★ MAIN SCENARIO. Excessive reaction-wheel torque → uncontrolled spin → solar panel loses sun-track → power generation collapse → energy supply alarm. Ongoing panel drift + cosineDropoff power loss are driven by the tumbling block in satellite-state.js (reads adcs_target.affectedHardware). Payload (int16 torque) scaling handled by PAYLOAD_HANDLERS.spin_control_magnitude (added in GS backend).",
     "onAttack": {
-      "payloadLogic": "adcs_torque_magnitude",
+      "payloadLogic": "spin_control_magnitude",
       "immediate": {
         "set": { "adcs.mode": "manual", "adcs.stabilization": false },
         "flag": ["tumbling", "solarAttacked"]
@@ -66,7 +66,7 @@
     }
   },
 
-  "antenna_gimbal": {
+  "antenna_point": {
     "operatorDelay": 10,
     "onAttack": {
       "immediate": {
@@ -124,7 +124,7 @@
     }
   },
 
-  "subsystem_ctrl": {
+  "system_toggle": {
     "operatorDelay": 10,
     "onAttack": {
       "payloadLogic": "subsystem_bitmask",
@@ -138,7 +138,7 @@
     }
   },
 
-  "transponder_ctrl": {
+  "radio_switch": {
     "operatorDelay": 10,
     "onAttack": {
       "payloadLogic": "transponder_toggle",
@@ -148,7 +148,7 @@
     }
   },
 
-  "obc_reboot": {
+  "computer_reboot": {
     "operatorDelay": "afterRecovery+1",
     "onAttack": {
       "immediate": {

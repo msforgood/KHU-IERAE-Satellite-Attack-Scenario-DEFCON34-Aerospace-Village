@@ -79,6 +79,27 @@ window.addEventListener("message", (e) => {
     const ut = document.querySelector("#ctrl-type-uplink");
     if (ut) ut.dispatchEvent(new Event("change"));
   }
+  // Aim-by-hand: the console sends the TARGET az/el (not the value) so the
+  // participant must drag the slider onto it. Store the goal on the slider as
+  // data-target (1 dp) and re-run its input handler so the green match re-evaluates.
+  if (Number.isFinite(m.targetAzimuth)) {
+    const az = document.querySelector("#ctrl-az-uplink");
+    if (az) { az.dataset.target = m.targetAzimuth.toFixed(1); az.dispatchEvent(new Event("input")); }
+  }
+  if (Number.isFinite(m.targetElevation)) {
+    const el = document.querySelector("#ctrl-el-uplink");
+    if (el) { el.dataset.target = m.targetElevation.toFixed(1); el.dispatchEvent(new Event("input")); }
+    // elevation target is the LAST aim value → the full aim is now specified.
+    store.setState((s) => ({ ...s, engageAimComplete: true }));
+    const ut = document.querySelector("#ctrl-type-uplink");
+    if (ut) ut.dispatchEvent(new Event("change")); // re-eval load-IQ CTA
+  }
+  // Uplink frequency is entered by hand in the gated wizard: store the goal as
+  // data-target (don't fill the value) and nudge the input so the gate re-evaluates.
+  if (Number.isFinite(m.targetFreq)) {
+    const f = document.querySelector("#ctrl-uplink-freq");
+    if (f) { f.dataset.target = String(m.targetFreq); f.dispatchEvent(new Event("input")); }
+  }
 });
 
 // Load ground station location from GPredict's .qth files on startup

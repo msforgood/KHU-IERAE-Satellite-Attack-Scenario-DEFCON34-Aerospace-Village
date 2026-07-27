@@ -14,15 +14,15 @@ sys.path.insert(0, os.path.abspath(_PLUGIN))
 import ccsds_ook as codec  # noqa: E402
 
 CASES = [
-    ("adcs_torque",     {"torque": 999},   ["0x03", "0xe7"]),
-    ("adcs_torque",     {"torque": -1000}, ["0xfc", "0x18"]),
-    ("adcs_torque",     {"torque": 0},     ["0x00", "0x00"]),
+    ("spin_control",    {"torque": 999},   ["0x03", "0xe7"]),
+    ("spin_control",    {"torque": -1000}, ["0xfc", "0x18"]),
+    ("spin_control",    {"torque": 0},     ["0x00", "0x00"]),
     ("solar_panel",     {"angle": 0},      ["0x00"]),
     ("solar_panel",     {"angle": 200},    ["0xc8"]),
-    ("antenna_gimbal",  {"az": 120, "el": 30}, ["0x78", "0x1e"]),
-    ("subsystem_ctrl",  {"bitmask": 0},    ["0x00"]),
-    ("transponder_ctrl", {"on": False},    ["0x00"]),
-    ("obc_reboot",      {},                []),
+    ("antenna_point",   {"az": 120, "el": 30}, ["0x78", "0x1e"]),
+    ("system_toggle",   {"bitmask": 0},    ["0x00"]),
+    ("radio_switch",    {"on": False},     ["0x00"]),
+    ("computer_reboot", {},                []),
 ]
 
 
@@ -45,7 +45,7 @@ def run():
     # negative case: corrupted frame bits should fail cleanly, not crash.
     # Force a mid-signal band ON (=1.0) to flip frame bits → CRC mismatch.
     # (indices chosen to land inside the frame, past the lead-in silence)
-    iq, _ = codec.build_iq("adcs_torque", {"torque": 500})
+    iq, _ = codec.build_iq("spin_control", {"torque": 500})
     iq[5000:7000] = 1.0
     corrupt = codec.decode_iq(iq)
     neg_ok = corrupt.get("success") is False

@@ -547,6 +547,146 @@
     border-color: var(--warn);
     box-shadow: 0 0 22px rgba(255, 176, 32, 0.35);
   }
+
+  [hidden] {
+    display: none !important;
+  }
+
+  /* Once the drone has spoofed once, the deck permanently splits 50/50 into
+     [ spoof toggle | FINISH ]. Toggling stop/spoof only swaps the left half. */
+  .deck.split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .bigbtn.finish {
+    color: #1a0606;
+    background: var(--crit);
+    border-color: var(--crit);
+    box-shadow: 0 0 22px rgba(255, 92, 92, 0.4);
+  }
+  .bigbtn.finish:hover {
+    filter: brightness(1.08);
+  }
+
+  /* ── FINISH: full-screen DEFCON skull moment → congrats → reset overlay ── */
+  .fmodal {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(4, 7, 11, 0.86);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+  .fpanel {
+    width: min(560px, 90vw);
+    text-align: center;
+    padding: 40px 38px 34px;
+    border: 1px solid rgba(78, 201, 138, 0.35);
+    border-radius: 18px;
+    background: radial-gradient(120% 90% at 50% 0%, #16202b 0%, #0c1118 70%);
+    box-shadow:
+      0 0 60px rgba(78, 201, 138, 0.15),
+      0 30px 80px rgba(0, 0, 0, 0.6);
+  }
+  .skull {
+    font-size: 92px;
+    line-height: 1;
+    filter: drop-shadow(0 0 22px rgba(255, 92, 92, 0.55));
+    animation: skullpulse 1.6s ease-in-out infinite;
+  }
+  .skull.win {
+    filter: drop-shadow(0 0 26px rgba(78, 201, 138, 0.6));
+  }
+  @keyframes skullpulse {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+    }
+    50% {
+      transform: translateY(-6px) scale(1.05);
+    }
+  }
+  .fpanel h2 {
+    margin: 18px 0 10px;
+    font-family: var(--mono);
+    font-size: 26px;
+    letter-spacing: 0.06em;
+    color: var(--crit);
+    text-shadow: 0 0 18px rgba(255, 92, 92, 0.4);
+  }
+  .fpanel h2.wintitle {
+    color: var(--good);
+    text-shadow: 0 0 18px rgba(78, 201, 138, 0.5);
+  }
+  .fpanel p {
+    margin: 0 auto 22px;
+    max-width: 46ch;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--dim);
+  }
+  .fpanel p b {
+    color: var(--ink);
+  }
+  .fpanel p b.good {
+    color: var(--good);
+  }
+  .fpanel p b.crit {
+    color: var(--crit);
+  }
+  .frow2 {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+  }
+  .fbtn {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 14px 26px;
+    border-radius: 11px;
+    cursor: pointer;
+    border: 1px solid var(--line);
+    color: var(--ink);
+    background: var(--panel);
+    transition: 0.15s;
+  }
+  .fbtn.go {
+    color: #06251c;
+    background: var(--good);
+    border-color: var(--good);
+    box-shadow: 0 0 22px rgba(78, 201, 138, 0.4);
+  }
+  .fbtn.go:hover {
+    filter: brightness(1.09);
+  }
+  .fbtn.ghost {
+    color: var(--dim);
+    background: transparent;
+  }
+  .fbtn.ghost:hover {
+    color: var(--ink);
+    border-color: var(--cyan);
+  }
+  .spinner {
+    width: 54px;
+    height: 54px;
+    margin: 6px auto 0;
+    border-radius: 50%;
+    border: 4px solid rgba(78, 201, 138, 0.2);
+    border-top-color: var(--good);
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 </style>
 
 <header>
@@ -722,12 +862,45 @@
         </div>
         <pre class="frame" id="frame"></pre>
       </div>
-      <div class="deck">
+      <div class="deck" id="deck">
         <button id="spoofBtn" class="bigbtn" disabled>▶ TRANSMIT SPOOFED BEACON</button>
+        <button id="finishBtn" class="bigbtn finish" hidden>✔ I'M DONE ▸</button>
       </div>
     </div>
   </div>
 </main>
+
+<!-- ── FINISH flow: skull moment → congrats → reset for the next player ── -->
+<div id="finishModal" class="fmodal" hidden>
+  <div class="fpanel" id="fpanelConfirm">
+    <div class="skull">💀</div>
+    <h2>DID THE ALARM GO QUIET?</h2>
+    <p>
+      Look at the <b>victim ground station</b>. The satellite is <b class="crit">still tumbling</b> — but is the
+      operator's dashboard now reading <b class="good">NOMINAL</b> with the <b class="crit">CRITICAL alarm gone</b>?
+    </p>
+    <div class="frow2">
+      <button class="fbtn ghost" id="notYet">◂ NOT YET</button>
+      <button class="fbtn go" id="yeees">YEEES 😈</button>
+    </div>
+  </div>
+  <div class="fpanel" id="fpanelWin" hidden>
+    <div class="skull win">💀</div>
+    <h2 class="wintitle">GROUND STATION OWNED</h2>
+    <p>
+      You broke the satellite by uplink, then <b>impersonated it</b> with a forged healthy beacon. The crisis is
+      <b class="good">invisible</b> to the operator — the alarm is silent while the bird keeps dying. <b>You did it.</b>
+    </p>
+    <button class="fbtn go" id="quitBtn">OK, I'LL QUIT ▸</button>
+  </div>
+</div>
+<div id="resetOverlay" class="fmodal" hidden>
+  <div class="fpanel">
+    <div class="spinner"></div>
+    <h2 class="wintitle">RESETTING…</h2>
+    <p>Restarting the range for the next player. Please wait — the screen will reload on its own.</p>
+  </div>
+</div>
 
 <script>
   (function () {
@@ -736,6 +909,8 @@
 
     var body = document.body;
     var btn = document.getElementById("spoofBtn");
+    var deck = document.getElementById("deck");
+    var finishBtn = document.getElementById("finishBtn");
     var pill = document.getElementById("pill");
     var beaconLbl = document.getElementById("beaconLbl");
     var screenState = document.getElementById("screenState");
@@ -756,6 +931,7 @@
     ];
     var forged = {}; // key → true once forged
     var active = false; // spoof transmitting
+    var everSpoofed = false; // true after the first successful spoof → deck stays split
 
     function count() {
       return FIELDS.filter(function (f) {
@@ -811,12 +987,18 @@
       pill.classList.toggle("on", active);
       body.classList.toggle("spoofing", active);
       beaconLbl.setAttribute("opacity", active ? "1" : "0");
-      btn.textContent = active ? "■ STOP SPOOFING" : "▶ TRANSMIT SPOOFED BEACON";
+      btn.textContent = active ? "■ STOP SPOOFING" : everSpoofed ? "▶ SPOOF AGAIN" : "▶ TRANSMIT SPOOFED BEACON";
       btn.classList.toggle("stop", active);
-      screenState.textContent = active ? "🟢 NOMINAL" : "— AWAITING —";
-      screenNote.textContent = active
-        ? "The dashboard is being fed the forged beacon: NOMINAL, battery ~98%, SUN-TRACKING, COMM CONNECTED. The alarm is suppressed."
-        : "Forge every field of the beacon, then transmit — the dashboard will read NOMINAL and the alarm goes quiet.";
+      // after the first spoof the deck permanently splits into [ spoof | FINISH ];
+      // stop/spoof from here on only swaps the left half, FINISH always keeps its half.
+      deck.classList.toggle("split", everSpoofed);
+      finishBtn.hidden = !everSpoofed;
+      // these two live on the (optional) status card — guard in case it's absent.
+      if (screenState) screenState.textContent = active ? "🟢 NOMINAL" : "— AWAITING —";
+      if (screenNote)
+        screenNote.textContent = active
+          ? "The dashboard is being fed the forged beacon: NOMINAL, battery ~98%, SUN-TRACKING, COMM CONNECTED. The alarm is suppressed."
+          : "Forge every field of the beacon, then transmit — the dashboard will read NOMINAL and the alarm goes quiet.";
     }
 
     function setSpoof(on) {
@@ -830,6 +1012,7 @@
         })
         .then(function (j) {
           active = !!(j && j.spoofing);
+          if (active) everSpoofed = true; // first spoof → deck splits from now on
           renderState();
         })
         .catch(function () {
@@ -842,6 +1025,68 @@
       setSpoof(!active);
     });
 
+    // ── FINISH flow: skull moment → congrats → reset for the next player ──────
+    var finishModal = document.getElementById("finishModal");
+    var panelConfirm = document.getElementById("fpanelConfirm");
+    var panelWin = document.getElementById("fpanelWin");
+    var resetOverlay = document.getElementById("resetOverlay");
+
+    finishBtn.addEventListener("click", function () {
+      panelWin.hidden = true;
+      panelConfirm.hidden = false; // always start on the "did the alarm go quiet?" step
+      finishModal.hidden = false;
+    });
+    document.getElementById("notYet").addEventListener("click", function () {
+      finishModal.hidden = true; // go back and keep spoofing
+    });
+    document.getElementById("yeees").addEventListener("click", function () {
+      panelConfirm.hidden = true;
+      panelWin.hidden = false; // congratulations
+    });
+    document.getElementById("quitBtn").addEventListener("click", quitAndReset);
+
+    // Reset for the next participant — same contract as the console finale. POST
+    // <gs>/api/restart: it resets the GS to nominal AND, under run-booth.sh, drops
+    // the flag that tears down + relaunches BOTH start scripts. Then wait for the
+    // fresh Command Builder to report /api/ready (true only AFTER the antenna/solar
+    // setup finishes) and reload the whole app to phase 1. Works either way:
+    //   • supervisor (run-booth.sh) running → builder relaunches; reload once ready
+    //   • no supervisor → GS is reset, builder never dies; reload shortly after
+    function quitAndReset() {
+      finishModal.hidden = true;
+      resetOverlay.hidden = false;
+      fetch(GS + "/api/restart", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
+        .catch(function () {})
+        .then(function () {
+          var top = window.top, // same origin (served by the builder) → accessible
+            origin = top.location.origin,
+            search = top.location.search;
+          var tries = 0;
+          var iv = setInterval(function () {
+            tries++;
+            if (tries < 4) return; // let the supervisor kill the old builder before probing
+            fetch(origin + "/api/ready", { cache: "no-store" })
+              .then(
+                function (r) {
+                  return r.ok ? r.json() : null;
+                },
+                function () {
+                  return null; // builder/hardware still coming up — keep waiting
+                },
+              )
+              .then(function (j) {
+                if (j && j.ready) {
+                  clearInterval(iv);
+                  top.location.href = "/1" + search;
+                } else if (tries > 160) {
+                  clearInterval(iv); // ~4 min fallback
+                  top.location.href = "/1" + search;
+                }
+              });
+          }, 1500);
+        });
+    }
+
     renderFields();
     renderFrame();
     renderState();
@@ -853,10 +1098,12 @@
       })
       .then(function (j) {
         active = !!(j && j.spoofing);
-        if (active)
+        if (active) {
+          everSpoofed = true; // resumed mid-spoof (e.g. after a refresh) → keep split
           FIELDS.forEach(function (f) {
             forged[f.key] = true;
           });
+        }
         renderFields();
         renderFrame();
         renderState();

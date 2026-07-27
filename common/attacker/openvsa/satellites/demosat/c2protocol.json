@@ -38,13 +38,13 @@
     "dataField": "[opcode 1B] [payload N B]"
   },
   "opcodes": {
-    "0x10": { "name": "solar_panel",      "apid": "0x010", "payloadSize": 1,  "description": "Set solar panel angle (0-255)" },
-    "0x21": { "name": "adcs_torque",      "apid": "0x020", "payloadSize": 2,  "description": "★ Set reaction-wheel torque (int16 mNm, BE). Abuse: excessive value → uncontrolled spin → sun-track loss → power collapse", "safeAbsMax": 500 },
-    "0x30": { "name": "subsystem_ctrl",   "apid": "0x020", "payloadSize": 1,  "description": "Bitmask: bit0=stabilization, bit1=transponder" },
-    "0x20": { "name": "antenna_gimbal",   "apid": "0x030", "payloadSize": 2,  "description": "Set antenna pointing (az, el)" },
-    "0x40": { "name": "transponder_ctrl", "apid": "0x030", "payloadSize": 1,  "description": "0=off, 1=on" },
-    "0xE0": { "name": "auth_change",      "apid": "0x0E0", "payloadSize": 32, "description": "Overwrite HMAC-SHA256 key" },
-    "0xF0": { "name": "firmware_upload",  "apid": "0x0F0", "payloadSize": -1, "description": "Write to flash (offset 2B + data)" },
-    "0xFF": { "name": "obc_reboot",       "apid": "0x0F0", "payloadSize": 0,  "description": "Hard reboot OBC" }
+    "0x10": { "name": "solar_panel",     "apid": "0x010", "payloadSize": 1,  "description": "Set solar panel angle (0-255)" },
+    "0x21": { "name": "spin_control",    "apid": "0x020", "payloadSize": 2,  "description": "★ Spin the satellite via its reaction wheel (int16 mNm, BE). Abuse: excessive value → uncontrolled spin → sun-track loss → power collapse", "safeAbsMax": 500 },
+    "0x30": { "name": "system_toggle",   "apid": "0x020", "payloadSize": 1,  "description": "Bitmask: bit0=stabilization, bit1=transponder" },
+    "0x20": { "name": "antenna_point",   "apid": "0x030", "payloadSize": 2,  "description": "Set antenna pointing (az, el)" },
+    "0x40": { "name": "radio_switch",    "apid": "0x030", "payloadSize": 1,  "description": "0=off, 1=on" },
+    "0xE0": { "name": "auth_change",     "apid": "0x0E0", "payloadSize": 32, "description": "Overwrite HMAC-SHA256 key" },
+    "0xF0": { "name": "firmware_upload", "apid": "0x0F0", "payloadSize": -1, "description": "Write to flash (offset 2B + data)" },
+    "0xFF": { "name": "computer_reboot", "apid": "0x0F0", "payloadSize": 0,  "description": "Hard reboot the on-board computer" }
   }
 }

@@ -134,10 +134,10 @@ OPTIONS = {
 
 # UI field metadata per command (drives STEP 2's form).
 COMMAND_UI = {
-    "adcs_torque": {
-        "subsystem": "ADCS", "star": True, "title": "Reaction Wheel Torque",
-        "blurb": "A legitimate attitude-control torque command. Abuse the value and the satellite spins out of control.",
-        "fields": [{"key": "torque", "type": "slider", "min": -1000, "max": 1000, "default": 999,
+    "spin_control": {
+        "subsystem": "ADCS", "star": True, "title": "Spin the Satellite",
+        "blurb": "Spin the satellite with its reaction wheel. A legitimate command — but push the spin past the safe limit and it tumbles out of control.",
+        "fields": [{"key": "torque", "label": "spin", "type": "slider", "min": -1000, "max": 1000, "default": 999,
                     "unit": "mNm", "safeAbsMax": 500}],
         "effect": "Spins the satellite out of control → its solar panels can't face the sun → power collapses",
     },
@@ -148,27 +148,27 @@ COMMAND_UI = {
                     "unit": "°", "safeRange": [80, 100]}],
         "effect": "Turns the solar panel away from the sun → it stops generating → power drops fast",
     },
-    "antenna_gimbal": {
-        "subsystem": "COMM", "title": "Antenna Gimbal",
+    "antenna_point": {
+        "subsystem": "COMM", "title": "Antenna Pointing",
         "blurb": "Set the antenna pointing direction (az/el offset).",
         "fields": [{"key": "az", "type": "slider", "min": 0, "max": 255, "default": 120, "unit": "°"},
                    {"key": "el", "type": "slider", "min": 0, "max": 255, "default": 30, "unit": "°"}],
         "effect": "Swings the antenna away from the ground station → the radio link drops",
     },
-    "subsystem_ctrl": {
-        "subsystem": "ADCS", "title": "Subsystem Control",
+    "system_toggle": {
+        "subsystem": "ADCS", "title": "System Toggle",
         "blurb": "bit0=stabilization, bit1=transponder.",
         "fields": [{"key": "bitmask", "type": "number", "min": 0, "max": 3, "default": 0, "unit": ""}],
         "effect": "Turns off the satellite's auto-balancing",
     },
-    "transponder_ctrl": {
-        "subsystem": "COMM", "title": "Transponder Control",
-        "blurb": "Turn the transponder on/off.",
+    "radio_switch": {
+        "subsystem": "COMM", "title": "Radio Switch",
+        "blurb": "Turn the radio (transponder) on/off.",
         "fields": [{"key": "on", "type": "toggle", "default": False}],
         "effect": "Turns off the satellite's radio → it can no longer send data down to Earth",
     },
-    "obc_reboot": {
-        "subsystem": "OBC", "title": "OBC Reboot",
+    "computer_reboot": {
+        "subsystem": "OBC", "title": "Computer Reboot",
         "blurb": "Hard-reboot the on-board computer (no payload).",
         "fields": [],
         "effect": "Restarts the satellite's main computer → it goes silent for a while",
@@ -290,6 +290,12 @@ class Handler(BaseHTTPRequestHandler):
         # scenario descriptor — the template renders extra phases (④+) from this
         if self.path == "/api/scenario":
             return self._json(load_scenario())
+        # attacker-ready flag (start-attacker.sh writes it AFTER the antenna/solar setup).
+        # The finale's restart reload polls this so the browser only returns once the
+        # hardware is set up — not merely when this web builder starts answering.
+        if self.path == "/api/ready":
+            flag = os.environ.get("READY_FLAG", "/tmp/demosat-attacker-ready.flag")
+            return self._json({"ready": os.path.exists(flag)})
         if self.path.startswith("/static/"):
             rel = self.path[len("/static/"):].split("?")[0]
             fp = os.path.normpath(os.path.join(STATIC_DIR, rel))

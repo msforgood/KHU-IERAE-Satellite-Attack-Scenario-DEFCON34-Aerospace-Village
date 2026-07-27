@@ -44,9 +44,9 @@ physical layer.
 | 6 | Arduino actuators | solar-panel servo + antenna stepper sketches, dependency-free serial bridge polling `/api/state`, wiring/protocol docs | ◑ code done, self-testable; physical bring-up + motor tuning pending |
 
 ## Key implementation notes
-- Main command `adcs_torque` (opcode 0x21): the effect sets tumbling + solarAttacked;
+- Main command `spin_control` (opcode 0x21): the effect sets tumbling + solarAttacked;
   the tick() tumbling block reuses `adcs_target` physics (panel drift + cosineDropoff
-  power collapse). `adcs_torque_magnitude` payload handler surfaces the torque value
+  power collapse). `spin_control_magnitude` payload handler surfaces the torque value
   and scales drain / sun-track loss by magnitude.
 - Physics fix (Phase 5): tumbling panel drift used `(state[key] || 90)`, so an angle
   driven to exactly 0° (a valid off-sun state) reset to 90° and power recovered. Fixed

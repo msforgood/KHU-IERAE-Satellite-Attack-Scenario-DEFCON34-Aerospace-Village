@@ -21,65 +21,208 @@
     <section id="briefing" class="phase">
       <div class="briefwrap">
         <div class="phasetag">PHASE 1 / 3 · MISSION BRIEFING</div>
-        <h1 class="brieftitle">Understand the attack before you build it</h1>
-
-        <div class="briefgrid">
-          <!-- animated satellite scene -->
-          <div class="scene">
-            <svg viewBox="0 0 460 300" class="satscene" aria-label="DEMOSAT attack animation">
+        <div class="hero" data-scn="scn2">
+          <!-- ▶ signature: the looping "kill sequence" — antenna → command → tumble → dead battery -->
+          <div class="hero-scene">
+            <svg viewBox="0 0 720 340" class="hs-svg" role="img"
+              aria-label="Attack sequence: the ground antenna uplinks a torque command, DEMOSAT tumbles off the sun, and its battery drains to zero.">
               <defs>
-                <radialGradient id="sunG" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stop-color="#fff3b0" />
-                  <stop offset="55%" stop-color="#ffd23f" />
-                  <stop offset="100%" stop-color="#ff9d00" />
+                <radialGradient id="hsSun" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#fff3b0" /><stop offset="55%" stop-color="#ffd23f" /><stop offset="100%" stop-color="#ff9d00" />
                 </radialGradient>
-                <filter id="glow">
-                  <feGaussianBlur stdDeviation="6" result="b" />
-                  <feMerge>
-                    <feMergeNode in="b" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
+                <radialGradient id="hsDish" cx="50%" cy="28%" r="85%">
+                  <stop offset="0%" stop-color="#22314a" /><stop offset="100%" stop-color="#0b131f" />
+                </radialGradient>
+                <linearGradient id="hsBeam" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stop-color="#39c5ff" stop-opacity="0" /><stop offset="100%" stop-color="#39c5ff" />
+                </linearGradient>
+                <filter id="hsGlow"><feGaussianBlur stdDeviation="5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
               </defs>
-              <!-- sun -->
-              <g class="sun" filter="url(#glow)">
-                <circle cx="74" cy="86" r="30" fill="url(#sunG)" />
+
+              <g class="hs-stars" fill="#9cc4ff">
+                <circle class="hs-star" cx="250" cy="34" r="1.6" />
+                <circle class="hs-star" cx="540" cy="52" r="1.3" style="animation-delay:.5s" />
+                <circle class="hs-star" cx="622" cy="120" r="1.5" style="animation-delay:1.1s" />
+                <circle class="hs-star" cx="470" cy="28" r="1.1" style="animation-delay:1.7s" />
+                <circle class="hs-star" cx="350" cy="64" r="1.2" style="animation-delay:2.2s" />
+                <circle class="hs-star" cx="690" cy="38" r="1.4" style="animation-delay:.9s" />
+                <circle class="hs-star" cx="205" cy="150" r="1.1" style="animation-delay:1.4s" />
               </g>
-              <g class="rays" stroke="#ffd23f" stroke-width="3" stroke-linecap="round" opacity="0.85">
-                <line x1="110" y1="96" x2="200" y2="130" />
-                <line x1="112" y1="86" x2="205" y2="150" />
-                <line x1="110" y1="76" x2="200" y2="170" />
+
+              <!-- sun + rays (fade as the panel loses the sun) -->
+              <g filter="url(#hsGlow)"><circle cx="58" cy="54" r="30" fill="url(#hsSun)" /></g>
+              <g class="hs-rays" stroke="#ffd23f" stroke-width="3" stroke-linecap="round">
+                <line x1="94" y1="64" x2="320" y2="118" />
+                <line x1="96" y1="54" x2="326" y2="140" />
+                <line x1="94" y1="44" x2="320" y2="162" />
               </g>
-              <!-- satellite (tumbles) — real photo sat.png (shared /static asset) -->
-              <image
-                class="sat"
-                href="/static/sat.png"
-                x="157"
-                y="94"
-                width="146"
-                height="99"
-                preserveAspectRatio="xMidYMid meet"
-              />
-              <!-- command flash -->
-              <g class="cmdflash">
-                <rect x="150" y="238" width="230" height="30" rx="6" fill="#12060a" />
-                <text x="265" y="258" text-anchor="middle" fill="#ff6a78" font-size="15" font-family="monospace">
-                  ⚡ UPLINK adcs_torque = 999 mNm
-                </text>
+
+              <!-- RF command beam antenna → satellite -->
+              <line class="hs-beam" x1="118" y1="232" x2="392" y2="150" stroke="url(#hsBeam)" stroke-width="4" filter="url(#hsGlow)" />
+              <line class="hs-beam hs-beam-dash" x1="118" y1="232" x2="392" y2="150" stroke="#cdeeff" stroke-width="2" stroke-dasharray="3 12" />
+
+              <!-- the command packet rides the beam up -->
+              <g class="hs-packet">
+                <rect x="-84" y="-14" width="168" height="28" rx="6" fill="#12060a" stroke="#ff6a78" stroke-width="1" />
+                <text x="0" y="5" text-anchor="middle" fill="#ff8a94" font-size="13" font-family="ui-monospace,monospace">⚡ VALID COMMAND</text>
               </g>
+
+              <!-- satellite (tumbles once the wheels overspin) — real photo sat.png -->
+              <image class="hs-sat" href="/static/sat.png" x="300" y="78" width="196" height="132" preserveAspectRatio="xMidYMid meet" />
+
+              <!-- attacker ground antenna (real photo antenna.png), at the beam origin -->
+              <image class="hs-dish" href="/static/antenna.png" x="38" y="232" width="120" height="120" preserveAspectRatio="xMidYMid meet" />
+
+              <!-- battery — bleeds green → red to empty -->
+              <g transform="translate(468,264)">
+                <text x="0" y="-9" fill="#7f92a6" font-size="12" font-family="ui-monospace,monospace" letter-spacing="1.5">BATTERY</text>
+                <rect x="0" y="0" width="150" height="52" rx="9" fill="#0a121c" stroke="#33465c" stroke-width="2" />
+                <rect x="150" y="16" width="11" height="20" rx="2" fill="#33465c" />
+                <rect class="hs-battfill" x="6" y="6" width="138" height="40" rx="4" fill="#33d17a" />
+              </g>
+
+              <rect class="hs-flash" x="0" y="0" width="720" height="340" fill="#ff3b4e" opacity="0" />
             </svg>
 
-            <div class="statebar">
-              <span class="stlabel ok">☀ SUN-TRACKING · POWER NOMINAL</span>
-              <span class="stlabel bad">↻ TUMBLING · SUN-TRACK LOST</span>
-            </div>
-            <div class="powerwrap">
-              <span>POWER</span>
-              <div class="powerbar"><i class="powerfill"></i></div>
+            <div class="hs-caption" aria-hidden="true">
+              <span class="hs-cap hs-cap--ok">◉ SUN-LOCKED · WHEELS STABLE · POWER 100%</span>
+              <span class="hs-cap hs-cap--inject">⚡ VALID COMMAND ACCEPTED · WHEELS OVERSPUN</span>
+              <span class="hs-cap hs-cap--tumble">↻ WHEELS OVERSPUN · TUMBLING · SUN-TRACK LOST</span>
+              <span class="hs-cap hs-cap--dead">☠ OUT OF BATTERY · DEMOSAT DEAD · POWER 0%</span>
             </div>
           </div>
 
-          <!-- briefing text -->
+          <div class="hero-copy">
+            <h1 class="brieftitle">Break a satellite<br />with a single<br /><span class="legit">legitimate command.</span></h1>
+            <p class="hero-lead">
+              No exploit, no bypass. It's a <b>real, legitimate command</b> — the kind operators send every day. You just
+              give it a value the satellite was never meant to accept.
+            </p>
+            <ol class="killchain">
+              <li><span class="kc-ico">📡</span><span><b>Seize</b> the ground antenna</span></li>
+              <li><span class="kc-ico">⚡</span><span><b>Uplink</b> one legitimate command</span></li>
+              <li><span class="kc-ico">🛰️</span><span>The wheels overspin — it <b>tumbles</b></span></li>
+              <li><span class="kc-ico">🔋</span><span>Off-sun — battery to <b>0%</b></span></li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- ═══ scn3 hero · shown only for the spoofing scenario (toggled by data-scn) ═══ -->
+        <div class="hero" data-scn="scn3" hidden>
+          <!-- ▶ signature: the real satellite keeps tumbling while the dashboard flips to a fake green NOMINAL -->
+          <div class="hero-scene s3-scene">
+            <svg viewBox="0 0 720 340" class="hs-svg" role="img"
+              aria-label="Attack topology: bottom-left, a hacker uplinks through an antenna to the satellite at the top, which tumbles. On the right sits the victim ground station; a drone flown between the satellite and the ground station replays a forged healthy beacon, so the dashboard flips from red alarm to a fake green NOMINAL.">
+              <defs>
+                <linearGradient id="s3Screen" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#070d16" /><stop offset="100%" stop-color="#04070c" />
+                </linearGradient>
+                <linearGradient id="s3Beam" x1="0" y1="1" x2="0" y2="0">
+                  <stop offset="0%" stop-color="#39c5ff" stop-opacity="0" /><stop offset="100%" stop-color="#39c5ff" />
+                </linearGradient>
+                <filter id="s3Glow"><feGaussianBlur stdDeviation="4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+              </defs>
+
+              <g fill="#9cc4ff">
+                <circle class="hs-star" cx="180" cy="26" r="1.5" />
+                <circle class="hs-star" cx="470" cy="40" r="1.2" style="animation-delay:.6s" />
+                <circle class="hs-star" cx="250" cy="150" r="1.1" style="animation-delay:1.3s" />
+                <circle class="hs-star" cx="540" cy="96" r="1.3" style="animation-delay:1.9s" />
+                <circle class="hs-star" cx="410" cy="20" r="1.2" style="animation-delay:.9s" />
+              </g>
+
+              <!-- ① satellite at top — tumbling after the uplink hit -->
+              <image class="s3-sat" href="/static/sat.png" x="250" y="10" width="160" height="108" preserveAspectRatio="xMidYMid meet" />
+              <g class="s3-realtag">
+                <rect x="252" y="122" width="156" height="22" rx="5" fill="#12060a" stroke="#ff3b4e" stroke-width="1" />
+                <text x="330" y="137" text-anchor="middle" fill="#ff8a94" font-size="12" font-family="ui-monospace,monospace">⚠ REAL · TUMBLING</text>
+              </g>
+
+              <!-- ② attacker uplink beam: hacker antenna → satellite -->
+              <line class="s3-beam" x1="150" y1="276" x2="300" y2="96" stroke="url(#s3Beam)" stroke-width="3.5" filter="url(#s3Glow)" />
+              <line class="s3-beam s3-beam-dash" x1="150" y1="276" x2="300" y2="96" stroke="#cdeeff" stroke-width="1.8" stroke-dasharray="3 11" />
+
+              <!-- ③ hacker + ground antenna, bottom-left -->
+              <g class="s3-hacker" transform="translate(46,258)">
+                <path d="M2,60 C2,28 48,28 48,60 Z" fill="#141d29" stroke="#33465c" stroke-width="1.5" />
+                <circle cx="25" cy="30" r="12" fill="#0c141f" stroke="#33465c" stroke-width="1.5" />
+                <rect x="7" y="54" width="36" height="5" rx="2" fill="#243244" />
+                <rect x="13" y="42" width="24" height="13" rx="2" fill="#05252f" stroke="#39c5ff" stroke-width="1" />
+                <rect class="s3-laptop" x="15" y="44" width="20" height="9" fill="#0d4250" />
+              </g>
+              <g transform="translate(129,286) scale(-1,1)">
+                <image href="/static/antenna.png" x="-44" y="-44" width="88" height="88" preserveAspectRatio="xMidYMid meet" />
+              </g>
+              <circle class="s3-feed" cx="150" cy="276" r="5" fill="#2a4a63" filter="url(#s3Glow)" />
+              <text class="s3-hackertag" x="120" y="334" text-anchor="middle" fill="#8fb8ff" font-size="11" font-family="ui-monospace,monospace">▲ ATTACKER UPLINK</text>
+
+              <!-- ④ victim ground station, far right: dashboard + receiving dish -->
+              <g transform="translate(538,150)">
+                <rect x="0" y="0" width="168" height="96" rx="9" fill="#0a121c" stroke="#33465c" stroke-width="2" />
+                <rect x="8" y="8" width="152" height="66" rx="5" fill="url(#s3Screen)" />
+                <text x="16" y="24" fill="#5a6b7d" font-size="10" font-family="ui-monospace,monospace" letter-spacing="1">GROUND STATION</text>
+                <g class="s3-dash-red">
+                  <text x="16" y="50" fill="#ff3b4e" font-size="18" font-weight="800" font-family="ui-monospace,monospace">⚠ CRITICAL</text>
+                  <text x="16" y="68" fill="#ff8a94" font-size="11" font-family="ui-monospace,monospace">TUMBLING · BATT 6%</text>
+                </g>
+                <g class="s3-dash-green">
+                  <text x="16" y="50" fill="#33d17a" font-size="18" font-weight="800" font-family="ui-monospace,monospace">◉ NOMINAL</text>
+                  <text x="16" y="68" fill="#7ee6a6" font-size="11" font-family="ui-monospace,monospace">BATT 98% · SUN-OK</text>
+                </g>
+                <circle class="s3-siren" cx="152" cy="21" r="5.5" fill="#ff3b4e" filter="url(#s3Glow)" />
+                <rect x="74" y="96" width="18" height="12" fill="#243244" />
+                <rect x="52" y="108" width="62" height="7" rx="3" fill="#16212f" />
+              </g>
+
+              <!-- ⑤ drone flown just left of the victim GS — replays a forged beacon to it -->
+              <g class="s3-waves" transform="translate(524,150)" stroke="#33d17a" fill="none" stroke-width="2">
+                <path class="s3-wave" d="M-2,-14 A 18 18 0 0 1 -2,16" />
+                <path class="s3-wave" d="M6,-22 A 28 28 0 0 1 6,24" style="animation-delay:.35s" />
+                <path class="s3-wave" d="M14,-30 A 40 40 0 0 1 14,32" style="animation-delay:.7s" />
+              </g>
+              <!-- flight path: drone launches from the attacker and flies to just left of the victim GS -->
+              <path class="s3-trail" d="M150,262 Q330,150 476,150" fill="none" stroke="#8fb8ff" stroke-width="1.5" stroke-dasharray="4 8" opacity="0" />
+              <g class="s3-drone">
+                <image href="/static/drone.png" x="-50" y="-32" width="100" height="64" preserveAspectRatio="xMidYMid meet" />
+              </g>
+              <text class="s3-dronetag" x="478" y="196" text-anchor="middle" fill="#8fb8ff" font-size="11" font-family="ui-monospace,monospace">▲ posing as DEMOSAT</text>
+              <g class="s3-packet">
+                <rect x="-70" y="-13" width="140" height="26" rx="6" fill="#06170f" stroke="#33d17a" stroke-width="1" />
+                <text x="0" y="4" text-anchor="middle" fill="#7ee6a6" font-size="12" font-family="ui-monospace,monospace">✔ NOMINAL · BATT 98%</text>
+              </g>
+
+              <rect class="s3-flash" x="0" y="0" width="720" height="340" fill="#33d17a" opacity="0" />
+            </svg>
+
+            <div class="hs-caption" aria-hidden="true">
+              <span class="hs-cap s3-cap--attack">⚡ HACKER UPLINK · SATELLITE HIT</span>
+              <span class="hs-cap s3-cap--alarm">⚠ SATELLITE TUMBLING · GS ALARM BLARING</span>
+              <span class="hs-cap s3-cap--spoof">🛸 DRONE SPOOFS DEMOSAT'S BEACON TO THE GS</span>
+              <span class="hs-cap s3-cap--hidden">✅ GS READS “NOMINAL” · ALARM SILENCED</span>
+            </div>
+          </div>
+
+          <div class="hero-copy">
+            <h1 class="brieftitle">Break the satellite,<br />then <span class="spoof">impersonate it.</span></h1>
+            <p class="hero-lead">
+              First you break it. Then you disguise a <b>drone as DEMOSAT</b> and replay a forged
+              <b>“all-healthy” beacon</b> — the ground-station alarm goes quiet while the real satellite keeps tumbling.
+            </p>
+            <ol class="killchain">
+              <li><span class="kc-ico">📡</span><span><b>Break it</b> — the satellite tumbles</span></li>
+              <li><span class="kc-ico">🚨</span><span>Ground station screams <b>ENERGY CRITICAL</b></span></li>
+              <li><span class="kc-ico">🛸</span><span>A rogue <b>drone poses as DEMOSAT</b></span></li>
+              <li><span class="kc-ico">✅</span><span>Forged <b>“NOMINAL”</b> beacon — alarm silenced</span></li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- dry mechanics tucked away — open only if you want the how-and-why -->
+        <details class="deepdive">
+          <summary>
+            <span class="dd-ico">▸</span> How the attack actually works
+            <span class="dd-hint">the full mechanics</span>
+          </summary>
           <div class="brieftext">
             <div class="bsec">
               <h3>① The target — DEMOSAT</h3>
@@ -101,9 +244,9 @@
             <div class="bsec">
               <h3>③ The attack — a legitimate command, abused</h3>
               <p>
-                You send <b>adcs_torque</b> — a <b>real</b> reaction-wheel command — but with an
-                <b>abused value (999 mNm)</b>. The wheels overspin, the satellite <b>tumbles</b>, the panels lose the
-                sun, and <b>power collapses</b>.
+                You send a <b>real reaction-wheel command</b> — the kind flight controllers use every day — but with
+                an <b>abused value</b>. The wheels overspin, the satellite <b>tumbles</b>, the panels lose the sun, and
+                <b>power collapses</b>.
                 <span class="hl">A legitimate command becomes an attack when it is abused.</span>
               </p>
             </div>
@@ -125,7 +268,7 @@
               </p>
             </div>
           </div>
-        </div>
+        </details>
 
         <label class="understand"
           ><input type="checkbox" id="ackChk" />
@@ -198,7 +341,7 @@
               <g class="cmdflash">
                 <rect x="150" y="238" width="230" height="30" rx="3" fill="#12060a" />
                 <text x="265" y="258" text-anchor="middle" fill="#ff6a78" font-size="15" font-family="monospace">
-                  ⚡ UPLINK adcs_torque = 999 mNm
+                  ⚡ VALID COMMAND
                 </text>
               </g>
             </svg>
@@ -391,11 +534,23 @@
               b.style.display = "";
             });
         });
+        // pick the scenario-specific hero (scn2 kill-sequence · scn3 drone-spoof); hide the rest
+        function selectHero(id) {
+          var heroes = document.querySelectorAll(".hero[data-scn]");
+          var matched = false;
+          heroes.forEach(function (h) {
+            var on = h.getAttribute("data-scn") === id;
+            h.hidden = !on;
+            if (on) matched = true;
+          });
+          if (!matched && heroes.length) heroes[0].hidden = false; // fallback: first hero
+        }
         fetch("/api/scenario")
           .then(function (r) {
             return r.json();
           })
           .then(function (sc) {
+            selectHero((sc && sc.id) || "scn2");
             var n = sc && sc.phaseCount;
             if (n)
               Array.prototype.forEach.call(document.querySelectorAll(".phasetag"), function (t) {
@@ -422,6 +577,7 @@
             routeFromUrl(); // honor /1 /2 /3 /4 on first load
           })
           .catch(function () {
+            selectHero("scn2");
             collectPhases();
             routeFromUrl();
           });

@@ -4,7 +4,7 @@
 #   최초 설치 → 설치 확인 → victim 대시보드 실행 + 브라우저 열기
 #
 # 사용법:  ./start-victim.sh
-#   env:  GS_HTTP_PORT (기본 4540)   ATTACK_DELAY_MS (경보 지연, 예: 2500)   NO_OPEN=1 (브라우저 자동열기 끄기)
+#   env:  GS_HTTP_PORT (기본 4542)   ATTACK_DELAY_MS (경보 지연, 예: 2500)   NO_OPEN=1 (브라우저 자동열기 끄기)
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -12,7 +12,7 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 # 같은 공용 백엔드를 띄운다(scn2·scn3·scn4 공유). 시나리오 차이는 런타임 훅으로만 발현.
 BACKEND="$DIR/../common/victim/backend"
 FRONTEND="$DIR/../common/victim/frontend"
-PORT="${GS_HTTP_PORT:-4540}"
+PORT="${GS_HTTP_PORT:-4542}"
 URL="http://localhost:$PORT"
 
 say(){ printf "\033[36m▸ %s\033[0m\n" "$*"; }
@@ -38,7 +38,7 @@ ok "파일·문법 확인 완료"
 
 # ── 3. victim 화면 실행 + 브라우저 열기 ───────────────────────
 say "3/3  victim 지상국 실행 → $URL"
-UPLINK_PORT="${UPLINK_PORT:-4536}"
+UPLINK_PORT="${UPLINK_PORT:-4552}"
 
 # 포트 선점 정리: 이전 지상국(server.js)이 남아 있으면 종료, 다른 앱이 잡고 있으면 중단
 free_port(){

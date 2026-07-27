@@ -73,24 +73,24 @@ def crc16_ccitt(data, init=0xFFFF):
 def build_payload(command, params):
     """Encode a command's payload from human params. Returns (bytes, sub_fields)."""
     p = params or {}
-    if command == "adcs_torque":
+    if command == "spin_control":
         torque = int(p.get("torque", 0))
         torque = max(-32768, min(32767, torque))
         return struct.pack(">h", torque), [{"name": "torque", "value": torque, "unit": "mNm"}]
     if command == "solar_panel":
         angle = int(p.get("angle", 90)) & 0xFF
         return bytes([angle]), [{"name": "angle", "value": angle, "unit": "deg"}]
-    if command == "antenna_gimbal":
+    if command == "antenna_point":
         az = int(p.get("az", 0)) & 0xFF
         el = int(p.get("el", 0)) & 0xFF
         return bytes([az, el]), [{"name": "az", "value": az}, {"name": "el", "value": el}]
-    if command == "subsystem_ctrl":
+    if command == "system_toggle":
         mask = int(p.get("bitmask", 0)) & 0xFF
         return bytes([mask]), [{"name": "bitmask", "value": f"0b{mask:08b}"}]
-    if command == "transponder_ctrl":
+    if command == "radio_switch":
         on = 1 if p.get("on", False) else 0
         return bytes([on]), [{"name": "state", "value": "ON" if on else "OFF"}]
-    if command == "obc_reboot":
+    if command == "computer_reboot":
         return b"", []
     # generic: raw hex payload
     raw = p.get("raw", b"")

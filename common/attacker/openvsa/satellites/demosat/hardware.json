@@ -1,13 +1,13 @@
 {
   "portMap": {
     "0x10": { "command": "solar_panel", "target": "solar_panel" },
-    "0x21": { "command": "adcs_torque", "target": "adcs" },
-    "0x30": { "command": "subsystem_ctrl", "target": "adcs" },
-    "0x20": { "command": "antenna_gimbal", "target": "antenna" },
-    "0x40": { "command": "transponder_ctrl", "target": "transponder" },
+    "0x21": { "command": "spin_control", "target": "adcs" },
+    "0x30": { "command": "system_toggle", "target": "adcs" },
+    "0x20": { "command": "antenna_point", "target": "antenna" },
+    "0x40": { "command": "radio_switch", "target": "transponder" },
     "0xE0": { "command": "auth_change", "target": "auth" },
     "0xF0": { "command": "firmware_upload", "target": "obc" },
-    "0xFF": { "command": "obc_reboot", "target": "obc" }
+    "0xFF": { "command": "computer_reboot", "target": "obc" }
   },
 
   "hardware": {
@@ -20,7 +20,7 @@
       "specs": { "capacity": 100 }
     },
     "antenna": {
-      "defaults": { "az": 180, "el": 45 },
+      "defaults": { "az": 180, "el": 50 },
       "specs": { "type": "patch", "beamwidth": 25, "motorSpeed": 2 }
     },
     "comm": {

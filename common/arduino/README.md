@@ -13,7 +13,7 @@ GS :4540 /api/state ──poll──▶ bridge.js ──serial──▶ ① sola
 | Piece | Board | Motor | Behavior |
 |---|---|---|---|
 | `solar_panel_uno/` | Arduino **Uno** | servo — continuous-rotation (FS90R) for endless spin, or standard SG90 for off-sun swing | attack → `SPIN` (`PANEL_SPIN=1`) or `solar_panel.angle` 90°→0° |
-| `antenna_gimbal/`  | Arduino (any)   | stepper (28BYJ-48 + ULN2003) | acquire → `SWEEP` (`/api/acquire`); attack → `antenna.az` jitter |
+| `antenna_gimbal/`  | Arduino **MKR WiFi 1010** | **2× stepper** (28BYJ-48 + ULN2003) — AZ=A0~A3 · EL=D2~D5 | acquire → `SWEEP` (`/api/acquire`); attack → `antenna.az`/`el` jitter |
 | `bridge/bridge.js` | — (host, Node)  | — | polls GS, writes serial |
 
 The existing victim JS is **not modified** — the bridge glues on via the
@@ -32,37 +32,54 @@ public `/api/state` endpoint.
 
 Status LED = on-board **D13** (solid = nominal, blinking = attack).
 
-### Antenna (28BYJ-48 + ULN2003 driver)
-| ULN2003 | To |
-|---|---|
-| IN1 | **D8** |
-| IN2 | **D9** |
-| IN3 | **D10** |
-| IN4 | **D11** |
-| V+ / GND | external **5V** supply, GND tied to Arduino GND |
+### Antenna — TWO 28BYJ-48 steppers (MKR WiFi 1010 + ULN2003 ×2)
 
-> **Different stepper?** The built-in `Stepper` library drives 4-wire coils
-> directly (28BYJ-48/ULN2003, bipolar via L298N). For a **step/dir driver**
-> (A4988, DRV8825, NEMA-17) the library does not apply — see the comment block
-> at the top of `antenna_gimbal.ino` for the swap.
+The antenna gimbal has **two independent motors**. Identify them by which
+ULN2003 they are wired to (this is the authoritative record — the sketch
+`antenna_gimbal.ino` uses exactly these pins):
+
+| Motor (role) | Axis | ULN2003 IN1 · IN2 · IN3 · IN4 → board pins |
+|---|---|---|
+| **AZ 모터** (azimuth · 수평 팬) | 좌우 회전 / `SWEEP` / `SPIN` | **A0 · A1 · A2 · A3** |
+| **EL 모터** (elevation · 상하 틸트) | 위아래 틸트만 | **D2 · D3 · D4 · D5** |
+
+| Power | To |
+|---|---|
+| V+ / GND (each ULN2003) | external **5–6V** supply, GND tied to board GND (공통 GND 필수) |
+
+Status LED = on-board `LED_BUILTIN` (solid = nominal · fast blink = tumbling ·
+slow blink = sweep · blink = spin).
+
+- **어느 모터가 AZ/EL인지 확인하려면**: `AZ 300` 을 보내면 **A0~A3** 에 물린 모터만
+  돌고(EL 정지), `EL 90` 을 보내면 **D2~D5** 에 물린 모터만 틸트한다(AZ 정지).
+- Drive: `AccelStepper` HALF4WIRE(type 8), 코일순서 IN1,IN3,IN2,IN4, 4096 step/rev.
+  검증된 `antenna_selftest.ino`(scn1 booth_antenna) 와 동일한 배선·구동 방식이다.
+
+> **Different stepper?** For a **step/dir driver** (A4988, DRV8825, NEMA-17)
+> `AccelStepper` uses `DRIVER`(type 1) with STEP/DIR pins instead — see the
+> comment block at the top of `antenna_gimbal.ino`.
 
 ---
 
 ## 2. Upload
 
-Arduino IDE → open each `.ino` → select board + port → Upload. No extra
-libraries needed (`Servo` and `Stepper` ship with the IDE).
+Arduino IDE → open each `.ino` → select board + port → Upload. `Servo` (solar)
+ships with the IDE; the antenna needs **`AccelStepper`** (Library Manager →
+install "AccelStepper", or `arduino-cli lib install AccelStepper`).
 
 Or with `arduino-cli`:
 ```bash
-# solar panel (Uno)
+# solar panel (Uno / CH340 clone)
 arduino-cli compile -b arduino:avr:uno solar_panel_uno
 arduino-cli upload  -b arduino:avr:uno -p /dev/cu.usbmodemXXXX solar_panel_uno
 
-# antenna (adjust FQBN to your board, e.g. arduino:samd:mkrwifi1010)
-arduino-cli compile -b arduino:avr:uno antenna_gimbal
-arduino-cli upload  -b arduino:avr:uno -p /dev/cu.usbmodemYYYY antenna_gimbal
+# antenna (MKR WiFi 1010) — needs the SAMD core + AccelStepper library
+arduino-cli core install arduino:samd
+arduino-cli lib  install AccelStepper
+arduino-cli compile -b arduino:samd:mkrwifi1010 antenna_gimbal
+arduino-cli upload  -b arduino:samd:mkrwifi1010 -p /dev/cu.usbmodemYYYY antenna_gimbal
 ```
+> `start-attacker.sh` (scn2) 는 이 코어/라이브러리 설치 + 업로드 + WHOAMI 연결확인을 자동으로 한다.
 
 ---
 
@@ -80,15 +97,19 @@ STOP       → halt spin (neutral 1500µs), hold position
 PING       → prints  SOLAR READY angle=45 mode=0
 ```
 
-**Antenna**
+**Antenna** (Serial Monitor @ **9600**)
 ```
-AZ 270     → stepper rotates to azimuth 270°
-SWEEP      → acquisition gesture: head sweeps left↔right (150°↔210°)
-TUMBLE     → attack mode, LED blinks
-AZEL 90 30 → azimuth 90° (elevation logged)
-TRACK      → nominal (stops a sweep)
-PING       → prints  ANT READY az=90
+AZ 270     → AZ 모터(A0~A3)만 방위각 270°로 회전 (EL 정지)
+EL 90      → EL 모터(D2~D5)만 앙각 90°로 틸트 (AZ 정지)
+AZEL 90 30 → 두 모터: 방위각 90° · 앙각 30°
+SWEEP      → AZ 헤드가 좌↔우 스윕 (150°↔210°)
+SPIN/STOP  → AZ 연속 회전 / 정지
+TUMBLE     → attack mode, LED 빠른 점멸
+TRACK      → nominal (스윕/스핀 해제)
+WHOAMI     → prints  ID=ANTENNA
+PING       → prints  ANT READY id=ANTENNA az=90 el=30 mode=0
 ```
+> `AZ nnn` 만 보냈을 때 도는 모터가 AZ, `EL nnn` 만 보냈을 때 도는 모터가 EL 이다.
 
 ---
 
@@ -128,7 +149,7 @@ curl -X POST localhost:4540/api/acquire
 # terminal 3 — transmit/attack (real demo uses OpenVSA TRANSMIT → :4536 forward;
 #              this inject is a GS-only self-test, not the demo path)
 curl -X POST localhost:4540/api/inject -H 'Content-Type: application/json' \
-  -d '{"command":"adcs_torque","payload":["0x03","0xe7"]}'
+  -d '{"command":"spin_control","payload":["0x03","0xe7"]}'
 ```
 
 Expected: on `/api/acquire` the antenna sweeps left↔right; then after

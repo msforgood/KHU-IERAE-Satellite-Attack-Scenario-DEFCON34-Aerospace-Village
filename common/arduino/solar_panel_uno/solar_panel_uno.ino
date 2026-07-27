@@ -29,13 +29,13 @@
 //   modified SG90 (remove the stopper tab + fix the feedback pot).
 //
 // ── Wiring ──────────────────────────────────────────────────────────────────
-//   Servo signal → D9      Servo V+ → external 5V (NOT the Uno 5V pin for load)
+//   Servo signal → D11     Servo V+ → external 5V (NOT the Uno 5V pin for load)
 //   Servo GND    → common GND (Uno GND + external supply GND tied together)
 //   Status LED   → D13 (on-board)
 
 #include <Servo.h>
 
-const uint8_t  SERVO_PIN   = 9;
+const uint8_t  SERVO_PIN   = 11;   // 실측 신호핀(D9 아님 — 부스 배선 기준)
 const uint8_t  LED_PIN     = 13;
 const int      ANGLE_MIN   = 0;
 const int      ANGLE_MAX   = 180;
@@ -47,8 +47,19 @@ const int SPIN_US_DEFAULT = 2000;   // full-speed continuous rotation (1500 = st
 Servo panel;
 int  targetAngle  = 90;   // sun-track default
 int  currentAngle = 90;
-int  mode         = 0;    // 0 nominal (positional) · 1 attack (positional) · 2 continuous spin
+int  mode         = 0;    // 0 nominal(태양추적) · 1 attack(무한 왕복) · 2 continuous spin
 int  spinUs       = SPIN_US_DEFAULT;
+// 공격 왕복 파라미터. 실측: 0/180 끝단을 때리면 기계적 스톨→과전류→브라운아웃으로 서보가
+// "잠깐 돌다 죽는다". 끝단을 피한 저속 구간(=self-test 로 실제 도는 걸 확인한 프로파일)을
+// 쓰면 스톨이 없어 같은 전원에서도 안정적으로 계속 왕복한다.
+const int ATTACK_LO  = 0;   // 공격 왕복 하한(0 대신 — 끝단 스톨 회피). 브라운아웃 시 20~30 으로 올릴 것
+const int ATTACK_HI  = 180;  // 공격 왕복 상한(180 대신). 브라운아웃 시 160~150 으로 내릴 것
+// 왕복 속도 = SWEEP_STEP° 를 SWEEP_INTERVAL_MS 마다. 값이 몸체에 비해 너무 빠르면(휘둘림)
+// STEP 을 줄이거나 INTERVAL 을 키운다. 현재 1°/60ms ≈ 17°/s (10-170 한 번에 ~9.6s, 아주 느긋).
+// 더 느리게: INTERVAL 을 80·100 으로. 더 빠르게: 40·30 으로.
+const int SWEEP_STEP        = 1;
+const int SWEEP_INTERVAL_MS = 5;
+int  sweepDir     = 1;    // +1: LO→HI, -1: HI→LO
 char lineBuf[48];
 uint8_t lineLen = 0;
 
@@ -73,10 +84,22 @@ void loop() {
     }
   }
 
-  // 2) continuous spin (mode 2) drives a constant pulse; otherwise ease the
-  //    positional servo toward the target so it never slams.
+  // 2) 구동 모드 분기:
+  //    mode 2 = 연속회전 서보(SPIN 펄스)
+  //    mode 1 = 공격(transmit ADCS_TORQUE 999 와 같은 조건) → 각도값 무시, 0→180→0 무한 왕복
+  //    mode 0 = 태양추적(위치제어, targetAngle 로 부드럽게 이동)
   if (mode == 2) {
     panel.writeMicroseconds(spinUs);
+  } else if (mode == 1) {
+    // SWEEP_INTERVAL_MS 마다 SWEEP_STEP° 씩만 이동 → 느긋한 왕복(작은 몸체가 안 휘둘리게).
+    static unsigned long _lastStep = 0;
+    if (millis() - _lastStep >= (unsigned long)SWEEP_INTERVAL_MS) {
+      _lastStep = millis();
+      currentAngle += sweepDir * SWEEP_STEP;
+      if (currentAngle >= ATTACK_HI) { currentAngle = ATTACK_HI; sweepDir = -1; }
+      if (currentAngle <= ATTACK_LO) { currentAngle = ATTACK_LO; sweepDir = +1; }
+      panel.write(currentAngle);
+    }
   } else if (currentAngle != targetAngle) {
     int diff = targetAngle - currentAngle;
     int step = diff;
@@ -106,6 +129,7 @@ void applyLine(char *line) {
     targetAngle = constrain(arg, ANGLE_MIN, ANGLE_MAX);
   } else if (strncmp(line, "MODE", 4) == 0 && hasArg) {
     mode = arg ? 1 : 0;
+    if (mode == 0) targetAngle = currentAngle;   // 정지: 태양추적 안 하고 현재 위치 그대로 유지
   } else if (strncmp(line, "SUN", 3) == 0) {
     targetAngle = 90; mode = 0;
   } else if (strncmp(line, "OFFSUN", 6) == 0) {
@@ -116,6 +140,8 @@ void applyLine(char *line) {
   } else if (strncmp(line, "STOP", 4) == 0) {
     mode = 0; targetAngle = currentAngle;   // hold where it is
     panel.writeMicroseconds(1500);          // neutral pulse halts a continuous-rotation servo
+  } else if (strncmp(line, "WHOAMI", 6) == 0) {
+    Serial.println(F("ID=SOLAR_PANEL"));    // role identity for host auto-routing (detect_boards)
   } else if (strncmp(line, "PING", 4) == 0) {
     Serial.print(F("SOLAR READY angle="));
     Serial.print(targetAngle);

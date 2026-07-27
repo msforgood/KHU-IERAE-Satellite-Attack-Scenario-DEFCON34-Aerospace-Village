@@ -18,7 +18,7 @@ dossier on the left of the console — it holds the answers.
     Wrong ID → the wrong satellite → your command is ignored.
 
   STEP 2 — COMMAND SELECT
-    Choose the subsystem and command:  [ ADCS ★ ] → adcs_torque
+    Choose the subsystem and command:  [ ADCS ★ ] → spin_control
     (the satellite's reaction-wheel torque)
 
   STEP 3 — COMMAND VALUE

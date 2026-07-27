@@ -174,10 +174,60 @@ export function createControls({ container, store, antennaTypes }) {
       <p class="section-title">Uplink Transmission</p>
 
       <div class="control-row control-row--inline">
-        <label for="ctrl-uplink-freq">Uplink Freq (MHz)</label>
+        <label class="enter-hint" for="ctrl-uplink-freq">Uplink Freq (MHz)</label>
         <input type="number" id="ctrl-uplink-freq" step="0.001" />
       </div>
+    </div>
 
+    <hr class="divider" />
+
+    <div class="control-section">
+      <p class="section-title">Mount</p>
+      <div class="control-row">
+        <label class="enter-hint">Antenna type</label>
+        <select id="ctrl-type-uplink">${typeOptions}</select>
+      </div>
+      <div class="control-row">
+        <label class="enter-hint">Azimuth <span id="lbl-az-uplink">0°</span></label>
+        <div class="slider-nudge">
+          <button type="button" id="btn-az-dn" class="nudge" title="−0.1°">◀</button>
+          <input type="range" id="ctrl-az-uplink" min="0" max="360" step="0.1" value="0" />
+          <button type="button" id="btn-az-up" class="nudge" title="+0.1°">▶</button>
+        </div>
+      </div>
+      <div class="control-row">
+        <label class="enter-hint">Elevation <span id="lbl-el-uplink">0°</span></label>
+        <div class="slider-nudge">
+          <button type="button" id="btn-el-dn" class="nudge" title="−0.1°">◀</button>
+          <input type="range" id="ctrl-el-uplink" min="0" max="90" step="0.1" value="0" />
+          <button type="button" id="btn-el-up" class="nudge" title="+0.1°">▶</button>
+        </div>
+      </div>
+      <!-- clickable in the aim stage; if values are wrong it explains what to fix instead of aligning -->
+      <button id="btn-align-antenna" class="btn-step" disabled
+              style="width:100%;height:auto;padding:9px 10px;margin-top:8px;line-height:1.25;font-size:13px"
+              title="Align the dish once azimuth & elevation match the target">🎯 Align Antenna</button>
+      <p id="align-hint" class="tx-status" style="margin-top:4px"></p>
+      <!-- Power Amplifier / TX Power: 화면에서만 숨김(DOM 유지 → JS 참조 안전) -->
+      <div class="control-row" style="display:none">
+        <label>Power Amplifier</label>
+        <select id="ctrl-amplifier">
+          <option value="" disabled selected>Select amplifier</option>
+          ${Object.entries(AMPLIFIERS).map(([k, v]) => `<option value="${k}">${v.label} (${v.freqRange[0]}-${v.freqRange[1]} MHz)</option>`).join("\n          ")}
+        </select>
+      </div>
+      <div class="control-row control-row--inline" style="display:none">
+        <label>TX Power</label>
+        <input type="text" id="ctrl-tx-power" disabled value="—" />
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- 사용자 작업 순서상 마지막 단계: IQ 파일 로드 → TRANSMIT (맨 아래로 이동)
+         게이트: 안테나 정렬(Align)까지 끝나야 이 섹션이 나타난다. -->
+    <div class="control-section" id="uplink-command-section" style="display:none">
+      <p class="section-title">Command &amp; Transmit</p>
       <div class="control-row control-row--inline">
         <label>Command IQ file</label>
         <span id="uplink-file-label" class="rec-dir-label">No file loaded</span>
@@ -187,35 +237,6 @@ export function createControls({ container, store, antennaTypes }) {
 
       <button id="btn-transmit" class="btn-transmit" disabled title="Transmit command to satellite">TRANSMIT</button>
       <p id="tx-status" class="tx-status"></p>
-    </div>
-
-    <hr class="divider" />
-
-    <div class="control-section">
-      <p class="section-title">Mount</p>
-      <div class="control-row">
-        <label>Antenna type</label>
-        <select id="ctrl-type-uplink">${typeOptions}</select>
-      </div>
-      <div class="control-row">
-        <label>Azimuth <span id="lbl-az-uplink">0°</span></label>
-        <input type="range" id="ctrl-az-uplink" min="0" max="360" step="0.1" value="0" />
-      </div>
-      <div class="control-row">
-        <label>Elevation <span id="lbl-el-uplink">0°</span></label>
-        <input type="range" id="ctrl-el-uplink" min="0" max="90" step="0.1" value="0" />
-      </div>
-      <div class="control-row">
-        <label>Power Amplifier</label>
-        <select id="ctrl-amplifier">
-          <option value="" disabled selected>Select amplifier</option>
-          ${Object.entries(AMPLIFIERS).map(([k, v]) => `<option value="${k}">${v.label} (${v.freqRange[0]}-${v.freqRange[1]} MHz)</option>`).join("\n          ")}
-        </select>
-      </div>
-      <div class="control-row control-row--inline">
-        <label>TX Power</label>
-        <input type="text" id="ctrl-tx-power" disabled value="—" />
-      </div>
     </div>
     </div><!-- end panel-uplink -->
 
@@ -263,22 +284,106 @@ export function createControls({ container, store, antennaTypes }) {
   const lblAzUplink      = container.querySelector("#lbl-az-uplink");
   const lblElUplink      = container.querySelector("#lbl-el-uplink");
 
+  // Turn the slider + its number GREEN once the participant drags it onto the
+  // target angle from the console banner (stored as data-target, matched to 1 dp).
+  function checkAim(sliderEl, lblEl) {
+    const t = sliderEl.dataset.target;
+    const hit = t != null && parseFloat(sliderEl.value).toFixed(1) === t;
+    sliderEl.classList.toggle("matched", hit);
+    lblEl.classList.toggle("matched", hit);
+  }
   uplinkAzEl.addEventListener("input", () => {
     const az = parseFloat(uplinkAzEl.value);
-    lblAzUplink.textContent = `${Math.round(az)}°`;
+    lblAzUplink.textContent = `${az.toFixed(1)}°`;
+    checkAim(uplinkAzEl, lblAzUplink);
+    applyGate();
     store.setState((s) => ({ ...s, azimuth: az }));
   });
   uplinkElEl.addEventListener("input", () => {
     const el = parseFloat(uplinkElEl.value);
-    lblElUplink.textContent = `${Math.round(el)}°`;
+    lblElUplink.textContent = `${el.toFixed(1)}°`;
+    checkAim(uplinkElEl, lblElUplink);
+    applyGate();
     store.setState((s) => ({ ...s, elevation: el }));
   });
   const uplinkFileLabel  = container.querySelector("#uplink-file-label");
   const btnLoadUplink    = container.querySelector("#btn-load-uplink");
   const btnTransmit      = container.querySelector("#btn-transmit");
   const txStatus         = container.querySelector("#tx-status");
+  const btnAlign         = container.querySelector("#btn-align-antenna");
+  const cmdSection       = container.querySelector("#uplink-command-section");
+  const btnAzDn          = container.querySelector("#btn-az-dn");
+  const btnAzUp          = container.querySelector("#btn-az-up");
+  const btnElDn          = container.querySelector("#btn-el-dn");
+  const btnElUp          = container.querySelector("#btn-el-up");
+  const alignHint        = container.querySelector("#align-hint");
 
   let uplinkFilePath = null;
+
+  // ── uplink gated wizard ───────────────────────────────────────────────────
+  // The participant works the panel top-to-bottom, entering every value by hand:
+  //   stage 0  only Uplink Freq is live → type the target frequency
+  //   stage 1  antenna type + az/el unlock → pick the dish, drag both onto target;
+  //            [Align Antenna] enables once all three match, and clicking it nudges
+  //            the physical antenna and reveals…
+  //   stage 2  the Command & Transmit section (load IQ → TRANSMIT)
+  let gateStage = 0;
+  const REQUIRED_ANTENNA = "dish";
+  function freqMatches() {
+    const t = uplinkFreqEl.dataset.target;
+    if (t == null) return parseFloat(uplinkFreqEl.value) > 0; // no target yet → any positive freq
+    return parseFloat(uplinkFreqEl.value).toFixed(3) === parseFloat(t).toFixed(3);
+  }
+  function aimMatches() {
+    return uplinkTypeEl.value === REQUIRED_ANTENNA
+      && uplinkAzEl.classList.contains("matched")
+      && uplinkElEl.classList.contains("matched");
+  }
+  function applyGate() {
+    if (gateStage === 0 && freqMatches()) gateStage = 1;     // freq entered → unlock aim
+    // Once aligned (stage 2) every earlier value is frozen — no going back to re-tweak.
+    uplinkFreqEl.disabled = gateStage >= 2;                  // freq: editable until aligned
+    uplinkTypeEl.disabled = gateStage !== 1;                 // aim controls: only in the aim stage
+    uplinkAzEl.disabled   = gateStage !== 1;
+    uplinkElEl.disabled   = gateStage !== 1;
+    btnAlign.style.display = gateStage >= 1 ? "" : "none"; // shown from the aim stage on
+    btnAlign.disabled = gateStage !== 1;                     // clickable in the aim stage; click validates
+    btnAzDn.disabled = btnAzUp.disabled = uplinkAzEl.disabled; // nudge follows the slider's lock
+    btnElDn.disabled = btnElUp.disabled = uplinkElEl.disabled;
+    cmdSection.style.display = gateStage >= 2 ? "" : "none";
+    if (aimMatches()) alignHint.textContent = "";           // fixed everything → drop the guidance
+  }
+  // ±0.1° fine-nudge for the az/el sliders (a 0.1 step is fiddly to hit by dragging)
+  function nudge(sliderEl, delta, lo, hi) {
+    if (sliderEl.disabled) return;
+    const v = Math.max(lo, Math.min(hi, Math.round((parseFloat(sliderEl.value) + delta) * 10) / 10));
+    sliderEl.value = v;
+    sliderEl.dispatchEvent(new Event("input")); // reuse the slider handler: label + match + gate + store
+  }
+  btnAzDn.addEventListener("click", () => nudge(uplinkAzEl, -0.1, 0, 360));
+  btnAzUp.addEventListener("click", () => nudge(uplinkAzEl, 0.1, 0, 360));
+  btnElDn.addEventListener("click", () => nudge(uplinkElEl, -0.1, 0, 90));
+  btnElUp.addEventListener("click", () => nudge(uplinkElEl, 0.1, 0, 90));
+  btnAlign.addEventListener("click", () => {
+    if (btnAlign.disabled) return;
+    // Clicking with wrong values does NOT align — it tells the participant what to fix.
+    if (!aimMatches()) {
+      const todo = [];
+      if (uplinkTypeEl.value !== REQUIRED_ANTENNA) todo.push("set Antenna type to <b>Dish</b>");
+      if (!uplinkAzEl.classList.contains("matched")) todo.push("match <b>Azimuth</b> to the target");
+      if (!uplinkElEl.classList.contains("matched")) todo.push("match <b>Elevation</b> to the target");
+      alignHint.innerHTML = "⚠ Not aligned yet — " + todo.join(", ") + " (each turns green when correct).";
+      alignHint.style.color = "#e0a03a";
+      return;
+    }
+    alignHint.textContent = "";
+    // nudge the physical antenna to the aimed angles (the console owns the GS URL)
+    const az = parseFloat(uplinkAzEl.value), el = parseFloat(uplinkElEl.value);
+    try { window.parent.postMessage({ type: "vsa-align", az, el }, "*"); } catch (e) { /* no parent */ }
+    btnAlign.textContent = "✓ Antenna aligned";
+    gateStage = 2;
+    applyGate();
+  });
 
   function updateUplinkPanel() {
     const satName = uplinkSatEl.value;
@@ -315,6 +420,7 @@ export function createControls({ container, store, antennaTypes }) {
   });
   uplinkTypeEl.addEventListener("change", () => {
     updateUplinkPanel();
+    applyGate();
     window.dispatchEvent(new CustomEvent("uplink-antenna-change", {
       detail: { antennaType: uplinkTypeEl.value },
     }));
@@ -325,10 +431,13 @@ export function createControls({ container, store, antennaTypes }) {
       detail: { active: true, ampKey: uplinkAmpEl.value || null, satellite: uplinkSatEl.value || null },
     }));
   });
-  // Freq is a plain input (not store-bound); STEP 1's preset dispatches "change" and
-  // participants may type it — either way re-evaluate the load-CTA pulse.
+  // Freq is a plain input (not store-bound); the participant types it — re-evaluate
+  // both the load-CTA pulse and the wizard gate (correct freq unlocks the aim stage).
   uplinkFreqEl.addEventListener("input", updateUplinkPanel);
   uplinkFreqEl.addEventListener("change", updateUplinkPanel);
+  uplinkFreqEl.addEventListener("input", applyGate);
+  uplinkFreqEl.addEventListener("change", applyGate);
+  applyGate(); // initial lock: only Uplink Freq is live until the target freq is typed
 
   btnLoadUplink.addEventListener("click", async () => {
     if (btnLoadUplink.dataset.busy) return;
@@ -660,14 +769,17 @@ export function createControls({ container, store, antennaTypes }) {
     lblAz.textContent    = `${Math.round(state.azimuth)}°`;
     lblEl.textContent    = `${Math.round(state.elevation)}°`;
 
-    // Sync uplink sliders
+    // Sync uplink sliders (shared az/el state) — keep the 1-decimal readout and the
+    // green target-match fresh so a background state change can't leave a stale label.
     if (document.activeElement !== uplinkAzEl) {
       uplinkAzEl.value = state.azimuth;
-      lblAzUplink.textContent = `${Math.round(state.azimuth)}°`;
+      lblAzUplink.textContent = `${(+state.azimuth).toFixed(1)}°`;
+      checkAim(uplinkAzEl, lblAzUplink);
     }
     if (document.activeElement !== uplinkElEl) {
       uplinkElEl.value = state.elevation;
-      lblElUplink.textContent = `${Math.round(state.elevation)}°`;
+      lblElUplink.textContent = `${(+state.elevation).toFixed(1)}°`;
+      checkAim(uplinkElEl, lblElUplink);
     }
     lblSpeed.textContent = `${state.rotationSpeed}°/s`;
 
