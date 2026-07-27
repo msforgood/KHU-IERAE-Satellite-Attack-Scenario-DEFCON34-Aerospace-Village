@@ -99,7 +99,13 @@ open_url(){
   case "$(uname)" in
     Darwin) open "$1" ;;
     Linux)  xdg-open "$1" >/dev/null 2>&1 || true ;;
-    *)      command -v powershell >/dev/null 2>&1 && powershell.exe start "$1" || true ;;
+    *)      # Windows: URL 에 '&'(쿼리 구분자)가 있으면 PowerShell 이 연산자로 오해해 파싱 에러가
+            #   난다. → -Command 로 URL 을 작은따옴표 리터럴에 담아 Start-Process 에 넘긴다
+            #   (리터럴 안에선 & 도 문자). URL 내부의 ' 는 '' 로 이스케이프.
+            if command -v powershell.exe >/dev/null 2>&1; then
+              local u_ps="${1//\'/\'\'}"
+              powershell.exe -NoProfile -Command "Start-Process '$u_ps'" >/dev/null 2>&1 || true
+            fi ;;
   esac
 }
 open_url "$URL"

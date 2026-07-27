@@ -29,8 +29,11 @@ if [ -d /config ]; then
 
   # local TLE → gpredict .sat DB entry (registers DEMOSAT) + module
   if [ -f /config/demosat.tle ]; then
-    L1=$(sed -n '2p' /config/demosat.tle)
-    L2=$(sed -n '3p' /config/demosat.tle)
+    # tr -d '\r': /config 는 호스트에서 read-only 로 마운트돼 컨테이너가 줄끝을 못 고친다.
+    # Windows(CRLF) .tle 이면 TLE1/TLE2 끝에 \r 이 붙어 gpredict 가 궤도요소 파싱에 실패 →
+    # 위성이 안 그려지는 빈 창이 된다. 그래서 읽을 때 CR 을 제거한다.
+    L1=$(sed -n '2p' /config/demosat.tle | tr -d '\r')
+    L2=$(sed -n '3p' /config/demosat.tle | tr -d '\r')
     NAME=$(sed -n '1p' /config/demosat.tle | tr -d '\r')
     C=$(sed -n '2p' /config/demosat.tle | cut -c3-7 | tr -d ' ')
     [ -n "$C" ] && CAT="$C"
