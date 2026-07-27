@@ -223,23 +223,31 @@
     </div>
     <div class="pktwrap">
       <section class="panel">
-        <h2>CCSDS SPACE PACKET · <span id="pktLen">0</span> bytes</h2>
-        <div id="pktHex" class="pkthex"></div>
-        <div class="pktlegend">
-          <span><i class="pg-hdr"></i> CCSDS header</span>
-          <span><i class="pg-fc"></i> function code</span>
-          <span><i class="pg-time"></i> execution time</span>
-          <span><i class="pg-dv"></i> delta-v (intent)</span>
-          <span><i class="pg-act"></i> burn (actuation)</span>
-          <span><i class="pg-chk"></i> checksum / CRC</span>
-        </div>
-        <div id="pktFields" class="pktfields"></div>
+        <h2>PACKET STRUCTURE <span class="pkhint">(click a layer to inspect its fields)</span></h2>
+        <div id="pktStack" class="pkstack"></div>
+        <div id="pktFilter" class="pkfilter"></div>
+        <table id="pktTable" class="pktbl">
+          <thead><tr><th>Field</th><th>Size</th><th>Bits</th><th>Value</th><th>Source</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </section>
       <aside class="panel">
         <h2>GROUND STATION UPLINK</h2>
+        <div class="pksublabel">TOTAL SIZE</div>
+        <div id="pktSizes" class="pksizes"></div>
+        <div class="pksublabel">BYTE MAP <span class="pkhint">(the <span id="pktLen">0</span> bytes on the wire)</span></div>
+        <div id="pktHex" class="pkthex"></div>
+        <div class="pktlegend">
+          <span><i class="pl-tf"></i> TF header</span>
+          <span><i class="pl-pri"></i> SPP primary</span>
+          <span><i class="pl-sec"></i> cFS secondary</span>
+          <span><i class="pl-data"></i> payload</span>
+          <span><i class="pl-crc"></i> packet CRC</span>
+          <span><i class="pl-fecf"></i> FECF</span>
+        </div>
         <div id="uplinkSummary" class="uplinksummary"></div>
         <button id="uplinkBtn" class="uplinkbtn">⚡ TRANSMIT BURN COMMAND → ENIGMA-1</button>
-        <div id="observeResult" class="observeresult hidden">Command transmitted — computing time to impact…</div>
+        <div id="observeResult" class="observeresult hidden">Command transmitted, computing time to impact…</div>
         <div class="observebtns"><button id="retryBtn" class="bigbtn hidden">↺ RESET &amp; RE-PLAN</button></div>
         <div class="observenote" id="observeNote">Watch monitor 2: the maneuver plays out and the debris confirms the strike.</div>
       </aside>
