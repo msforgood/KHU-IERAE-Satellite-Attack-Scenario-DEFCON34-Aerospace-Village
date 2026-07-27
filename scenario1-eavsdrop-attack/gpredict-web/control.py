@@ -27,6 +27,62 @@ LEAD = int(os.environ.get("PASS_LEAD", "20"))           # seconds before AOS (Do
 PORT = int(os.environ.get("CTRL_PORT", "6079"))
 
 
+# ── Monotonic-anchored simulated clock ───────────────────────────────────────
+# gpredict runs under libfaketime reading FT_FILE live (FAKETIME_NO_CACHE=1). We DRIVE
+# that faked clock ourselves from CLOCK_MONOTONIC (stable) instead of using a relative
+# "+Ns" offset that tracks the host CLOCK_REALTIME. The host wall clock jumps/drifts/changes
+# timezone (esp. WSL2 after the laptop sleeps) and that used to teleport the satellite; with
+# the monotonic anchor the faked time depends ONLY on elapsed monotonic time, so it is fully
+# independent of the host system clock (timezone/drift/jumps can't touch it). The container is
+# always UTC, so writing UTC (gmtime) + libfaketime reading it stays correct on any host TZ.
+import threading
+
+_sim_lock = threading.Lock()
+_sim_epoch0 = None       # faked UTC epoch at the anchor instant
+_sim_mono0 = 0.0         # time.monotonic() at the anchor instant
+
+
+def sim_anchor(epoch):
+    """Anchor the faked clock so 'faked == epoch right now', then let it advance by monotonic time."""
+    global _sim_epoch0, _sim_mono0
+    with _sim_lock:
+        _sim_epoch0 = float(epoch)
+        _sim_mono0 = time.monotonic()
+
+
+def sim_now():
+    """Current faked UTC epoch (float). Monotonic-based -> immune to host clock jumps."""
+    with _sim_lock:
+        if _sim_epoch0 is None:
+            return time.time()
+        return _sim_epoch0 + (time.monotonic() - _sim_mono0)
+
+
+def write_faketime(epoch):
+    """Write the faked time to FT_FILE in libfaketime's absolute fractional-second format,
+    atomically (temp + rename) so gpredict — which re-reads the file on every clock call —
+    never sees a half-written line."""
+    isec = int(epoch)
+    ms = int(round((epoch - isec) * 1000))
+    if ms >= 1000:                       # rounding carry
+        isec += 1; ms = 0
+    line = time.strftime("@%Y-%m-%d %H:%M:%S", time.gmtime(isec)) + ".%03d" % ms
+    tmp = FT_FILE + ".tmp"
+    with open(tmp, "w") as f:
+        f.write(line)
+    os.replace(tmp, FT_FILE)
+
+
+def _clock_driver():
+    """Continuously push the monotonic-anchored faked time into FT_FILE (~20 Hz)."""
+    while True:
+        try:
+            write_faketime(sim_now())
+        except Exception:
+            pass
+        time.sleep(0.05)
+
+
 # ── Gpredict GUI automation (xdotool over the container's X display) ───────────
 # start.sh pins the control windows at fixed geometry, so these screen-absolute
 # hit coordinates are stable. They were calibrated against the live UI (clicking
@@ -173,7 +229,7 @@ def dl_read():
         return DL_BASE_HZ
 
 
-RADIO_TRACK_PROBE = (268, 1194)   # a corner of the radio Track button: ~210 pressed (Doppler on), ~240 off
+RADIO_TRACK_PROBE = (268, 1544)   # a corner of the radio Track button (y +340, matches RADIO_TRACK): ~210 pressed (Doppler on), ~240 off
 
 
 def _radio_track_on():
@@ -314,24 +370,25 @@ def restart_gpredict():
 
 
 def read_offset_ms():
-    """Current libfaketime offset (ms). The VSA polls this to compute the
-    satellite position at gpredict's (faked) time so the two stay aligned."""
+    """Current faked-vs-real offset (ms). The VSA/countdown poll this to align to gpredict's
+    (faked) time. Derived from the monotonic-anchored sim clock (not the file, which now holds
+    an absolute timestamp)."""
     try:
-        s = open(FT_FILE).read().strip().rstrip("s")
-        return int(float(s)) * 1000
+        return int((sim_now() - time.time()) * 1000)
     except Exception:
         return 0
 
 
 def write_pass_offset():
-    """Write the libfaketime offset as the AOS-LEAD of the next 'good pass' (max el >= MIN_ALT_DEG).
-    This does not restart gpredict: because start.sh runs it with FAKETIME_TIMESTAMP_FILE + FAKETIME_NO_CACHE=1,
-    the running gpredict re-reads this file in real time and its clock jumps immediately.
+    """Move the faked clock to LEAD seconds before the next 'good pass' (max el >= MIN_ALT_DEG)
+    by re-anchoring the monotonic sim clock. The running gpredict picks it up live (the driver
+    thread keeps writing FT_FILE, which gpredict re-reads); no restart needed.
     Returns: (aos_unix, offset_sec, max_alt_deg)."""
     aos, max_alt = next_pass_aos()
-    off = int((aos - LEAD) - time.time())        # move LEAD seconds before AOS
-    with open(FT_FILE, "w") as f:
-        f.write("%+ds" % off)
+    start = aos - LEAD                           # LEAD seconds before AOS
+    sim_anchor(start)
+    write_faketime(start)                        # apply immediately (don't wait for the next driver tick)
+    off = int(start - time.time())
     return aos, off, max_alt
 
 
@@ -380,8 +437,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._reply(500, {"ok": False, "error": str(e)})
         if path == "/realtime":
             try:
-                with open(FT_FILE, "w") as f:
-                    f.write("+0")
+                sim_anchor(time.time())           # advance smoothly from real 'now'
+                write_faketime(sim_now())
                 restart_gpredict()
                 # gpredict reloads the transponder on relaunch, so the downlink knob
                 # returns to its base value -> resync our tracked state to match.
@@ -472,4 +529,10 @@ if __name__ == "__main__":
             raise SystemExit(1)
         raise SystemExit(0)
     print(f"[control] time-control server on :{PORT}  (QTH={QTH}, lead={LEAD}s)")
+    try:
+        write_pass_offset()                       # anchor the monotonic sim clock to the next good pass
+    except Exception as e:
+        print("[control] initial anchor failed (%s); using real time" % e)
+        sim_anchor(time.time()); write_faketime(sim_now())
+    threading.Thread(target=_clock_driver, daemon=True).start()   # drive gpredict's clock from CLOCK_MONOTONIC
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
