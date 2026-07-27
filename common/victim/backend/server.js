@@ -85,7 +85,7 @@ sat.start();
 
 function fireArduino(s) {
   const torque = s["adcs.torque"];
-  console.log(`[arduino] ⚡ TRIGGER: solar panel runaway (torque=${torque} mNm) — GS→Arduino hook`);
+  console.log(`[arduino] ⚡ TRIGGER: solar panel runaway — GS→Arduino hook`);
   if (ARDUINO_URL) {
     try {
       const req = http.request(ARDUINO_URL, { method: "POST" });

@@ -6,7 +6,7 @@ Thin wrapper over the canonical codec (attacker/openvsa/satellites/demosat/ccsds
 Builds an OOK-modulated cf32 IQ file that OpenVSA's decoder.py can decode.
 
 Examples:
-    python3 generate.py spin_control --torque 999 -o attack.cf32  # ★ main scenario
+    python3 generate.py spin_control --torque <mNm> -o attack.cf32  # ★ main scenario
     python3 generate.py solar_panel --angle 0    -o attack.cf32
     python3 generate.py computer_reboot          -o attack.cf32
 """

@@ -249,7 +249,7 @@ function updateBanner() {
       "ENERGY SUPPLY CRITICAL — unauthorized ADCS torque · solar array off-sun · battery draining";
     $("#alarmTitle").textContent = "⚠ ENERGY SUPPLY CRITICAL";
     $("#alarmDesc").textContent =
-      `Reaction-wheel torque ${g("adcs.torque") ?? "?"} mNm — satellite tumbling, solar array losing sun-track. Power ${power.toFixed(1)}W, battery ${batt.toFixed(0)}%.`;
+      `위성 에너지가 급격히 떨어지고 있습니다 — 태양전지 어레이가 태양 정렬을 잃고 배터리가 방전 중입니다. (Power ${power.toFixed(1)}W · Battery ${batt.toFixed(0)}%)`;
     // flash the full-screen alarm on attack onset, then reveal the live
     // telemetry (persistent red banner + red panels keep the crisis on screen)
     if (!wasCritical) {

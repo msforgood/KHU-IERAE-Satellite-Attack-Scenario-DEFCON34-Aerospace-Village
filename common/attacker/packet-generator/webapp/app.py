@@ -137,7 +137,7 @@ COMMAND_UI = {
     "spin_control": {
         "subsystem": "ADCS", "star": True, "title": "Spin the Satellite",
         "blurb": "Spin the satellite with its reaction wheel. A legitimate command — but push the spin past the safe limit and it tumbles out of control.",
-        "fields": [{"key": "torque", "label": "spin", "type": "slider", "min": -1000, "max": 1000, "default": 999,
+        "fields": [{"key": "torque", "label": "spin", "type": "slider", "min": -1000, "max": 1000, "default": 0,
                     "unit": "mNm", "safeAbsMax": 500}],
         "effect": "Spins the satellite out of control → its solar panels can't face the sun → power collapses",
     },
