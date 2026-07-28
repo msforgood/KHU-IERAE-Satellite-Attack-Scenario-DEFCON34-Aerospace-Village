@@ -490,6 +490,35 @@ motor_ready() {
   fi
 }
 
+# flash/리셋 후 포트 재해석 — 네이티브 USB 보드(MKR WiFi 1010)는 '부트로더 포트'와 '실행 스케치
+# 포트'의 COM 번호가 다를 수 있다(Windows 가 USB 정체성별로 COM 을 따로 기억). 업로드 직후나 보드
+# 리셋 후 스케치가 '다른 COM'에서 뜨면 detect_boards 가 잡아둔 ANT_DEV/SOLAR_DEV 가 스테일이 되어
+# verify·자가진단·브리지가 죽은 포트를 문다(증상: 'COMx 열기/전송 실패', WHOAMI 무응답). 그래서 현재
+# 존재하는 모든 포트를 WHOAMI 로 다시 훑어 antenna/solar 가 '실제로 응답하는' COM 으로 교정한다.
+# 응답하는 포트가 없으면 기존 값을 그대로 둔다(무해).
+reresolve_roles() {
+  have node || return 0
+  local scan p role found_ant="" found_sol=""
+  scan="$(list_serial_ports)"
+  while IFS=$'\t' read -r p role; do
+    port_exists "$p" || continue
+    role="$(probe_serial_role "$p")"
+    if   [ "$role" = antenna ] && [ -z "$found_ant" ]; then found_ant="$p"
+    elif [ "$role" = solar ]   && [ -z "$found_sol" ]; then found_sol="$p"
+    fi
+  done <<EOF
+$scan
+EOF
+  if [ -n "$found_ant" ] && [ "$found_ant" != "$ANT_DEV" ]; then
+    c_warn "안테나 포트 자동교정: ${ANT_DEV:-—} → $found_ant (보드 리셋/재플래시로 COM 변경 감지)"
+    ANT_DEV="$found_ant"
+  fi
+  if [ -n "$found_sol" ] && [ "$found_sol" != "$SOLAR_DEV" ]; then
+    c_warn "솔라 포트 자동교정: ${SOLAR_DEV:-—} → $found_sol"
+    SOLAR_DEV="$found_sol"
+  fi
+}
+
 # 연결신호 최종 확인 — 업로드가 끝난 뒤 두 보드가 실제로 WHOAMI 에 응답하는지 재프로브해 요약한다.
 # detect_boards 는 부팅 시 '어느 포트가 무엇인지' 1회 분류만 한다. 여기서는 flash 후 펌웨어가
 # 정상 응답하는지(=연결신호 확인) 최종 점검하고 ✓/! 로 사람이 한눈에 보게 출력한다.
@@ -705,8 +734,20 @@ up() {
     # 최초 부팅(mode=all)에만 '무거운' 하드웨어 프로비저닝을 하고 감지한 보드 포트를 HW_CACHE 에
     # 적어둔다. 다음 참가자 리셋(mode=up)엔 캐시가 있으면 포트감지·코어/라이브러리 설치·스케치
     # 업로드·WHOAMI 확인·왕복 자가진단을 전부 건너뛰고, 안테나를 준비 각도로 옮기는 것만 한다.
+    # 단, 캐시된 안테나 포트가 '지금도' WHOAMI 에 응답할 때만 — MKR 등 네이티브 USB 보드는 리셋/재연결
+    # 시 COM 번호가 바뀌어 캐시가 스테일이 될 수 있으므로, 응답이 없으면 캐시를 버리고 전체 재감지한다.
+    cache_ok=0
     if [ "$MODE" = up ] && [ -f "$HW_CACHE" ]; then
-      . "$HW_CACHE"    # 캐시된 ANT_DEV/SOLAR_DEV/ANT_FQBN 로드(감지 생략)
+      . "$HW_CACHE"    # 캐시된 ANT_DEV/SOLAR_DEV/ANT_FQBN 로드
+      if port_exists "$ANT_DEV" && [ "$(probe_serial_role "$ANT_DEV")" = antenna ]; then
+        cache_ok=1
+      else
+        c_warn "캐시된 안테나 포트(${ANT_DEV:-—}) WHOAMI 무응답 — 보드 리셋으로 COM 이 바뀐 듯. 캐시 폐기 후 전체 재감지."
+        rm -f "$HW_CACHE" 2>/dev/null || true
+        ANT_DEV=""; SOLAR_DEV=""
+      fi
+    fi
+    if [ "$cache_ok" = 1 ]; then
       c_ok "재시작 빠른 경로 — 포트감지·펌웨어 업로드·모터 자가진단 생략(캐시 $HW_CACHE) · ant=${ANT_DEV:-—} solar=${SOLAR_DEV:-—}"
       motor_ready      # 준비 각도로만 이동(왕복 자가진단 없이 빠르게)
     else
@@ -714,9 +755,10 @@ up() {
       detect_boards      # 시리얼 포트 1회 탐지(WHOAMI 역할 분류) → ANT_DEV/SOLAR_DEV
       ensure_arduino_deps # 코어(MKR SAMD·Uno AVR) + Stepper 라이브러리 자동 설치 → flash 첫 실행부터 성공
       flash_boards       # antenna_gimbal / solar 스케치 자동 업로드(arduino-cli)
+      reresolve_roles    # 업로드 직후 COM 이 바뀌었을 수 있으므로 WHOAMI 로 실제 포트 재확인·교정
       verify_boards      # WHOAMI 재프로브 → 안테나·솔라 '연결신호 확인' 요약(start_bridge 전에)
       motor_selftest     # az·el 모터 왕복 테스트 후 준비 자세 정렬(최초 1회)
-      # 감지된 포트를 캐시에 저장 → 다음 참가자부턴 위 빠른 경로로 진입
+      # 감지·교정된 포트를 캐시에 저장 → 다음 참가자부턴 위 빠른 경로로 진입
       printf 'ANT_DEV=%q\nSOLAR_DEV=%q\nANT_FQBN=%q\n' "${ANT_DEV:-}" "${SOLAR_DEV:-}" "${ANT_FQBN:-}" > "$HW_CACHE" 2>/dev/null || true
     fi
     start_bridge       # 브리지 기동(이후 피해 GS 지향각·acquire 스윕 반영) — 매번
