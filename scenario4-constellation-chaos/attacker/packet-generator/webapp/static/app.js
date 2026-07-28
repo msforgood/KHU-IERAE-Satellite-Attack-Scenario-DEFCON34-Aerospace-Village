@@ -302,7 +302,7 @@ var CARDS = [
               ['a₀', 'starting semi-major axis (ENIGMA-1\'s current orbit)'],
               ['v<sub>new</sub>', 'speed just after the burn = v₀ + Δv prograde'],
               ['μ', 'Earth\'s gravitational parameter, 3.986×10¹⁴ (fixed)'] ],
-      effect: 'Raise Δv prograde → v<sub>new</sub> grows → a<sub>new</sub> grows → the far side of the orbit (apogee) climbs toward AURORA-2. This is the knob that makes the two rings touch (MOID → 0).' } },
+      effect: 'Raise Δv prograde → v<sub>new</sub> grows → a<sub>new</sub> grows → the far side of the orbit (apogee) climbs toward AURORA-2. This is the knob that makes the two rings touch (miss distance → 0).' } },
   { id: 'period', order: 2, t: 'Orbital period', c: 'Kepler III',
     sym: 'T = 2π ' + rt(frac('a³', 'μ')),
     out: function (c) { return 'T = ' + fo(c.TinsMin + ' min'); },
@@ -711,7 +711,7 @@ function updateSolve() {
   $('#gTime').classList.toggle('lock', timeLocked);
   var st = $('#solveState');
   if (geomLocked && timeLocked) { st.textContent = 'GEOMETRY + TIMING LOCKED — choose a thruster and confirm the burn.'; st.className = 'solvestate lock'; }
-  else if (!geomLocked) { st.textContent = 'Geometry: raise Δv prograde so the orbits cross (MOID → 0). MOID ' + moidKm + ' km — try Δv prograde ≈ ' + G.nominal.dvp + ' m/s.'; st.className = 'solvestate'; }
+  else if (!geomLocked) { st.textContent = 'Geometry: raise Δv prograde so the orbits cross (miss distance → 0). Miss distance ' + moidKm + ' km, try Δv prograde ≈ ' + G.nominal.dvp + ' m/s.'; st.className = 'solvestate'; }
   else { var sug = suggestPhaseDv(kep[0], tA, S.execTimeSec, S.dv.k); st.textContent = 'Timing: ENIGMA-1\'s pass is off by ' + Math.round(residual) + ' s. Set phasing Δv ≈ ' + sug + ' m/s to slide the arrival onto AURORA-2.'; st.className = 'solvestate'; }
   lockThruster(false);                 // thruster + burn are always available so a packet can be built
   renderBurn();                        // compute the burn plan for whatever values are set (even a near-miss)
@@ -1022,7 +1022,7 @@ function renderDiffSel() {
   var list = Scn.difficulties || [];
   box.innerHTML = list.map(function (d) {
     return '<button class="diffopt' + (d.id === S.difficulty ? ' sel' : '') + '" data-diff="' + d.id + '">' +
-      '<b>' + d.name + '</b><span>MOID ' + Math.round(d.moidThreshold / 1000) + ' km, timing ' + d.timingTolSec + ' s</span></button>';
+      '<b>' + d.name + '</b><span>miss distance ' + Math.round(d.moidThreshold / 1000) + ' km, timing ' + d.timingTolSec + ' s</span></button>';
   }).join('');
   box.querySelectorAll('.diffopt').forEach(function (b) {
     b.onclick = function () {
