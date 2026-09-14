@@ -147,12 +147,20 @@ free_port() {
 # gpredict(③ 조준)는 Docker 컨테이너로만 뜨기 때문에 데몬이 꺼져 있으면 화면이 안 열린다.
 # 그래서 여기서 데몬을 자동 기동하고 올라올 때까지 기다린다. Docker CLI 자체가 없으면(미설치)
 # 조용히 실패(1) → 호출부가 gpredict 없이 진행. 성공 0 / 실패 1. 최대 DOCKER_WAIT(기본 90)초 대기.
+#
+# $1 = launch (기본 1): 0 이면 자동 설치/기동·대기를 전부 건너뛰고 '지금 이 순간' 떠 있는지만
+#   즉시 확인한다(대기 없음). 참가자 리셋(up)마다 이 함수가 불리는데, 기본 동작대로 두면
+#   Docker Desktop 이 어떤 이유로든 내려가 있을 때마다 최대 90초씩 리셋이 멈춘다 — 리셋은
+#   ①②(안테나·업링크)가 정상인 한 항상 빨라야 하므로, up() 은 launch=0 으로 불러 gpredict(③)
+#   만 조용히 건너뛰고 나머지는 지체 없이 뜨게 한다. install()(최초 설치, 참가자 대기 없음)만
+#   기본값(launch=1)으로 자동 기동+대기를 시도한다.
 ensure_docker() {
+  local launch="${1:-1}"
   if ! have docker; then
     # 미설치 → 자동 설치 시도(gpredict ③ 조준 전용, 선택). Docker Desktop 은 대용량이고 최초
     # 실행에 WSL2/재부팅·라이선스 동의가 필요할 수 있어 '이번 세션'에서 바로 못 쓸 수 있다 →
     # 설치만 걸고 안내한다. 실패해도 나머지(①②③ Virtual Antenna·모터)는 정상.
-    if [ "${IS_WINDOWS:-0}" = 1 ] && have winget; then
+    if [ "$launch" = 1 ] && [ "${IS_WINDOWS:-0}" = 1 ] && have winget; then
       say "docker 미설치 → Docker Desktop 자동 설치 시도(gpredict ③ 조준용, 선택)"
       winget install --id Docker.DockerDesktop -e --silent \
         --accept-package-agreements --accept-source-agreements >/tmp/demosat-docker-install.log 2>&1 || true
@@ -160,7 +168,11 @@ ensure_docker() {
     fi
     have docker || { c_warn "docker 없음 — Docker Desktop 설치/실행 후 '새 터미널'에서 재실행하면 gpredict ③ 이 켜집니다(선택). 나머지는 지금도 정상. 로그: /tmp/demosat-docker-install.log"; return 1; }
   fi
-  docker info >/dev/null 2>&1 && return 0     # 이미 떠 있으면 끝
+  docker info >/dev/null 2>&1 && return 0     # 이미 떠 있으면 끝(대기 없이 즉시 반환)
+  if [ "$launch" = 0 ]; then
+    c_warn "Docker 데몬 꺼짐 → ③ gpredict 조준 화면 건너뜀(리셋은 그대로 빠르게 진행). 다음 참가자부터 켜 두려면 Docker Desktop 을 미리 실행해 두세요."
+    return 1
+  fi
   say "Docker 데몬이 꺼져 있음 → 자동 기동 시도 (gpredict ③ 조준용)"
   case "$(uname)" in
     Darwin) open -a Docker >/dev/null 2>&1 || { c_warn "Docker Desktop 실행 실패 — 수동으로 켜세요"; return 1; } ;;
@@ -490,7 +502,7 @@ up() {
   free_port 4534 "OpenVSA WS"
   free_port 4533 "OpenVSA rotctld"
   free_port 4532 "OpenVSA rigctld"
-  local DOCKER_OK=0; ensure_docker && DOCKER_OK=1   # 꺼져 있으면 Docker 데몬 자동 기동+대기(③ gpredict용)
+  local DOCKER_OK=0; ensure_docker 0 && DOCKER_OK=1   # 리셋은 자동기동·대기 없이 즉시 확인만(③ gpredict용, 느리면 안 됨)
   [ "$DOCKER_OK" = 1 ] && free_gpredict   # 잔존 gpredict 컨테이너가 :GP_PORT/:CTRL_PORT 물면 내림(③ 사고 예방)
 
   # ① Command Builder (:BUILDER_PORT) — 시나리오 config/extras 를 함께 전달(④+ 페이즈)
