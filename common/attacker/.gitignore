@@ -10,3 +10,8 @@ gpredict/**/.deps/
 gpredict/config.log
 gpredict/config.status
 gpredict/Makefile
+
+# gpredict Docker 이미지 사전 저장본(수백 MB) — git 에 올리지 않는다. 인터넷 있는 환경에서
+# ./gpredict-web/save-image.sh 로 만들어 booth PC 의 같은 경로로 USB/파일전송으로 복사한다.
+gpredict-web/*.tar
+gpredict-web/*.tar.gz

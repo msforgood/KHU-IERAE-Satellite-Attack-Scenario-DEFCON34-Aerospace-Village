@@ -603,18 +603,14 @@ install() {
   ( cd openvsa && npm install --no-audit --no-fund ) || die "OpenVSA npm install 실패"
   c_ok "OpenVSA 의존성 준비됨"
 
-  # ③ gpredict — Docker 이미지 빌드 (선택; ③ 위성 조준 화면). 이미 빌드돼 있으면(전날 설치 등)
-  # 건너뛴다 — 리셋 때(run.sh)뿐 아니라 install 을 다시 돌려도 인터넷 없이 통과하게.
-  # 이미지를 새로 받아야 할 때만 REBUILD=1 로 강제.
-  echo "[3/3] gpredict Docker 이미지 빌드 → $GP_IMG (선택)"
+  # ③ gpredict — Docker 이미지 준비 (선택; ③ 위성 조준 화면).
+  echo "[3/3] gpredict Docker 이미지 준비 → $GP_IMG (선택)"
   if ensure_docker; then
-    if [ "${REBUILD:-0}" != "1" ] && docker image inspect "$GP_IMG" >/dev/null 2>&1; then
-      c_ok "gpredict 이미지 이미 준비됨(재빌드 생략, 인터넷 불필요) — 새로 받으려면 REBUILD=1"
-    else
-      ( cd gpredict-web && docker build -t "$GP_IMG" . ) \
-        && c_ok "gpredict 이미지 준비됨" \
-        || c_warn "gpredict 이미지 빌드 실패 — ③ 조준 화면 없이도 나머지는 동작"
-    fi
+    # ensure-image.sh: 이미 있으면 재사용 → 없으면 사전 저장 tar 를 load(오프라인, 레지스트리
+    # 접근 없음) → 그것도 없으면 build(최초 1회, 인터넷 필요). run.sh(리셋 때)도 동일 로직 공유.
+    ( IMG="$GP_IMG" gpredict-web/ensure-image.sh ) \
+      && c_ok "gpredict 이미지 준비됨" \
+      || c_warn "gpredict 이미지 준비 실패 — ③ 조준 화면 없이도 나머지는 동작"
   else
     c_warn "docker 없음 → gpredict(③ 조준) 건너뜀. Command Builder + OpenVSA + 콘솔은 정상."
   fi

@@ -2,7 +2,8 @@
 # Build + run the isolated gpredict-in-Docker. Nothing installs on the host.
 # gpredict UI → http://localhost:6080/vnc.html?autoconnect=1&resize=remote
 set -e
-cd "$(dirname "$0")"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+cd "$HERE"
 IMG=${IMG:-demosat-gpredict}
 PORT=${WEB_PORT:-6080}
 
@@ -17,14 +18,10 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-# 리셋마다(부스에서 참가자 교체 때마다) up 이 이 스크립트를 다시 부른다. 이미지가 이미
-# 있으면 재빌드하지 않는다 — 매번 컨텍스트 해시+레이어 캐시 확인만 해도 리셋이 느려지고,
-# 인터넷이 없는 부스 현장에서는(레지스트리 접근 불가) 캐시가 조금만 어긋나도 그대로 실패한다.
-# 최초 빌드는 './start-attacker.sh install' 이 미리(인터넷 있을 때) 해둔다. 이미지를 새로
-# 받아야 할 때만 REBUILD=1 로 강제한다.
-if [ "${REBUILD:-0}" = "1" ] || ! docker image inspect "$IMG" >/dev/null 2>&1; then
-  docker build -t "$IMG" .
-fi
+# 리셋마다(부스에서 참가자 교체 때마다) up 이 이 스크립트를 다시 부른다. 이미지 준비는
+# ensure-image.sh 가 맡는다: 있으면 재사용(즉시) → 없으면 사전 저장 tar 를 load(오프라인,
+# 레지스트리 접근 없음) → 그것도 없으면 build(최초 1회, 인터넷 필요). 자세한 이유는 그 파일 참고.
+IMG="$IMG" "$HERE/ensure-image.sh"
 
 # gpredict-config 볼륨 마운트(Windows Git-Bash 대응):
 #   Git Bash(MSYS)는 '-v ...:/config:ro' 의 '/config' 를 자동으로 'C:\Program Files\Git\config'
