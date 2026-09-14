@@ -23,11 +23,6 @@
 #   CONSOLE_PORT ③ 조준 콘솔 단일 포트(console+vsa+gpredict). 기본 8090
 #   GP_PORT      gpredict noVNC Docker 포트(프록시 대상). 기본 6082
 #   GP_IMG       gpredict Docker 이미지명. 기본 demosat-gpredict
-#   GPREDICT_DOCKER  1이면 ③ gpredict(Docker) 화면을 빌드/기동한다. 기본 0(꺼짐) — 부스 PC엔
-#                Docker Desktop 설치·로그인·인터넷이 전혀 필요 없다(docker 명령 자체를 건드리지
-#                않는다). ③ 조준 화면은 OpenVSA(/vsa, Docker 불필요)로 이미 정상 제공되므로
-#                gpredict 는 '있으면 좋은' 추가 뷰일 뿐이다. 인터넷 있는 환경에서 직접 써보고
-#                싶을 때만 GPREDICT_DOCKER=1 로 켠다.
 #   UPLINK_OUT_DIR  attack.cf32 출력 폴더. 기본 ~/uplink
 #   NO_OPEN      1이면 브라우저 자동 열기 끄기 (기본: 실행 후 ①③ 화면 자동 오픈)
 #   ANT_PORT     안테나 아두이노 시리얼 포트 강제 지정(미지정 시 WHOAMI 자동탐지).
@@ -63,9 +58,6 @@ CONSOLE_PORT="${CONSOLE_PORT:-8090}"   # 단일 포트: console(/) + OpenVSA(/vs
 GP_PORT="${GP_PORT:-6082}"
 CTRL_PORT="${CTRL_PORT:-6072}"   # gpredict 시간제어 서버(phase3 → /arm). noVNC(GP_PORT)와 한 쌍.
 GP_IMG="${GP_IMG:-demosat-gpredict}"
-# 기본 꺼짐 — 부스 PC 는 Docker Desktop 설치/로그인/인터넷이 전혀 필요 없어야 한다.
-# 1로 켜지 않는 한 이 스크립트는 'docker' 명령을 단 한 번도 실행하지 않는다.
-GPREDICT_DOCKER="${GPREDICT_DOCKER:-0}"
 UPLINK_DEST="${UPLINK_DEST:-ws://localhost:4552}"
 UPLINK_OUT_DIR="${UPLINK_OUT_DIR:-$HOME/uplink}"
 # "attacker fully ready" flag — written only AFTER the antenna/solar setup finishes, so
@@ -622,13 +614,11 @@ install() {
   ( cd openvsa && npm install --no-audit --no-fund ) || die "OpenVSA npm install 실패"
   c_ok "OpenVSA 의존성 준비됨"
 
-  # ③ gpredict — Docker 이미지 빌드 (기본 꺼짐; GPREDICT_DOCKER=1 일 때만). 부스 PC 는 Docker
-  # Desktop 설치/로그인/인터넷이 전혀 필요 없어야 하므로, 켜지 않는 한 docker 명령을 아예
-  # 건드리지 않는다 — ③ 조준 화면은 OpenVSA(/vsa)로 이미 정상 제공된다.
-  echo "[3/3] gpredict Docker 이미지 빌드 → $GP_IMG (선택, 기본 꺼짐)"
-  if [ "$GPREDICT_DOCKER" != "1" ]; then
-    c_ok "gpredict(Docker) 생략(기본) — ③ 조준은 OpenVSA로 정상 제공. 켜려면 GPREDICT_DOCKER=1"
-  elif ensure_docker; then
+  # ③ gpredict — Docker 이미지 빌드 (선택; ③ 위성 조준 화면). 이미 빌드돼 있으면(전날 설치 등)
+  # 건너뛴다 — 리셋 때(run.sh)뿐 아니라 install 을 다시 돌려도 인터넷 없이 통과하게.
+  # 이미지를 새로 받아야 할 때만 REBUILD=1 로 강제.
+  echo "[3/3] gpredict Docker 이미지 빌드 → $GP_IMG (선택)"
+  if ensure_docker; then
     if [ "${REBUILD:-0}" != "1" ] && docker image inspect "$GP_IMG" >/dev/null 2>&1; then
       c_ok "gpredict 이미지 이미 준비됨(재빌드 생략, 인터넷 불필요) — 새로 받으려면 REBUILD=1"
     else
@@ -664,9 +654,7 @@ check() {
 
   [ -d openvsa/node_modules ] && c_ok "OpenVSA 의존성 존재" || { c_err "openvsa/node_modules 없음 → install"; ok=0; }
 
-  if [ "$GPREDICT_DOCKER" != "1" ]; then
-    c_ok "gpredict(Docker) 생략(기본) — ③ 조준은 OpenVSA로 정상 제공"
-  elif have docker; then
+  if have docker; then
     if docker image inspect "$GP_IMG" >/dev/null 2>&1; then
       c_ok "gpredict 이미지 '$GP_IMG' 존재"
     else
@@ -703,7 +691,7 @@ up() {
     # Windows 는 bash 서브셸을 죽여도 그 아래 node/python 자식이 살아 포트를 계속 문다 →
     # kill_shell_tree 가 WINPID 로 변환해 taskkill //T 로 트리째 내린다(그 외 OS 는 kill 과 동일).
     local _p; for _p in "${pids[@]:-}"; do kill_shell_tree "$_p"; done
-    if [ "$GPREDICT_DOCKER" = "1" ] && have docker; then
+    if have docker; then
       docker ps -q --filter "ancestor=$GP_IMG" | xargs -r docker stop >/dev/null 2>&1 || true
     fi
   }
@@ -718,9 +706,7 @@ up() {
   free_port 4534 "OpenVSA WS"
   free_port 4533 "OpenVSA rotctld"
   free_port 4532 "OpenVSA rigctld"
-  # 기본 꺼짐(GPREDICT_DOCKER!=1) 이면 docker 명령을 아예 부르지 않는다(설치/로그인/인터넷 불필요).
-  local DOCKER_OK=0
-  [ "$GPREDICT_DOCKER" = "1" ] && { ensure_docker 0 && DOCKER_OK=1; }
+  local DOCKER_OK=0; ensure_docker 0 && DOCKER_OK=1   # 리셋은 자동기동·대기 없이 즉시 확인만(③ gpredict용, 느리면 안 됨)
   [ "$DOCKER_OK" = 1 ] && free_gpredict   # 잔존 gpredict 컨테이너가 :GP_PORT/:CTRL_PORT 물면 내림(③ 사고 예방)
 
   # ① Command Builder (:BUILDER_PORT) — 시나리오 config/extras 를 함께 전달(④+ 페이즈)
