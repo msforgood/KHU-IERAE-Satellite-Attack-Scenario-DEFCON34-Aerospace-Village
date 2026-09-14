@@ -167,7 +167,7 @@
   <section id="phase3" class="phase hidden">
     <div class="objbar">
       <span class="phasetag">PHASE 3 · SOLVE</span>
-      <span>Assemble the equation chain in the right order, then tune the <b>real burn variables</b> (delta-v components, m/s) until the geometry closes (MOID → 0) and ENIGMA-1 arrives at the chosen instant. Finally, back-solve <b>how to fire the gas</b>.</span>
+      <span>Assemble the equation chain in the right order, then tune the <b>real burn variables</b> (delta-v components, m/s) until the geometry closes (miss distance → 0) and ENIGMA-1 arrives at the chosen instant. Finally, back-solve <b>how to fire the gas</b>.</span>
     </div>
     <div class="solvewrap">
       <section class="panel puzzlecol">
@@ -200,7 +200,7 @@
         <button id="gaugeHintBtn" class="hintbtn">💡 Hint · show lock gauges</button>
         <div id="lockFeedback" class="lockfeedback hidden">
           <div class="gaugewrap">
-            <div class="gauge" id="gMoid"><div class="gl">GEOMETRY · MOID</div><div class="gv"><b id="moidNum">—</b><span>km</span></div><div class="grail"><i id="moidFill"></i></div></div>
+            <div class="gauge" id="gMoid"><div class="gl">GEOMETRY · miss distance</div><div class="gv"><b id="moidNum">—</b><span>km</span></div><div class="grail"><i id="moidFill"></i></div></div>
             <div class="gauge" id="gTime"><div class="gl">TIMING · arrival vs target</div><div class="gv"><b id="timeNum">—</b><span>s off</span></div><div class="grail"><i id="timeFill"></i></div></div>
           </div>
           <div id="solveState" class="solvestate">Assemble the chain, then tune the variables until both gauges lock.</div>
