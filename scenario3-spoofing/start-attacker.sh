@@ -59,7 +59,9 @@ UPLINK_DEST="${UPLINK_DEST:-ws://localhost:4553}"
 UPLINK_OUT_DIR="${UPLINK_OUT_DIR:-$HOME/uplink}"
 # "attacker fully ready" flag — written only AFTER setup finishes, so the finale's
 # restart reload waits for it. app.py serves it at /api/ready; run-booth.sh clears it.
-export READY_FLAG="${READY_FLAG:-/tmp/demosat-attacker-ready.flag}"
+# 경로는 flag_path()(proc.sh) — bash 가 쓰고 python(app.py, 네이티브 Win32)이 읽으므로
+# Windows 에선 드라이브 문자 경로로 통일해야 둘이 같은 파일을 본다.
+export READY_FLAG="${READY_FLAG:-$(flag_path demosat-attacker-ready.flag)}"
 # 시나리오 델타: 이 폴더의 scenario.json(페이즈 구성) + extras/(④+ 전용 화면)를 Command
 # Builder에 전달. extras/ 가 없으면(scn2) EXTRA_DIR 미설정 → 순수 3-phase 공격.
 SCENARIO_CONFIG="${SCENARIO_CONFIG:-$SCN_DIR/scenario.json}"
@@ -382,22 +384,34 @@ install() {
     "$SYSPY" -m venv "$VENV" || die "venv 생성 실패 (Debian이면 'sudo apt install python3-venv')"
   fi
   local VPY; VPY="$(venv_py)"; [ -n "$VPY" ] || die "venv python 을 찾을 수 없음 ($VENV)"
-  "$VPY" -m pip install --quiet --upgrade pip \
-    && "$VPY" -m pip install --quiet numpy \
-    || die "numpy 설치 실패"
-  c_ok "numpy 준비됨"
+  # 전날 등 이미 설치돼 있으면(부스 당일 인터넷 없음을 가정) 그대로 통과 — pip 이 PyPI 를
+  # 두드릴 필요가 없다. pip 자체 업그레이드는 있으면 좋을 뿐이라 실패해도 무시(best-effort),
+  # numpy 설치 실패만 치명적으로 취급한다.
+  if "$VPY" -c "import numpy" >/dev/null 2>&1; then
+    c_ok "numpy 이미 준비됨(재설치 생략, 인터넷 불필요)"
+  else
+    "$VPY" -m pip install --quiet --upgrade pip >/dev/null 2>&1 || true
+    "$VPY" -m pip install --quiet numpy || die "numpy 설치 실패 (인터넷 연결 필요 — 최초 설치는 온라인 환경에서 1회)"
+    c_ok "numpy 준비됨"
+  fi
 
   # ② OpenVSA — Node 의존성 (프로젝트 로컬)
   echo "[2/3] OpenVSA Node 의존성 → openvsa/node_modules (전역 아님)"
   ( cd openvsa && npm install --no-audit --no-fund ) || die "OpenVSA npm install 실패"
   c_ok "OpenVSA 의존성 준비됨"
 
-  # ③ gpredict — Docker 이미지 빌드 (선택; ③ 위성 조준 화면)
+  # ③ gpredict — Docker 이미지 빌드 (선택; ③ 위성 조준 화면). 이미 빌드돼 있으면(전날 설치 등)
+  # 건너뛴다 — 리셋 때(run.sh)뿐 아니라 install 을 다시 돌려도 인터넷 없이 통과하게.
+  # 이미지를 새로 받아야 할 때만 REBUILD=1 로 강제.
   echo "[3/3] gpredict Docker 이미지 빌드 → $GP_IMG (선택)"
   if ensure_docker; then
-    ( cd gpredict-web && docker build -t "$GP_IMG" . ) \
-      && c_ok "gpredict 이미지 준비됨" \
-      || c_warn "gpredict 이미지 빌드 실패 — ③ 조준 화면 없이도 나머지는 동작"
+    if [ "${REBUILD:-0}" != "1" ] && docker image inspect "$GP_IMG" >/dev/null 2>&1; then
+      c_ok "gpredict 이미지 이미 준비됨(재빌드 생략, 인터넷 불필요) — 새로 받으려면 REBUILD=1"
+    else
+      ( cd gpredict-web && docker build -t "$GP_IMG" . ) \
+        && c_ok "gpredict 이미지 준비됨" \
+        || c_warn "gpredict 이미지 빌드 실패 — ③ 조준 화면 없이도 나머지는 동작"
+    fi
   else
     c_warn "docker 없음 → gpredict(③ 조준) 건너뜀. Command Builder + OpenVSA + 콘솔은 정상."
   fi

@@ -17,7 +17,14 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-docker build -t "$IMG" .
+# 리셋마다(부스에서 참가자 교체 때마다) up 이 이 스크립트를 다시 부른다. 이미지가 이미
+# 있으면 재빌드하지 않는다 — 매번 컨텍스트 해시+레이어 캐시 확인만 해도 리셋이 느려지고,
+# 인터넷이 없는 부스 현장에서는(레지스트리 접근 불가) 캐시가 조금만 어긋나도 그대로 실패한다.
+# 최초 빌드는 './start-attacker.sh install' 이 미리(인터넷 있을 때) 해둔다. 이미지를 새로
+# 받아야 할 때만 REBUILD=1 로 강제한다.
+if [ "${REBUILD:-0}" = "1" ] || ! docker image inspect "$IMG" >/dev/null 2>&1; then
+  docker build -t "$IMG" .
+fi
 
 # gpredict-config 볼륨 마운트(Windows Git-Bash 대응):
 #   Git Bash(MSYS)는 '-v ...:/config:ro' 의 '/config' 를 자동으로 'C:\Program Files\Git\config'

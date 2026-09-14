@@ -48,11 +48,13 @@ SCN_DIR="$DIR/$SCN"
 [ -x "$SCN_DIR/start-attacker.sh" ] && [ -x "$SCN_DIR/start-victim.sh" ] \
   || { echo "✗ no runnable scenario at $SCN_DIR (need start-attacker.sh + start-victim.sh)"; exit 1; }
 
-export RESTART_FLAG="${RESTART_FLAG:-/tmp/demosat-restart.flag}"
+# 경로는 proc.sh 의 flag_path() 로 결정한다 — Windows 에선 node.exe(RESTART_FLAG를 씀)와
+# bash 가 같은 파일을 보도록 드라이브 문자 경로를 쓴다(자세한 이유는 proc.sh 참고).
+export RESTART_FLAG="${RESTART_FLAG:-$(flag_path demosat-restart.flag)}"
 # attacker-ready flag: start-attacker.sh writes it AFTER the antenna/solar setup, app.py
 # serves it at /api/ready, the finale's reload waits on it. We clear it on every (re)launch
 # so a stale "ready" from the previous run can't reload the browser too early.
-export READY_FLAG="${READY_FLAG:-/tmp/demosat-attacker-ready.flag}"
+export READY_FLAG="${READY_FLAG:-$(flag_path demosat-attacker-ready.flag)}"
 
 VPID=""; APID=""
 

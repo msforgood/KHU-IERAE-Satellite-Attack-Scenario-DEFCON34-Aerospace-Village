@@ -170,6 +170,24 @@ kill_by_pattern() {
   return 0
 }
 
+# ── 크로스 런타임 플래그 파일 경로 ────────────────────────────────────────────
+# READY_FLAG/RESTART_FLAG 는 bash(MSYS)가 쓰고 node.exe·python.exe(네이티브 Win32)가 읽거나
+# 그 반대로 동작한다(예: server.js 가 쓰고 run-booth.sh 가 읽음, start-attacker.sh 가 쓰고
+# app.py 가 읽음). POSIX 식 '/tmp/...' 는 MSYS 안에서만 유효한 매핑이고, 네이티브 바이너리는
+# 이를 '현재 드라이브 루트의 \tmp\...' 로 다르게 해석해 전혀 다른 파일을 보게 된다 → 신호가
+# 영원히 전달되지 않는다(리셋 안 됨·"준비완료" 대기가 안 풀림). 두 세계 모두 이해하는
+# 드라이브 문자 경로(C:/...)로 통일한다.
+flag_path() {
+  local name="$1" base
+  if [ "$IS_WINDOWS" = 1 ]; then
+    base="${TEMP:-${TMP:-/tmp}}"
+    _p_have cygpath && base="$(cygpath -m "$base" 2>/dev/null || echo "$base")"
+    printf '%s/%s' "$base" "$name"
+  else
+    printf '/tmp/%s' "$name"
+  fi
+}
+
 # ── 포트 회수 ─────────────────────────────────────────────────────────────────
 # 데모 전용 포트라 점유자를 정리해도 안전하다. TERM → 1초 → 남아 있으면 KILL.
 # 반환: 항상 0 (set -e 아래에서도 안전).
