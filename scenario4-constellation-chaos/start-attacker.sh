@@ -51,11 +51,33 @@ die()    { c_err "$*" >&2; exit 1; }
 have()   { command -v "$1" >/dev/null 2>&1; }
 open_url() {
   [ "${NO_OPEN:-0}" = "1" ] && return 0
-  case "$(uname)" in
-    Darwin) open "$1" ;;
-    Linux)  xdg-open "$1" >/dev/null 2>&1 || true ;;
-    *)      command -v powershell >/dev/null 2>&1 && powershell.exe start "$1" || true ;;
+  local url="$1" platform ps_url
+  platform="$(uname -s)"
+  # WSL should use the Windows host's default browser.
+  if [ "$platform" = "Linux" ] && {
+    [ -n "${WSL_INTEROP:-}${WSL_DISTRO_NAME:-}" ] || [[ "$(uname -r)" == *[Mm]icrosoft* ]]
+  }; then
+    platform="Windows"
+  fi
+  case "$platform" in
+    Windows|MINGW*|MSYS*|CYGWIN*)
+      # Escape single quotes for PowerShell's literal string syntax.
+      ps_url="${url//\'/\'\'}"
+      command -v powershell.exe >/dev/null 2>&1 && \
+        powershell.exe -NoProfile -NonInteractive -Command \
+          "Start-Process -FilePath '$ps_url' -ErrorAction Stop" >/dev/null 2>&1 && return 0
+      command -v cmd.exe >/dev/null 2>&1 && \
+        cmd.exe /d /c start "" "$url" >/dev/null 2>&1 && return 0
+      ;;
+    Darwin)
+      command -v open >/dev/null 2>&1 && open "$url" >/dev/null 2>&1 && return 0
+      ;;
+    Linux)
+      command -v xdg-open >/dev/null 2>&1 && xdg-open "$url" >/dev/null 2>&1 && return 0
+      ;;
   esac
+  printf '  ! 기본 브라우저를 열지 못했습니다. 직접 접속하세요: %s\n' "$url" >&2
+  return 0
 }
 pick_python() { if [ -x "$VENV/bin/python" ]; then echo "$VENV/bin/python"; else echo "python3"; fi; }
 free_port() {
