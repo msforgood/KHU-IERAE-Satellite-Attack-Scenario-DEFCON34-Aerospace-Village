@@ -286,7 +286,11 @@
   Engine.prototype.showWarning = function (v) { this.warning.visible = v; };
   Engine.prototype.targetEarth = function () { this.controls.target.set(0, 0, 0); this.controls.update(); };
   Engine.prototype.setFocus = function (p) { if (p) { this.controls.target.set(p.x * SCENE_SCALE, p.y * SCENE_SCALE, p.z * SCENE_SCALE); this.controls.update(); } };
-  Engine.prototype.frame = function (maxR) { var d = maxR * SCENE_SCALE * 2.9; this.camera.position.set(d * 0.5, d * 0.5, -d * 0.72); this.controls.target.set(0, 0, 0); this.controls.update(); this.render(); };
+  Engine.prototype.frame = function (maxR) {
+    // An immediate reset must not be overwritten by the previous camera glide.
+    if (this._frameRaf != null) { root.cancelAnimationFrame(this._frameRaf); this._frameRaf = null; }
+    var d = maxR * SCENE_SCALE * 2.9; this.camera.position.set(d * 0.5, d * 0.5, -d * 0.72); this.controls.target.set(0, 0, 0); this.controls.update(); this.render();
+  };
   // lock-on: keep Earth the pivot but swing the camera so P sits in front of the globe.
   // smooth (truthy) eases the viewing DIRECTION toward the target instead of snapping, so the
   // hand-off from the free view to following ENIGMA-1 glides in rather than cutting hard. Pass a

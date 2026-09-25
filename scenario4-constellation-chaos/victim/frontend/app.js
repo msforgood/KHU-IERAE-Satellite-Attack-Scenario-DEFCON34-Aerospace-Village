@@ -268,11 +268,13 @@ function cdm(vic, m, tcaSec) {
 }
 
 // ── video + alarm ────────────────────────────────────────────────────────────
-var aftermathShown = false, videoTimer = null;
+var aftermathShown = false, videoTimer = null, videoGeneration = 0;
 function playVideo(vic) {
+  hideVideo();
+  var generation = videoGeneration;
   var ov = $('#videoOverlay'), v = $('#collisionVideo');
   reportCollision();
-  var done = function () { afterVideo(vic); };
+  var done = function () { if (generation === videoGeneration) afterVideo(vic); };
   if (!ov || !v) { done(); return; }
   ov.classList.remove('hidden'); v.onended = done;
   try { v.currentTime = 0; var p = v.play(); if (p && p.catch) p.catch(done); } catch (e) { done(); }
@@ -283,16 +285,28 @@ function afterVideo(vic) {
   var ov = $('#videoOverlay'); if (ov) ov.classList.add('hidden');
   document.body.classList.add('collision'); showAlarm(vic);
 }
-function hideVideo() { var ov = $('#videoOverlay'), v = $('#collisionVideo'); if (ov) ov.classList.add('hidden'); if (v) { try { v.pause(); } catch (e) {} } clearTimeout(videoTimer); }
+function hideVideo() {
+  videoGeneration++; // invalidate ended callbacks and pending play() rejections
+  var ov = $('#videoOverlay'), v = $('#collisionVideo');
+  if (ov) ov.classList.add('hidden');
+  if (v) { v.onended = null; try { v.pause(); v.currentTime = 0; } catch (e) {} }
+  clearTimeout(videoTimer); videoTimer = null;
+}
 function showAlarm(vic) { var a = $('#alarm'); if (!a) return; var d = $('#alarmDesc'); if (d) d.textContent = 'Unauthorized burn command - ENIGMA-1 struck ' + vic + '. Debris cascade in progress across AURORA.'; a.classList.remove('hidden'); }
 function hideAlarm() { var a = $('#alarm'); if (a) a.classList.add('hidden'); }
 function reportCollision() { if (collisionReported) return; collisionReported = true; try { fetch('/api/collision-reported', { method: 'POST' }).catch(function () {}); } catch (e) {} }
 
 // ── reset ─────────────────────────────────────────────────────────────────────
 function doReset() {
-  collided = false; collisionReported = false; aftermathShown = false; clearEvtTimers();
+  collided = false; collisionReported = false; aftermathShown = false; clearEvtTimers(); stopNominal();
   document.body.classList.remove('collision'); hideVideo(); hideAlarm();
-  if (sim) { sim.setSatellites(Scn.satellites()); sim.lockOn('demosat'); setTimeout(function () { if (sim) sim.lockId = null; }, 150); if (sim.engine && sim.engine.setPlume) sim.engine.setPlume(null); }
+  if (sim) {
+    sim.setSatellites(Scn.satellites());
+    sim.reset(); // clear effect playback, debris, explosion and previous outcome
+    sim.lockOn('demosat');
+    setTimeout(function () { if (sim) sim.lockId = null; }, 150);
+    if (sim.engine && sim.engine.setPlume) sim.engine.setPlume(null);
+  }
   atkKep = null; tgtKep = null; converging = false; nominalT = 0; livePos = {}; startNominal();
   setBanner('nominal', 'NOMINAL - all satellites separated and station-keeping');
   setTag('#orbitTag', 'nominal', 'STATION-KEEPING'); setTag('#threatTag', 'nominal', 'NONE');
@@ -305,6 +319,7 @@ function doReset() {
   ['#cdmSec', '#cdmMiss', '#cdmTca', '#cdmRel', '#cdmPc'].forEach(function (s) { set(s, '—'); });
   var cn = $('#cdmNote'); if (cn) cn.textContent = 'No conjunctions screened. All AURORA members separated.';
   var sb = $('#simbar'); if (sb) { sb.textContent = 'Awaiting uplink…'; sb.className = 'simbar'; }
+  var log = $('#log'); if (log) log.innerHTML = '<div class="logempty">No commands received.</div>';
 }
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
@@ -314,7 +329,11 @@ function connect() {
   ws.onclose = function () { var d = $('#connDot'), t = $('#connText'); if (d) d.className = 'dot off'; if (t) t.textContent = 'RECONNECTING…'; setTimeout(connect, 1000); };
   ws.onmessage = function (e) {
     var msg; try { msg = JSON.parse(e.data); } catch (x) { return; }
-    if (msg.type === 'hello') { if (msg.scenario) { var c = msg.scenario.count; setVal('#cMembers', String(c)); updateConstellation(c, c); } }
+    if (msg.type === 'hello') {
+      // A reset broadcast may have been missed while this dashboard was disconnected.
+      if (msg.state && msg.state.status === 'nominal') doReset();
+      if (msg.scenario) { var c = msg.scenario.count; setVal('#cMembers', String(c)); updateConstellation(c, c); }
+    }
     else if (msg.type === 'collision') { addLog('START BURN', (msg.collided !== false ? 'collision course, ' : 'maneuver near miss, ') + (msg.closingKmS || '?') + ' km/s'); onCollision(msg); }
     else if (msg.type === 'reset') { doReset(); }
     else if (msg.type === 'uplink') { addLog(msg.command || 'command', 'received'); }

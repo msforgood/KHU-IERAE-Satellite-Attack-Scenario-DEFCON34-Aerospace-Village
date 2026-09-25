@@ -150,9 +150,12 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
   if (url === "/api/reset" && req.method === "POST") {
+    // Capture the victim's confirmation before clearing it. The console may
+    // already have timed out and stopped polling when this signal arrived.
+    const previousVideoPlayed = gsState.videoPlayed === true;
     reset();
     res.writeHead(200, { "Content-Type": "application/json" });
-    return res.end(JSON.stringify({ ok: true }));
+    return res.end(JSON.stringify({ ok: true, previousVideoPlayed }));
   }
   // monitor 2 reports that it actually played the debris-collision video, so the
   // attacker console can switch from "impact countdown" to "attack succeeded".
@@ -170,6 +173,9 @@ const httpServer = http.createServer((req, res) => {
 
 const browserWss = new WSServer(httpServer);
 browserWss.on("connection", (ws) => {
+  // Reloading/closing a dashboard can reset its socket. Keep the server alive
+  // so subsequent reset requests and the next participant can still connect.
+  ws.on("error", (err) => console.warn("[gs] dashboard connection error:", err.code || err.message));
   ws.send(JSON.stringify({ type: "hello", state: gsState, scenario: {
     altKm: Scenario4.altKm, constellation: Scenario4.target.constellation,
     count: Scenario4.target.constellationCount, neighbors: Scenario4.neighborsInfo } }));
