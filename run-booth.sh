@@ -20,6 +20,19 @@
 set -uo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
+# Additional scenarios have different service layouts. Keep the original scn2/scn3
+# supervisor below unchanged and dispatch scn1/scn4 to their separate launcher.
+# Usage: ./run-booth.sh <scn1|scn4> [install|check|up|all] (default: all)
+case "${1:-}" in
+  scn1|scn4) exec bash "$DIR/common/booth-scn14.sh" "$@" ;;
+  ""|-h|--help)
+    echo "Usage: ./run-booth.sh <scn1|scn2|scn3|scn4>"
+    echo "  scn1: Eavesdrop; scn2: Uplink Attack; scn3: Spoofing; scn4: Constellation Chaos"
+    echo "  scn1/scn4 modes: install (prepare), check, up (start), all (prepare + start; default)"
+    [ -n "${1:-}" ] && exit 0 || exit 1 ;;
+  scn2|scn3) ;; # continue through the original supervisor
+  *) echo "Unknown scenario '$1': choose scn1, scn2, scn3 or scn4." >&2; exit 1 ;;
+esac
 # 포트/프로세스 정리는 OS 마다 도구가 다르다(macOS·Linux=lsof/pkill, Windows Git Bash=
 # netstat/taskkill). 공용 헬퍼로 흡수 — 이게 없으면 Windows 에서 이전 실행이 살아남아
 # 다음 실행이 EADDRINUSE(0.0.0.0:4552/4553 등)로 죽는다.

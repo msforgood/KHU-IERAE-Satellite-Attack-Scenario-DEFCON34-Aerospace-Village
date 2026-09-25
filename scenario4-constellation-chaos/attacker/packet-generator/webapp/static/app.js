@@ -920,11 +920,15 @@ function postJSON(url, body) {
   return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     .then(function (r) { return r.json(); }).catch(function (e) { return { ok: false, error: String(e) }; });
 }
-var observePoll = null, countdownTimer = null;
-// how the retry button behaves: 'resume' (near-miss) drops back into Phase 3 with the chain kept
-// assembled to re-tune values; 'replan' resets the pass and returns to Phase 2 for a fresh plan.
-var retryMode = 'replan';
-function clearObserveTimers() { if (observePoll) { clearInterval(observePoll); observePoll = null; } if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; } }
+var observePoll = null, countdownTimer = null, observeGeneration = 0;
+// Two reset destinations: confirmed success starts at INFO (the initial briefing);
+// every unsuccessful attempt resumes Phase 3 with the chosen pass retained.
+var retryMode = 'resume', retryInProgress = false;
+function clearObserveTimers() {
+  observeGeneration++; // also invalidate status requests that are already awaiting a response
+  if (observePoll) { clearInterval(observePoll); observePoll = null; }
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+}
 function uplinkAnimHTML() {
   return '<div class="uplinkanim">' +
     '<div class="ua-row"><span class="ua-gs">📡</span>' +
@@ -945,6 +949,7 @@ async function doUplink() {
 }
 function renderObserve() {
   var box = $('#observeResult'); if (!box) return; clearObserveTimers();
+  var generation = observeGeneration;
   var eta = (Scn.simOpts && Scn.simOpts.impactTargetSec) || 18, t0 = Date.now(), failAt = t0 + (eta + 16) * 1000, vic = G.vic.name;
   var paint = function () {
     var left = Math.max(0, eta - (Date.now() - t0) / 1000);
@@ -957,8 +962,10 @@ function renderObserve() {
   var retry = $('#retryBtn'); if (retry) retry.classList.add('hidden');
   countdownTimer = setInterval(paint, 100);
   observePoll = setInterval(async function () {
-    var st = null; try { st = await (await fetch('/api/observe-status')).json(); } catch (e) {}
-    if (st && st.videoPlayed) { clearObserveTimers(); showSuccess(); }
+    if (generation !== observeGeneration) return;
+    var st = null; try { var response = await fetch('/api/observe-status'); if (response.ok) st = await response.json(); } catch (e) {}
+    if (generation !== observeGeneration) return;
+    if (st && st.ok === true && st.videoPlayed === true) { clearObserveTimers(); showSuccess(); }
     else if (Date.now() > failAt) { clearObserveTimers(); showTimeout(); }
   }, 700);
 }
@@ -979,7 +986,7 @@ function renderObserveMiss() {
   countdownTimer = setInterval(paint, 100);
 }
 function showMiss(missKm) {
-  retryMode = 'resume';   // near miss: retry keeps the chain assembled and just re-tunes the burn
+  retryMode = 'resume';   // keep the selected pass and resume adjustment
   var box = $('#observeResult'), vic = G.vic.name;
   box.className = 'observeresult miss';
   box.innerHTML = '<div class="obico">🛰</div><div class="obtitle">NO COLLISION (NEAR MISS)</div>' +
@@ -988,7 +995,7 @@ function showMiss(missKm) {
   var note = $('#observeNote'); if (note) note.textContent = 'Try again with a tighter burn.';
 }
 function showSuccess() {
-  retryMode = 'replan';   // success: reset for a fresh demonstration run
+  retryMode = 'restart';   // only the victim's videoPlayed confirmation reaches this result
   var box = $('#observeResult'), vic = G.vic.name, cs = (S.geom && S.geom.closingKmS) || '';
   box.className = 'observeresult hit celebrate';
   box.innerHTML = '<div class="celebico">🎉</div><div class="celebtitle">ATTACK SUCCESSFUL</div><div class="celebsub">ENIGMA-1 struck <b>' + vic + '</b> at ' + cs + ' km/s. Debris is cascading onto the AURORA constellation — watch it on monitor 2.</div>';
@@ -996,24 +1003,46 @@ function showSuccess() {
   var note = $('#observeNote'); if (note) note.textContent = 'Reset to run the demonstration again.';
 }
 function showTimeout() {
-  retryMode = 'replan';
+  retryMode = 'resume';
   var box = $('#observeResult');
   box.className = 'observeresult miss';
   box.innerHTML = '<div class="obico">✕</div><div class="obtitle">COLLISION NOT CONFIRMED</div><div class="obsub">Monitor 2 did not report a debris cascade in time. Make sure the ground station dashboard is open, then reset and transmit again.</div>';
-  var retry = $('#retryBtn'); if (retry) { retry.classList.remove('hidden'); retry.textContent = '↺ RESET & RE-PLAN'; }
+  var retry = $('#retryBtn'); if (retry) { retry.classList.remove('hidden'); retry.textContent = '↺ TRY AGAIN'; }
 }
 async function doRetry() {
-  var b = $('#retryBtn'); if (b) { b.disabled = true; b.textContent = '… RESETTING'; }
+  if (retryInProgress) return;
+  retryInProgress = true;
+  var mode = retryMode, b = $('#retryBtn'), label = b && b.textContent;
+  if (b) { b.disabled = true; b.textContent = '… RESETTING'; }
   clearObserveTimers();
-  await postJSON('/api/reset-target', {});
-  var res = $('#observeResult'); if (res) res.classList.add('hidden');
-  if (b) { b.disabled = false; b.classList.add('hidden'); }
-  if (retryMode === 'resume') {
-    showPhase(3, true);   // near miss: keep the assembled chain + pass, re-tune the values only
-  } else {
-    S.execPassM = null; S.execTimeSec = null;   // force re-picking a pass
-    showPhase(2);
+  try {
+    var response = await fetch('/api/reset-target', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({})
+    });
+    var result = await response.json();
+    // The proxy can return ok:true even when the victim's nested reply reports failure.
+    if (!response.ok || !result || result.ok !== true || !result.gs || result.gs.ok !== true) {
+      throw new Error((result && (result.error || (result.gs && result.gs.error))) || 'Victim reset was not confirmed.');
+    }
+  } catch (e) {
+    var note = $('#observeNote'); if (note) note.textContent = 'Reset failed: ' + String(e.message || e) + ' Try again.';
+    if (b) { b.disabled = false; b.textContent = label; }
+    retryInProgress = false;
+    return;
   }
+  // Keep a success already confirmed by the victim even if its state was reset
+  // separately. The snapshot also catches confirmation arriving after timeout.
+  var confirmed = mode === 'restart' || result.gs.previousVideoPlayed === true;
+  if (confirmed) {
+    // A fresh document restores the briefing, difficulty, puzzle and simulators.
+    var freshUrl = window.location.pathname + '?new-session=' + Date.now();
+    window.location.assign(freshUrl);
+    return; // keep reset locked until navigation completes
+  }
+  var res = $('#observeResult'); if (res) res.classList.add('hidden');
+  if (b) { b.disabled = false; b.textContent = label; b.classList.add('hidden'); }
+  retryInProgress = false;
+  showPhase(3, true);   // failure: retain the selected pass and assembled chain
 }
 
 // ── difficulty picker (intro) ─────────────────────────────────────────────────

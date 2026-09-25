@@ -38,7 +38,16 @@ log(){ printf '\033[36m[run]\033[0m %s\n' "$*"; }
 err(){ printf '\033[31m[run:ERR]\033[0m %s\n' "$*" >&2; }
 
 check_http(){  # $1=port $2=label
-  local c; c="$(curl -s -m4 -o /dev/null -w '%{http_code}' "http://localhost:$1/" 2>/dev/null)"
-  if [ "$c" = "000" ]; then err "localhost:$1 ($2) no response - check port publishing / zombie docker-proxy"; return 1
-  else log "localhost:$1 ($2) OK (HTTP $c)"; fi
+  local c attempt
+  # A cold Docker/noVNC start can outlast the launcher's initial sleep.
+  # Wait for a usable response instead of aborting the whole booth too early.
+  for attempt in {1..30}; do
+    c="$(curl -s --connect-timeout 1 --max-time 2 -o /dev/null -w '%{http_code}' "http://localhost:$1/" 2>/dev/null)" || c="000"
+    case "$c" in
+      2??|3??) log "localhost:$1 ($2) OK (HTTP $c)"; return 0 ;;
+    esac
+    sleep 1
+  done
+  err "localhost:$1 ($2) not ready (HTTP $c) - check port publishing / container logs"
+  return 1
 }
