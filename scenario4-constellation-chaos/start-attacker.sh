@@ -91,12 +91,32 @@ free_port() {
   [ -n "$pids" ] && { echo "$pids" | xargs kill -9 2>/dev/null || true; sleep 1; }
 }
 
+venv_python_healthy() {
+  [ -x "$VENV/bin/python" ] && "$VENV/bin/python" -c \
+    'import sys; sys.exit(sys.prefix == sys.base_prefix)' >/dev/null 2>&1
+}
+
+venv_setup_failed() {
+  local version package="python3-venv"
+  version="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null)" || version=""
+  if [[ "$version" =~ ^3\.[0-9]+$ ]]; then package="python${version}-venv"; fi
+  c_err "$*" >&2
+  c_err "On Debian/Ubuntu, install venv/ensurepip for the selected python3: sudo apt install $package" >&2
+  c_err "python3-venv installs support for the distribution's default Python; other Python installations need their own matching venv/ensurepip support." >&2
+  die "Then rerun './start-attacker.sh install'; an incomplete .venv is repaired without clearing its contents. See the error above if setup still fails."
+}
+
 install() {
   say "1/3  first-time setup"
-  have python3 || die "python3 not found"
-  if [ ! -d "$VENV" ]; then
-    echo "[1/1] creating venv -> $VENV"
-    python3 -m venv "$VENV" || die "venv creation failed (Debian: 'sudo apt install python3-venv')"
+  have python3 || die "python3 not found (Debian/Ubuntu: sudo apt install python3 python3-venv)"
+  # A failed ensurepip step can leave .venv and bin/python behind without pip.
+  # Check both before the numpy fast path, and reuse the directory on retry.
+  if ! venv_python_healthy || ! "$VENV/bin/python" -m pip --version >/dev/null 2>&1; then
+    echo "[1/1] creating or repairing venv -> $VENV"
+    python3 -m venv "$VENV" || venv_setup_failed "venv creation/repair failed"
+    venv_python_healthy || die "venv Python is not usable after setup: $VENV/bin/python (check the interpreter and permissions)"
+    "$VENV/bin/python" -m pip --version >/dev/null 2>&1 \
+      || venv_setup_failed "venv pip is not usable after setup: $VENV/bin/python -m pip"
   fi
   # Fast path: numpy already present -> skip the ~20s network pip round trip entirely.
   if "$VENV/bin/python" -c "import numpy" 2>/dev/null; then
@@ -106,8 +126,9 @@ install() {
   fi
   echo "[1/1] installing Command Builder python deps (numpy) -> $VENV"
   "$VENV/bin/python" -m pip install --quiet --upgrade pip \
-    && "$VENV/bin/python" -m pip install --quiet numpy \
-    || die "numpy install failed"
+    || die "pip upgrade failed (check the pip error above, network access, and package index settings; then rerun './start-attacker.sh install')"
+  "$VENV/bin/python" -m pip install --quiet numpy \
+    || die "numpy install failed (check the pip error above, network access, and package index settings; then rerun './start-attacker.sh install')"
   c_ok "numpy ready"
   echo "setup done."
 }
