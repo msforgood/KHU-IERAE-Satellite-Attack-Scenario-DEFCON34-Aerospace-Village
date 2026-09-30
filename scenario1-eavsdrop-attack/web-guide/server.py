@@ -231,14 +231,22 @@ VSA_IQ_SHIM = """
         // Save straight to the fixed server path (gnuradio-web/upload/uploaded.cf32) so Phase 4
         // can pick it up with a single button (no manual download / re-upload).
         var sr = (meta && meta.sampleRate) ? meta.sampleRate : 50000;
+        var r, result;
         try {
-          var r = await fetch('/api/upload?name=' + encodeURIComponent(name) + '&sampleRate=' + sr,
-                              { method: 'POST', headers: {'Content-Type':'application/octet-stream'}, body: all });
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return '\\u2705 Saved to server (' + all.length + ' B, cf32) - ready for Phase 4';
+          r = await fetch('/api/upload?name=' + encodeURIComponent(name) + '&sampleRate=' + sr,
+                               { method: 'POST', headers: {'Content-Type':'application/octet-stream'}, body: all });
         } catch (e) {
-          return '\\u2717 Save failed: ' + e.message;
+          throw new Error('Save confirmation unavailable: ' + e.message + '. The server may have received the file.');
         }
+        try { result = await r.json(); }
+        catch (e) { throw new Error('Save confirmation unavailable: invalid server response (HTTP ' + r.status + ').'); }
+        if (!r.ok || !result || result.ok !== true) {
+          throw new Error((result && result.error) || ('Upload rejected (HTTP ' + r.status + ').'));
+        }
+        if (result.exists !== true || !Number.isFinite(result.size) || result.size <= 0 || result.size !== all.byteLength) {
+          throw new Error('Save confirmation unavailable: the server did not confirm the expected file size.');
+        }
+        return 'Saved to server (' + (result.size / 1048576).toFixed(1) + ' MB, cf32)';
       },
       onQTHUpdated: () => {}, decodeUplink: async () => ({}),
       chooseUplinkFile: async () => null, getUplinkFlag: async () => null,
