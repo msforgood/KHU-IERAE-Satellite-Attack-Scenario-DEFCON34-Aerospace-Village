@@ -60,6 +60,7 @@ function renderPhaseTags() {
   });
 }
 function canGo(id) {
+  if (recordingSavePending) return false;
   if (state.reached[id]) return true;
   if (id === 'puzzle') return state.recUploaded;      // the puzzle needs the PHASE 4 capture
   if (id === 'flowgraph') return state.puzzleSolved;
@@ -97,6 +98,7 @@ function refreshBanner() {
 }
 
 function show(id) {
+  if (recordingSavePending) return;
   state.phase = id;
   state.reached[id] = true;
   PHASES.forEach((p) => $(`#p-${p.id}`).classList.toggle('hidden', p.id !== id));
@@ -225,48 +227,88 @@ function mountEmbeds() {
 // Phase-3 record button: triggers the VSA's own IQ recorder inside the embedded VSA
 // iframe (same origin), so it saves exactly what the VSA REC button would.
 let recTimer = null;
+let recordingSavePending = false;
 function wireRecord() {
-  const btn = $('#btnRecord'), stat = $('#btnRecordStat');
-  if (!btn || btn.dataset.wired) return;
+  const btn = $('#btnRecord'), stat = $('#btnRecordStat'), frame = $('#vsaFrame');
+  if (!btn || !stat || !frame || btn.dataset.wired) return;
   btn.dataset.wired = '1';
-  btn.addEventListener('click', () => {
-    const frame = $('#vsaFrame');
-    let vbtn = null;
-    try { vbtn = frame && frame.contentDocument && frame.contentDocument.getElementById('btn-record-iq'); } catch (e) {}
-    if (!vbtn) { stat.className = 'passstat err'; stat.textContent = '✗ Virtual Antenna not ready yet'; return; }
-    vbtn.click();   // toggle the VSA recorder
-    const recording = vbtn.classList.contains('recording');
-    btn.classList.toggle('recording', recording);
-    btn.textContent = recording ? '■ Stop & save' : '⏺ Record';
+  let recorder = null, vbtn = null, slowSaveTimer = null, lockedButtons = [];
+  const stopTimers = () => {
+    if (recTimer) { clearInterval(recTimer); recTimer = null; }
+    if (slowSaveTimer) { clearTimeout(slowSaveTimer); slowSaveTimer = null; }
+  };
+  const onStart = () => {
+    if (recordingSavePending) return;
+    stopTimers();
+    state.recorded = false; syncTrackGate();
+    btn.classList.add('recording'); btn.textContent = '■ Stop & save';
     stat.className = 'passstat ok';
-    if (recording) {
-      const t0 = performance.now();
-      const fmt = () => { const s = Math.floor((performance.now() - t0) / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
-      if (recTimer) clearInterval(recTimer);
-      stat.textContent = `● Recording ${fmt()}`;
-      recTimer = setInterval(() => { stat.textContent = `● Recording ${fmt()}`; }, 250);   // live elapsed record time
-    } else {
-      if (recTimer) { clearInterval(recTimer); recTimer = null; }
-      // The VSA saves asynchronously (POST /api/upload). VERIFY the server actually stored it rather
-      // than assuming success, so a failed save shows a real error instead of a misleading "saved".
-      stat.className = 'passstat'; stat.textContent = '⏳ saving to the server…';
-      const startedAt = Date.now();
-      let tries = 0;
-      const verify = async () => {
-        let u = null;
-        try { u = await (await fetch('/api/upload', { cache: 'no-store' })).json(); } catch (e) {}
-        if (u && u.exists && u.size && (!u.uploadedAt || u.uploadedAt * 1000 > startedAt - 4000)) {
-          stat.className = 'passstat ok';
-          stat.textContent = `✓ saved (${(u.size / 1048576).toFixed(1)} MB) - ready for Phase 2`;
-          state.recorded = true; syncTrackGate();   // a recording exists -> unlock "Capture & analyze"
-          return;
-        }
-        if (++tries < 12) { setTimeout(verify, 700); return; }
-        stat.className = 'passstat err';
-        stat.textContent = '✗ save failed - record again (hold Record a few seconds before Stop)';
-      };
-      setTimeout(verify, 700);
+    const t0 = performance.now();
+    const paint = () => {
+      const s = Math.floor((performance.now() - t0) / 1000);
+      stat.textContent = `● Recording ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    };
+    paint(); recTimer = setInterval(paint, 250);
+  };
+  const onSave = () => {
+    if (recordingSavePending) return;
+    stopTimers(); recordingSavePending = true; state.recorded = false;
+    btn.classList.remove('recording'); btn.textContent = '⏳ Saving…';
+    stat.className = 'passstat'; stat.textContent = '⏳ saving to the server…';
+    lockedButtons = [btn, vbtn, $('#resetAllBtn'), $('#restart')].filter(Boolean)
+      .map((button) => ({ button, disabled: button.disabled }));
+    lockedButtons.forEach(({ button }) => { button.disabled = true; });
+    syncTrackGate(); refreshStepper();
+    // A slow or missing response does not prove that the server failed to save.
+    slowSaveTimer = setTimeout(() => {
+      stat.textContent = '⏳ Save confirmation is taking longer than usual. Keep this page open while waiting for the server.';
+    }, 30000);
+  };
+  const onSaved = ({ detail }) => {
+    if (!recordingSavePending) return;
+    stopTimers(); recordingSavePending = false;
+    lockedButtons.forEach(({ button, disabled }) => { button.disabled = disabled; });
+    lockedButtons = []; btn.textContent = '⏺ Record';
+    const error = detail && detail.error;
+    const saved = !error && detail && typeof detail.path === 'string' && detail.path.length > 0;
+    state.recorded = !!saved;
+    stat.className = 'passstat ' + (saved ? 'ok' : 'err');
+    stat.textContent = saved ? `✓ ${detail.path} - ready for Phase 2`
+      : '✗ ' + (error || 'Save confirmation unavailable. Check the server before recording again.');
+    syncTrackGate(); refreshStepper();
+  };
+  const bindRecorder = () => {
+    let nextWindow = null, nextButton = null;
+    try {
+      nextButton = frame.contentDocument && frame.contentDocument.getElementById('btn-record-iq');
+      if (nextButton) nextWindow = frame.contentWindow;
+    } catch (e) {}
+    if (nextWindow === recorder && nextButton === vbtn) return;
+    if (recorder) {
+      recorder.removeEventListener('recording-start', onStart);
+      recorder.removeEventListener('recording-save', onSave);
+      recorder.removeEventListener('recording-saved', onSaved);
     }
+    if (recordingSavePending) {
+      onSaved({ detail: { error: 'Save confirmation unavailable: Virtual Antenna reloaded during saving.' } });
+    } else {
+      stopTimers(); btn.classList.remove('recording'); btn.textContent = '⏺ Record';
+    }
+    recorder = nextWindow; vbtn = nextButton;
+    if (recorder) {
+      recorder.addEventListener('recording-start', onStart);
+      recorder.addEventListener('recording-save', onSave);
+      recorder.addEventListener('recording-saved', onSaved);
+    }
+  };
+  // CustomEvents stay inside the same-origin iframe; listen there before any click.
+  frame.addEventListener('load', bindRecorder);
+  bindRecorder();
+  btn.addEventListener('click', () => {
+    if (recordingSavePending) return;
+    bindRecorder();
+    if (!vbtn) { stat.className = 'passstat err'; stat.textContent = '✗ Virtual Antenna not ready yet'; return; }
+    vbtn.click();
   });
 }
 
@@ -274,7 +316,7 @@ function wireRecord() {
 // Any recording counts - the duration and the exact RF values do NOT have to be correct.
 function syncTrackGate() {
   const b = $('#toAnalyze'); if (!b) return;
-  b.disabled = !state.recorded;
+  b.disabled = recordingSavePending || !state.recorded;
   b.textContent = (state.recorded ? '' : '🔒 ') + 'Capture & analyze the signal →';
 }
 
@@ -1541,6 +1583,7 @@ function drawReassemble() {
 // signal and recovered image on the server, then reload the page. Shared by the topbar "Reset for
 // next participant" button and the result-page "Restart ↺" button so both give a clean slate.
 async function doFullReset() {
+  if (recordingSavePending) return;
   if (!confirm('Reset the whole demo (gpredict, Virtual Antenna, GNU Radio, and this page) to the initial state for the next participant?')) return;
   const ov = $('#resetOverlay'); if (ov) ov.classList.remove('hidden');
   // Clear the client-side upload / Analyze / Puzzle state immediately so the recording and its
